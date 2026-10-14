@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write OUT/index.html: the prebuilt viewer with this map built in, and OUT/field-guide.html beside it.
+"""Write OUT/index.html: the prebuilt viewer with this map built in. (The field guide is on the project's site.)
 
 Usage: view.py REPO [--out-dir docs/viz-code]
 Maps over 8 MB are not built in: the page asks for code-map.json instead.
@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from vizcode import gitsrc, readme  # noqa: E402
 
 VIEWER = Path(__file__).resolve().parent.parent / "viewer" / "dist" / "viewer.html"
-GUIDE = VIEWER.with_name("field-guide.html")
 MARKER = "/*CODE_MAP*/"
 INLINE_LIMIT = 8 * 1024 * 1024
 
@@ -39,15 +38,7 @@ def write_page(out: Path) -> str:
     """Write OUT/index.html from OUT/code-map.json; returns the line to report."""
     page, inlined = render((out / "code-map.json").read_text(encoding="utf-8"), VIEWER.read_text(encoding="utf-8"))
     (out / "index.html").write_text(with_header(page, "index.html"), encoding="utf-8")
-    line = f"{out / 'index.html'}" + ("" if inlined else "  (map over 8 MB: open it from the page)")
-    if GUIDE.is_file():
-        try:
-            (out / "field-guide.html").write_text(with_header(GUIDE.read_text(encoding="utf-8"), "field-guide.html"), encoding="utf-8")
-        except (OSError, UnicodeError) as e:
-            line += f"\nfield guide not copied: {e}"
-    else:   # a dev checkout before `npm run guide`: the map still opens, without its guide link
-        line += f"\nfield guide not found at {GUIDE}; index.html written without it"
-    return line
+    return f"{out / 'index.html'}" + ("" if inlined else "  (map over 8 MB: open it from the page)")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -128,13 +128,13 @@ inside the repo).
    `rules.recheck` entry applied, the number of pins and examples, each
    `## Pins` line applied, the `stack.yaml` entries added this run,
    each Stack line left unresolved with its reason,
-   the path of `index.html`, a line pointing to the guide at
-   `OUT/field-guide.html`, and remind the user to commit
+   the path of `index.html`, a line pointing to the field guide at
+   https://si1verwind17.github.io/codebase-map/, and remind the user to commit
    `OUT/code-map.json`, `OUT/stack.yaml` and `OUT/README.md`. `README.md` is
    the skill's, rewritten each run; `map-notes.md` is the user's; both are
    committed. Other files in `OUT` (`structure.json`, `summary.md`,
    `meaning.json`, `meaning.previous.json`, `stale.json`, `index.html`,
-   `field-guide.html`, `audit.md`) are working files, already gitignored.
+   `audit.md`) are working files, already gitignored.
    `CHANGES.md` is the skill's, not the user's: never edit it.
 
 Read `summary.md`, not `structure.json` (it can be megabytes). Look up ids with

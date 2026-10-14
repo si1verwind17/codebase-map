@@ -1,10 +1,10 @@
 {
   "name": "codebase-map",
   "owner": {
-    "name": "si1verwind"
+    "name": "si1verwind17"
   },
   "metadata": {
-    "description": "Turn a repository into a code map you can walk through: services, calls, events, data stores and traces, in a zoomable viewer.",
+    "description": "Turn a repository into a code map you can walk through: services, calls, events, data stores and traces, drawn as a factory floor of buildings and belts in a zoomable viewer.",
     "version": "1.0.0"
   },
   "plugins": [
@@ -15,7 +15,7 @@
       "description": "Maps a repository's services, shared libraries, calls between services, events, streams and database reads and writes into code-map.json, with pinned traces and example data, and opens it in a zoomable factory-style viewer.",
       "version": "1.0.0",
       "author": {
-        "name": "si1verwind"
+        "name": "si1verwind17"
       },
       "license": "MIT",
       "keywords": ["code-map", "architecture", "visualization", "lineage", "service-graph"],

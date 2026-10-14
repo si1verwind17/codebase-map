@@ -507,7 +507,6 @@ descriptions (optional); `roles` overrides package roles (optional). Complete ex
 | `stale.json` | no | `diff.py` (on a full rescan, `previous_meaning` names the file above) |
 | `code-map.invalid.json` | no | `assemble.py` when validation fails |
 | `index.html` | no | `assemble.py` (or `view.py` alone): the viewer with the map built in |
-| `field-guide.html` | no | `assemble.py` / `view.py`: the field guide, copied beside `index.html` |
 | `export-comment.md` | no | the viewer: review comments and pin changes (`## Pins`) for the agent |
 | `map-notes.md` | yes | the user: standing notes on the map and acceptances (see Audit); read on every run, never edited by the agent |
 | `audit.md` | no | `audit.py` (run by `assemble.py` on exit 0 and by `diff.py` on `none`): map limits, accepted, content warnings, findings |
