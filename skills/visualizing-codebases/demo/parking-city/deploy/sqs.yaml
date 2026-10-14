@@ -1,0 +1,23 @@
+# AWS SQS work queue (CloudFormation fragment).
+Resources:
+  ViolationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: violations.fifo
+      FifoQueue: true
+      VisibilityTimeout: 60
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ViolationsDeadLetters.Arn
+        maxReceiveCount: 5
+
+  ViolationsDeadLetters:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: violations-dead.fifo
+      FifoQueue: true
+
+Outputs:
+  # Exposed to services as VIOLATIONS_QUEUE_URL.
+  QueueUrl:
+    Value: !Ref ViolationsQueue

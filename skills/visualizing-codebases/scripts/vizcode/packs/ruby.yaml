@@ -1,0 +1,45 @@
+# Built-in pack: what the scanner knows about Ruby libraries. Same format as stack.yaml; stack.yaml adds to it.
+# requires are matched on `/` boundaries; require_relative is the repo's own; imports win over ignore (`net/http`
+# is a client). ignore: the most used standard library requires.
+# routes (regex): Rails `get "/x", to: "c#a"` in `config/routes.rb` and Sinatra `get "/x" do` (when `sinatra`).
+# The Rails entry has no `when`: a routes file requires nothing, so the regex requires the
+# `to: "c#a"` argument instead, which keeps other `get "x"` calls out; the agent maps `c#a` to its action.
+# `resources :users` / `resource :profile` (no `when` either: a bare call at the start of a line) expand to Rails'
+# REST actions, kept by `only:` / `except:` on the same line (`param:` names the `:id`; `%i[]`, `%w[]`, `=>` too); a nested or namespaced one keeps only its own name.
+# Both are blocks or strings, not methods: the empty `handler` group makes the handler the method around the
+# match or the file, never a `def` below it. tables: ActiveRecord `self.table_name = "x"`, without `when` (a Rails
+# model requires nothing): the regex needs `self.table_name =` at the start of a line and a string literal.
+ruby:
+  ignore: [json, net/http, set, time, date, securerandom, logger, fileutils, yaml, erb, uri, open3, digest,
+           base64, csv, optparse]
+  imports:
+  - {prefix: active_record, kind: sql-db}
+  - {prefix: pg, kind: sql-db}
+  - {prefix: mysql2, kind: sql-db}
+  - {prefix: sidekiq, kind: event}
+  - {prefix: kafka, kind: event}
+  - {prefix: bunny, kind: event}
+  - {prefix: redis, kind: cache}
+  - {prefix: faraday, kind: http-out}
+  - {prefix: httparty, kind: http-out}
+  - {prefix: net/http, kind: http-out}
+  - {prefix: sinatra, kind: http-in}
+  - {prefix: rails, kind: http-in}
+  - {prefix: action_controller, kind: http-in}
+  routes:
+    - name: rails
+      path: literal
+      regex: '^[ \t]*(?P<method>get|post|put|patch|delete)\s*\(?\s*["''](?P<path>[^"'']+)["'']\s*,\s*to:\s*["''][\w/]+#\w+["''](?P<handler>)'
+    - name: rails-resources
+      regex: '^[ \t]*resources\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bparam:|:param\s*=>)\s*:(?P<param>\w+)))?(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?P<handler>)'
+      expand: {index: GET, new: GET /new, create: POST, show: GET /:id, edit: GET /:id/edit,
+               update: [PATCH /:id, PUT /:id], destroy: DELETE /:id}
+    - name: rails-resource
+      regex: '^[ \t]*resource\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?P<handler>)'
+      expand: {new: GET /new, create: POST, show: GET, edit: GET /edit, update: [PATCH, PUT], destroy: DELETE}
+    - name: sinatra
+      when: sinatra
+      path: literal
+      regex: '^[ \t]*(?P<method>get|post|put|patch|delete|head|options)\s*\(?\s*["''](?P<path>/[^"'']*)["'']\s*\)?\s*(?:do\b|\{)(?P<handler>)'
+  tables:
+    - {name: active-record-table-name, regex: '^[ \t]*self\.table_name\s*=\s*["''](?P<table>[^"'']+)["'']'}

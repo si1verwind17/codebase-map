@@ -1,0 +1,32 @@
+:root {
+  --page: #e3ecf3;
+  --page-deep: #d3dfe9;
+  --ink: #1b1d21;
+  --paper: #ffffff;
+  --shade: #c4d1dc;
+  --red: #d01012;
+  --yellow: #f5cd2f;
+  --blue: #0055bf;
+  --green: #237841;
+  --slate: #4f5d69;
+  --steel: #c9d8e6;
+  --shelf: #f2f5f8;
+  --amber: #7a5c00;
+  --rule: #b8c6d2;
+  --picked: #0055bf;       /* the one mark of what is picked, in both panes: the floor's selection ring, the trace's focus and pointed rows */
+  --picked-wash: #d4e3f7;  /* the focus row's fill under its blue keyline: 12.9:1 with ink */
+  --font: "Archivo", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--page); color: var(--ink); font: 13px/1.45 var(--font); font-feature-settings: "tnum" 1; }
+#app { height: 100%; }
+::selection { background: var(--picked-wash); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+* { scrollbar-width: thin; scrollbar-color: var(--slate) transparent; }
+code, .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; }
+a { color: var(--blue); text-underline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

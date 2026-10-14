@@ -1,0 +1,42 @@
+# Built-in pack: what the scanner knows about Scala libraries. Same format as stack.yaml; stack.yaml adds to it.
+# imports: prefix -> resource kind, matched on dotted boundaries; imports win over ignore.
+# Kinds: sql-db, doc-db, cache, http-in, http-out, http, ws, event, grpc, cloud-sdk,
+# spark (DataFrame reads/writes: JDBC, Hudi/Delta/Parquet lakes; tables come from .option/.table calls)
+# effects: types whose vals hold behaviour. routes: regex patterns with a path reader.
+# tables: Quill `query[Order]`: the table is the type as written (the case class); its SQL name (schema,
+# naming strategy) is the agent's to read. `(?!\s*\()` skips tapir's `query[String]("zone")`.
+# Quill `querySchema[Order]("shop.orders", ...)`: the table is the string.
+# Rules kept in code because a pattern cannot express them: tapir (path trees across vals, server logic,
+# clients), gRPC and proto services.
+scala:
+  ignore: [scala, java, javax, zio]   # zio: the effect library; its kinds (zio.kafka, zio.redis, ...) are imports
+  effects: [ZIO, Task, UIO, URIO, IO, RIO, ZLayer, ULayer, URLayer, RLayer, TaskLayer, Layer, ZStream, UStream, Stream, ZSink, ZPipeline]
+  imports:
+  - {prefix: io.getquill, kind: sql-db}
+  - {prefix: doobie, kind: sql-db}
+  - {prefix: skunk, kind: sql-db}
+  - {prefix: slick, kind: sql-db}
+  - {prefix: scalikejdbc, kind: sql-db}
+  - {prefix: zio.jdbc, kind: sql-db}
+  - {prefix: java.sql, kind: sql-db}
+  - {prefix: org.apache.spark, kind: spark}
+  - {prefix: sttp.client3, kind: http-out}
+  - {prefix: sttp.client4, kind: http-out}
+  - {prefix: sttp.tapir, kind: http-in}
+  - {prefix: zio.http, kind: http}
+  - {prefix: zio.kafka, kind: event}
+  - {prefix: fs2.kafka, kind: event}
+  - {prefix: org.apache.kafka, kind: event}
+  - {prefix: dev.profunktor.redis4cats, kind: cache}
+  - {prefix: zio.redis, kind: cache}
+  - {prefix: io.grpc, kind: grpc}
+  - {prefix: scalapb, kind: grpc}
+  - {prefix: software.amazon.awssdk, kind: cloud-sdk}
+  routes:
+    - name: zio-http
+      when: zio.http
+      path: segments
+      regex: 'Method\.(?P<method>GET|POST|PUT|DELETE|PATCH)\s*/\s*(?P<path>(?:(?:"[^"]*"|\w+\("[^"]*"\)|Root)\s*/?\s*)+)'
+  tables:
+    - {name: quill, when: io.getquill, regex: '\bquery\[(?P<table>[\w.]+)\](?!\s*\()'}
+    - {name: quill-schema, when: io.getquill, regex: '\bquerySchema\[[\w.]+\]\s*\(\s*"(?P<table>[^"]+)"'}

@@ -1,0 +1,129 @@
+# Built-in pack: what the scanner knows about TypeScript libraries. Same format as stack.yaml; stack.yaml adds to it.
+# The JavaScript pack carries the same entries (npm serves both).
+# import paths are matched on `/` boundaries; a library is its npm package name (`@scope/name`); imports win
+# over ignore, and the longest matching prefix names the kind (`@google-cloud/pubsub` is an event, the rest
+# of `@google-cloud` a cloud SDK). Relative imports and workspace package names are the repo's own.
+# ignore: the Node built-ins (`node:` covers every `node:x`), and NestJS's wiring (`@nestjs/common`, `config`,
+# ...: `@nestjs/common` is in every service, so the server entry is `@nestjs/core`, the bootstrap's; its IO
+# parts are imports entries).
+# routes: NestJS (`form: annotated`, `@Controller` prefix + `@Get`...; `setGlobalPrefix` is a mount); Express,
+# Koa router and Fastify (regex, each gated on its import; a `handler` group when the last argument is a name;
+# `app.use('/v1', router)`, Koa `prefix`, Fastify `register(r, {prefix})` are mounts, nested prefixes the agent
+# composes). tables: TypeORM `@Entity`, Prisma `prisma.<model>.<call>`, Sequelize `define` and `tableName`.
+typescript:
+  ignore: ["node:", fs, path, http, https, crypto, os, url, util, events, stream, child_process, buffer, zlib, net, tls, dns,
+           assert, process, timers, querystring, readline, worker_threads, cluster, perf_hooks, async_hooks, vm,
+           module, "@nestjs"]
+  imports:
+  - {prefix: pg, kind: sql-db}
+  - {prefix: mysql2, kind: sql-db}
+  - {prefix: "@prisma/client", kind: sql-db}
+  - {prefix: typeorm, kind: sql-db}
+  - {prefix: sequelize, kind: sql-db}
+  - {prefix: sequelize-typescript, kind: sql-db}
+  - {prefix: knex, kind: sql-db}
+  - {prefix: drizzle-orm, kind: sql-db}
+  - {prefix: "@nestjs/typeorm", kind: sql-db}
+  - {prefix: "@nestjs/sequelize", kind: sql-db}
+  - {prefix: mongodb, kind: doc-db}
+  - {prefix: mongoose, kind: doc-db}
+  - {prefix: "@nestjs/mongoose", kind: doc-db}
+  - {prefix: kafkajs, kind: event}
+  - {prefix: amqplib, kind: event}
+  - {prefix: bullmq, kind: event}
+  - {prefix: "@nestjs/bullmq", kind: event}
+  - {prefix: "@nestjs/microservices", kind: event}
+  - {prefix: "@google-cloud/pubsub", kind: event}
+  - {prefix: ioredis, kind: cache}
+  - {prefix: redis, kind: cache}
+  - {prefix: axios, kind: http-out}
+  - {prefix: node-fetch, kind: http-out}
+  - {prefix: got, kind: http-out}
+  - {prefix: undici, kind: http-out}
+  - {prefix: "@nestjs/axios", kind: http-out}
+  - {prefix: express, kind: http-in}
+  - {prefix: koa, kind: http-in}
+  - {prefix: "@koa/router", kind: http-in}
+  - {prefix: koa-router, kind: http-in}
+  - {prefix: fastify, kind: http-in}
+  - {prefix: "@nestjs/core", kind: http-in}
+  - {prefix: "@nestjs/websockets", kind: ws}
+  - {prefix: "@aws-sdk", kind: cloud-sdk}
+  - {prefix: "@google-cloud", kind: cloud-sdk}
+  - {prefix: "@grpc/grpc-js", kind: grpc}
+  routes:
+    - name: nestjs
+      form: annotated
+      when: "@nestjs/common"
+      prefix: [Controller]
+      verbs: {Get: GET, Post: POST, Put: PUT, Delete: DELETE, Patch: PATCH, Head: HEAD, Options: OPTIONS, All: ANY}
+      path_args: [path, 0]
+    - name: nestjs-global-prefix
+      when: "@nestjs/core"
+      path: literal
+      mount: true
+      regex: '\.setGlobalPrefix\(\s*["''`](?P<path>[^"''`$]+)["''`]'
+    # `app.get('/x', a, h)`: the handler is the last argument when it is a name; `app.get('env')` (one argument,
+    # a setting) is not a route; `all` is ANY
+    - name: express
+      when: express
+      path: literal
+      method: ANY
+      regex: '\b(?:app|router)\.(?:(?P<method>get|post|put|delete|patch|head|options)|all)\(\s*["''`](?P<path>[^"''`$]*)["''`]\s*,(?:\s*(?:[\w.]+\s*,\s*)*(?P<handler>[\w.]+)\s*,?\s*\))?'
+    - name: express-use
+      when: express
+      path: literal
+      mount: true
+      regex: '\b(?:app|router)\.use\(\s*["''`](?P<path>[^"''`$]*)["''`](?:\s*,\s*(?:[\w.]+\s*,\s*)*(?P<target>[\w.]+)\s*,?\s*\))?'
+    - name: koa-router
+      when: "@koa/router"
+      path: literal
+      method: ANY
+      regex: '\brouter\.(?:(?P<method>get|post|put|delete|patch|head|options)|all)\(\s*["''`](?P<path>[^"''`$]*)["''`]\s*,(?:\s*(?:[\w.]+\s*,\s*)*(?P<handler>[\w.]+)\s*,?\s*\))?'
+    - name: koa-router-legacy
+      when: koa-router
+      path: literal
+      method: ANY
+      regex: '\brouter\.(?:(?P<method>get|post|put|delete|patch|head|options)|all)\(\s*["''`](?P<path>[^"''`$]*)["''`]\s*,(?:\s*(?:[\w.]+\s*,\s*)*(?P<handler>[\w.]+)\s*,?\s*\))?'
+    - name: koa-router-use
+      when: "@koa/router"
+      path: literal
+      mount: true
+      regex: '\brouter\.use\(\s*["''`](?P<path>[^"''`$]*)["''`](?:\s*,\s*(?:[\w.]+\s*,\s*)*(?P<target>[\w.]+)\s*,?\s*\))?'
+    - name: koa-router-prefix
+      when: "@koa/router"
+      path: literal
+      mount: true
+      regex: '\bnew\s+Router\(\s*\{[^{}]*?\bprefix\s*:\s*["''`](?P<path>[^"''`$]*)["''`]'
+    - name: fastify
+      when: fastify
+      path: literal
+      method: ANY
+      regex: '\b(?:fastify|app|server|instance)\.(?:(?P<method>get|post|put|delete|patch|head|options)|all)\(\s*["''`](?P<path>[^"''`$]*)["''`]\s*,(?:\s*(?:[\w.]+\s*,\s*)*(?P<handler>[\w.]+)\s*,?\s*\))?'
+    # `route({ method: 'GET', url: '/x', handler: h })`: keys in any order, no nested braces before them
+    - name: fastify-route
+      when: fastify
+      path: literal
+      method: ANY
+      regex: '\b(?:fastify|app|server|instance)\.route\(\s*\{(?=[^{}]*?\bmethod\s*:\s*(?P<methods>\[[^\]]*\]|["''][A-Za-z]+["'']))(?=[^{}]*?\burl\s*:\s*["''`](?P<path>[^"''`$]*)["''`])(?:(?=[^{}]*?\bhandler\s*:\s*(?P<handler>[\w.]+)\s*[,}]))?'
+    - name: fastify-register
+      when: fastify
+      path: literal
+      mount: true
+      regex: '\.register\(\s*(?P<target>[\w.]+)\s*,\s*\{[^{}]*?\bprefix\s*:\s*["''`](?P<path>[^"''`$]*)["''`]'
+  tables:
+    - {name: typeorm-entity, when: typeorm, regex: '@Entity\(\s*["''`](?P<table>[^"''`]+)["''`]'}
+    - {name: typeorm-entity-name, when: typeorm, regex: '@Entity\(\s*\{[^{}]*?\bname\s*:\s*["''`](?P<table>[^"''`]+)["''`]'}
+    # `@Entity()` with no name: the table is the class as written (the naming strategy is the agent's to read)
+    - {name: typeorm-entity-class, when: typeorm,
+       regex: '@Entity\(\s*\)(?:\s*@\w+(?:\([^()]*\))?)*\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+(?P<table>\w+)'}
+    # `prisma.order.findMany(...)`: the table is the model as written
+    - {name: prisma, when: "@prisma/client",
+       regex: '\bprisma\.(?P<table>[A-Za-z]\w*)\.(?:findUnique|findUniqueOrThrow|findFirst|findFirstOrThrow|findMany|create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany|count|aggregate|groupBy)\b'}
+    # `sequelize.define('Order', ...)`: the model name as written, unless the call's options give `tableName:`
+    # (then that is the table, and the model name is not one); the lookahead stays inside the call's parentheses
+    - {name: sequelize-define, when: sequelize,
+       regex: '\.define\(\s*["''`](?P<table>[^"''`]+)["''`](?!(?:[^()]|\([^()]*\))*?\btableName\s*:)'}
+    - {name: sequelize-table-name, when: sequelize, regex: '\btableName\s*:\s*["''`](?P<table>[^"''`]+)["''`]'}
+    - {name: sequelize-typescript-table-name, when: sequelize-typescript,
+       regex: '\btableName\s*:\s*["''`](?P<table>[^"''`]+)["''`]'}

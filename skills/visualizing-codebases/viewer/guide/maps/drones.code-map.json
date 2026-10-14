@@ -1,0 +1,476 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "drones",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:billing",
+   "kind": "service",
+   "name": "billing",
+   "modules": [
+    "billing"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "svc:reports",
+   "kind": "service",
+   "name": "reports",
+   "modules": [
+    "reports"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "topic:events:order-events",
+   "kind": "topic",
+   "name": "order-events",
+   "delivery": "fan-out",
+   "evidence": [
+    {
+     "file": "deploy/topics.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "orders::api/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "api",
+   "lang": "python",
+   "file": "orders/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "orders::api.routes",
+   "kind": "file",
+   "parent": "orders::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::api.routes#place_order/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "place_order",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "billing::api/",
+   "kind": "package",
+   "parent": "svc:billing",
+   "name": "api",
+   "lang": "python",
+   "file": "billing/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "billing::api.routes",
+   "kind": "file",
+   "parent": "billing::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "billing::api.routes#on_order/1",
+   "kind": "method",
+   "parent": "billing::api.routes",
+   "name": "on_order",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "reports::api/",
+   "kind": "package",
+   "parent": "svc:reports",
+   "name": "api",
+   "lang": "python",
+   "file": "reports/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "reports::api.routes",
+   "kind": "file",
+   "parent": "reports::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "reports/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "reports::api.routes#on_order/1",
+   "kind": "method",
+   "parent": "reports::api.routes",
+   "name": "on_order",
+   "lang": "python",
+   "file": "reports/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "event",
+   "from": "orders::api.routes#place_order/1",
+   "to": "topic:events:order-events",
+   "key": "order-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "id": "r:event:orders::api.routes#place_order/1->topic:events:order-events:order-events",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:events:order-events",
+   "to": "billing::api.routes#on_order/1",
+   "key": "order-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/api/routes.py",
+     "line": 1
+    }
+   ],
+   "group": "billing",
+   "id": "r:event:topic:events:order-events->billing::api.routes#on_order/1:order-events",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:events:order-events",
+   "to": "reports::api.routes#on_order/1",
+   "key": "order-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reports/api/routes.py",
+     "line": 1
+    }
+   ],
+   "group": "reports",
+   "id": "r:event:topic:events:order-events->reports::api.routes#on_order/1:order-events",
+   "data": "forward"
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/api/routes.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "orders::api.routes#place_order/1",
+     "line": 3
+    }
+   ]
+  },
+  "billing/api/routes.py": {
+   "lang": "python",
+   "module": "mod:billing",
+   "node": "billing::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "billing::api.routes#on_order/1",
+     "line": 3
+    }
+   ]
+  },
+  "reports/api/routes.py": {
+   "lang": "python",
+   "module": "mod:reports",
+   "node": "reports::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "reports::api.routes#on_order/1",
+     "line": 3
+    }
+   ]
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "topic:events:order-events": {
+      "region": "bus",
+      "col": 1,
+      "row": 0
+     },
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "svc:billing": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     },
+     "svc:reports": {
+      "region": "line",
+      "col": 1,
+      "row": 1
+     }
+    },
+    "lanes": [
+     {
+      "id": "broker:events",
+      "row": 0
+     }
+    ],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes#on_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api/": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes#place_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api/": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "reports::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "reports::api.routes#on_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "reports::api/": {
+    "strategy": "layered",
+    "items": {
+     "reports::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:billing": {
+    "strategy": "bands",
+    "items": {
+     "billing::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "orders::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:reports": {
+    "strategy": "bands",
+    "items": {
+     "reports::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

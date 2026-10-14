@@ -1,0 +1,7 @@
+.impeccable/questions/
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/*-payload.json
+node_modules/
+.shot-page.html
+.vitest/

@@ -1,0 +1,25 @@
+// A lane's name sits where no line crosses it, so taps and pipes never run through the letters.
+import type { Pt } from "../route/types";
+
+/** x positions where a vertical run crosses, or ends on, the lane band at `y` (± half its height). */
+export function crossings(routes: { points: Pt[] }[], y: number, half: number): number[] {
+  const xs = new Set<number>();
+  for (const r of routes)
+    for (let i = 1; i < r.points.length; i++) {
+      const a = r.points[i - 1], b = r.points[i];
+      if (a.x !== b.x) continue;
+      const lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+      if (lo <= y + half && hi >= y - half) xs.add(a.x);
+    }
+  return [...xs].sort((p, q) => p - q);
+}
+
+/** Travel speed in px/s: belts and pipes keep a steady 60; a drone (event) or a train crosses its path in at
+ *  most about 3 s. */
+export function moverSpeed(kind: string, length: number): number {
+  return kind === "event" || kind === "train" ? Math.max(60, length / 3) : 60;
+}
+
+/** The floor is cleared only by a click on it: a press released within a few pixels, not a drag. */
+export const CLICK_SLOP = 4;
+export const isClick = (dx: number, dy: number): boolean => Math.hypot(dx, dy) < CLICK_SLOP;

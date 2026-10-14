@@ -1,0 +1,741 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "splitters",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:billing",
+   "kind": "service",
+   "name": "billing",
+   "modules": [
+    "billing"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "svc:payments",
+   "kind": "service",
+   "name": "payments",
+   "modules": [
+    "payments"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "svc:reports",
+   "kind": "service",
+   "name": "reports",
+   "modules": [
+    "reports"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 6
+    }
+   ]
+  },
+  {
+   "id": "svc:shipping",
+   "kind": "service",
+   "name": "shipping",
+   "modules": [
+    "shipping"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 5
+    }
+   ]
+  },
+  {
+   "id": "orders::api/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "api",
+   "lang": "python",
+   "file": "orders/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "orders::api.routes",
+   "kind": "file",
+   "parent": "orders::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::api.routes#place_order/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "place_order",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "billing::api/",
+   "kind": "package",
+   "parent": "svc:billing",
+   "name": "api",
+   "lang": "python",
+   "file": "billing/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "billing::api.routes",
+   "kind": "file",
+   "parent": "billing::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "billing::api.routes#handle/1",
+   "kind": "method",
+   "parent": "billing::api.routes",
+   "name": "handle",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "payments::api/",
+   "kind": "package",
+   "parent": "svc:payments",
+   "name": "api",
+   "lang": "python",
+   "file": "payments/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "payments::api.routes",
+   "kind": "file",
+   "parent": "payments::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "payments/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "payments::api.routes#handle/1",
+   "kind": "method",
+   "parent": "payments::api.routes",
+   "name": "handle",
+   "lang": "python",
+   "file": "payments/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "shipping::api/",
+   "kind": "package",
+   "parent": "svc:shipping",
+   "name": "api",
+   "lang": "python",
+   "file": "shipping/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "shipping::api.routes",
+   "kind": "file",
+   "parent": "shipping::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "shipping/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "shipping::api.routes#handle/1",
+   "kind": "method",
+   "parent": "shipping::api.routes",
+   "name": "handle",
+   "lang": "python",
+   "file": "shipping/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "reports::api/",
+   "kind": "package",
+   "parent": "svc:reports",
+   "name": "api",
+   "lang": "python",
+   "file": "reports/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "reports::api.routes",
+   "kind": "file",
+   "parent": "reports::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "reports/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "reports::api.routes#record/1",
+   "kind": "method",
+   "parent": "reports::api.routes",
+   "name": "record",
+   "lang": "python",
+   "file": "reports/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "request",
+   "from": "billing::api.routes#handle/1",
+   "to": "reports::api.routes#record/1",
+   "key": "POST /v1/reports",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:billing::api.routes#handle/1->reports::api.routes#record/1:POST /v1/reports"
+  },
+  {
+   "kind": "request",
+   "from": "orders::api.routes#place_order/1",
+   "to": "billing::api.routes#handle/1",
+   "key": "POST /v1/billing",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:orders::api.routes#place_order/1->billing::api.routes#handle/1:POST /v1/billing"
+  },
+  {
+   "kind": "request",
+   "from": "orders::api.routes#place_order/1",
+   "to": "payments::api.routes#handle/1",
+   "key": "POST /v1/payments",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:orders::api.routes#place_order/1->payments::api.routes#handle/1:POST /v1/payments"
+  },
+  {
+   "kind": "request",
+   "from": "orders::api.routes#place_order/1",
+   "to": "shipping::api.routes#handle/1",
+   "key": "POST /v1/shipping",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:orders::api.routes#place_order/1->shipping::api.routes#handle/1:POST /v1/shipping"
+  },
+  {
+   "kind": "request",
+   "from": "payments::api.routes#handle/1",
+   "to": "reports::api.routes#record/1",
+   "key": "POST /v1/reports",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "payments/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:payments::api.routes#handle/1->reports::api.routes#record/1:POST /v1/reports"
+  },
+  {
+   "kind": "request",
+   "from": "shipping::api.routes#handle/1",
+   "to": "reports::api.routes#record/1",
+   "key": "POST /v1/reports",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "shipping/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:request:shipping::api.routes#handle/1->reports::api.routes#record/1:POST /v1/reports"
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/api/routes.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "orders::api.routes#place_order/1",
+     "line": 3
+    }
+   ]
+  },
+  "billing/api/routes.py": {
+   "lang": "python",
+   "module": "mod:billing",
+   "node": "billing::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "billing::api.routes#handle/1",
+     "line": 3
+    }
+   ]
+  },
+  "payments/api/routes.py": {
+   "lang": "python",
+   "module": "mod:payments",
+   "node": "payments::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "payments::api.routes#handle/1",
+     "line": 3
+    }
+   ]
+  },
+  "shipping/api/routes.py": {
+   "lang": "python",
+   "module": "mod:shipping",
+   "node": "shipping::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "shipping::api.routes#handle/1",
+     "line": 3
+    }
+   ]
+  },
+  "reports/api/routes.py": {
+   "lang": "python",
+   "module": "mod:reports",
+   "node": "reports::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "reports::api.routes#record/1",
+     "line": 3
+    }
+   ]
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "svc:billing": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     },
+     "svc:payments": {
+      "region": "line",
+      "col": 1,
+      "row": 1
+     },
+     "svc:shipping": {
+      "region": "line",
+      "col": 1,
+      "row": 2
+     },
+     "svc:reports": {
+      "region": "line",
+      "col": 2,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes#handle/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api/": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes#place_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api/": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "payments::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "payments::api.routes#handle/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "payments::api/": {
+    "strategy": "layered",
+    "items": {
+     "payments::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "reports::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "reports::api.routes#record/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "reports::api/": {
+    "strategy": "layered",
+    "items": {
+     "reports::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shipping::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "shipping::api.routes#handle/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shipping::api/": {
+    "strategy": "layered",
+    "items": {
+     "shipping::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:billing": {
+    "strategy": "bands",
+    "items": {
+     "billing::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "orders::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:payments": {
+    "strategy": "bands",
+    "items": {
+     "payments::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:reports": {
+    "strategy": "bands",
+    "items": {
+     "reports::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:shipping": {
+    "strategy": "bands",
+    "items": {
+     "shipping::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

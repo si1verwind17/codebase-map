@@ -1,0 +1,18 @@
+# Build files per ecosystem: which folders are modules for the languages of adapters/langs.py.
+# A source file belongs to the nearest folder above it holding a build file of its language's ecosystem,
+# or listed as a member by one; without one, its top folder (build `dir`). Python and Scala keep their own
+# detection (sbt projects, Python packages), and a build file here never claims their files.
+# files:   build file names (a `*` glob matches within one folder)
+# langs:   the languages whose files these build files claim
+# build:   the module's `build` value in the map
+# members: the reader in modules.py that lists sub-module folders (globs expand against scanned folders;
+#          `each-file`: none, each build file is a module of its own)
+# name:    the reader in modules.py giving the name other modules import this one by (optional)
+maven:    {files: [pom.xml], langs: [java, kotlin], build: maven, members: maven-modules}
+gradle:   {files: [settings.gradle, settings.gradle.kts], langs: [java, kotlin], build: gradle, members: gradle-include}
+npm:      {files: [package.json, pnpm-workspace.yaml], langs: [typescript, javascript], build: npm, members: npm-workspaces, name: npm-name}
+go:       {files: [go.mod], langs: [go], build: go, members: each-file, name: go-module}
+cargo:    {files: [Cargo.toml], langs: [rust], build: cargo, members: cargo-members, name: cargo-package}
+dotnet:   {files: ["*.csproj"], langs: [csharp], build: dotnet, members: each-file}
+bundler:  {files: [Gemfile], langs: [ruby], build: bundler, members: each-file}
+composer: {files: [composer.json], langs: [php], build: composer, members: each-file}

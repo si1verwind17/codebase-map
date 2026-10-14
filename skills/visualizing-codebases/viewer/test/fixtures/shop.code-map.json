@@ -1,0 +1,1635 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "0.3.0",
+  "repo": "demo",
+  "commit": "8a237cc1ab2ad5331fdef9e320b3013689c5a096",
+  "scanned_at": "2026-10-05T17:26:16Z",
+  "languages": [
+   "python",
+   "scala"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "3p:feed",
+   "kind": "external",
+   "name": "price feed"
+  },
+  {
+   "id": "db:postgres:DB_HOST",
+   "kind": "datastore",
+   "name": "postgres",
+   "store": "database"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.orders",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.orders"
+  },
+  {
+   "id": "db:redis:REDIS_URL",
+   "kind": "datastore",
+   "name": "redis",
+   "store": "cache"
+  },
+  {
+   "id": "lib:common",
+   "kind": "library",
+   "name": "common",
+   "modules": [
+    "common",
+    "pylib",
+    "scripts"
+   ]
+  },
+  {
+   "id": "svc:shop",
+   "kind": "service",
+   "name": "shop",
+   "modules": [
+    "shop"
+   ],
+   "evidence": [
+    {
+     "file": "docker-compose.yml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "svc:worker",
+   "kind": "service",
+   "name": "worker",
+   "modules": [
+    "worker"
+   ],
+   "evidence": [
+    {
+     "file": "docker-compose.yml",
+     "line": 3
+    }
+   ],
+   "replicas": 2
+  },
+  {
+   "id": "topic:kafka:orders",
+   "kind": "topic",
+   "name": "orders",
+   "delivery": "fan-out",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 12
+    }
+   ]
+  },
+  {
+   "id": "topic:kafka:orders.dlq",
+   "kind": "topic",
+   "name": "orders.dlq",
+   "dead_letter_of": "topic:kafka:orders",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 14
+    }
+   ]
+  },
+  {
+   "id": "common::io.demo.common.db/",
+   "kind": "package",
+   "parent": "lib:common",
+   "name": "io.demo.common.db",
+   "lang": "scala",
+   "file": "common/src/main/scala/io/demo/common/db",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "model"
+  },
+  {
+   "id": "pylib::pylib/",
+   "kind": "package",
+   "parent": "lib:common",
+   "name": "pylib",
+   "lang": "python",
+   "file": "pylib",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "scripts::scripts/",
+   "kind": "package",
+   "parent": "lib:common",
+   "name": "scripts",
+   "lang": "python",
+   "file": "scripts",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "storage"
+  },
+  {
+   "id": "shop::io.demo.shop.api/",
+   "kind": "package",
+   "parent": "svc:shop",
+   "name": "io.demo.shop.api",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "shop::io.demo.shop.repo/",
+   "kind": "package",
+   "parent": "svc:shop",
+   "name": "io.demo.shop.repo",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "storage"
+  },
+  {
+   "id": "worker::worker.util/",
+   "kind": "package",
+   "parent": "svc:worker",
+   "name": "worker.util",
+   "lang": "python",
+   "file": "worker/util",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "worker::worker/",
+   "kind": "package",
+   "parent": "svc:worker",
+   "name": "worker",
+   "lang": "python",
+   "file": "worker",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "common::io.demo.common.db.Db$",
+   "kind": "class",
+   "parent": "common::io.demo.common.db/",
+   "name": "Db",
+   "lang": "scala",
+   "file": "common/src/main/scala/io/demo/common/db/Db.scala",
+   "line": 3,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3,
+    "methods": 1
+   }
+  },
+  {
+   "id": "common::io.demo.common.db.Db$#connect/1",
+   "kind": "method",
+   "parent": "common::io.demo.common.db.Db$",
+   "name": "connect",
+   "lang": "scala",
+   "file": "common/src/main/scala/io/demo/common/db/Db.scala",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "url",
+      "type": "String"
+     }
+    ],
+    "returns": "Unit"
+   }
+  },
+  {
+   "id": "pylib::pylib.__init__",
+   "kind": "file",
+   "parent": "pylib::pylib/",
+   "name": "__init__.py",
+   "lang": "python",
+   "file": "pylib/__init__.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   }
+  },
+  {
+   "id": "pylib::pylib.client",
+   "kind": "file",
+   "parent": "pylib::pylib/",
+   "name": "client.py",
+   "lang": "python",
+   "file": "pylib/client.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6,
+    "methods": 1
+   }
+  },
+  {
+   "id": "pylib::pylib.client#call/0",
+   "kind": "method",
+   "parent": "pylib::pylib.client",
+   "name": "call",
+   "lang": "python",
+   "file": "pylib/client.py",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [],
+    "returns": "str"
+   }
+  },
+  {
+   "id": "scripts::scripts.run_once",
+   "kind": "file",
+   "parent": "scripts::scripts/",
+   "name": "run_once.py",
+   "lang": "python",
+   "file": "scripts/run_once.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6,
+    "methods": 1
+   }
+  },
+  {
+   "id": "scripts::scripts.run_once#main/0",
+   "kind": "method",
+   "parent": "scripts::scripts.run_once",
+   "name": "main",
+   "lang": "python",
+   "file": "scripts/run_once.py",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [],
+    "returns": null
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.BaseEndpoint$",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.api/",
+   "name": "BaseEndpoint",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/BaseEndpoint.scala",
+   "line": 5,
+   "visibility": "public",
+   "metrics": {
+    "loc": 11,
+    "methods": 0
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.BaseEndpoint.V1$",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.api.BaseEndpoint$",
+   "name": "V1",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/BaseEndpoint.scala",
+   "line": 7,
+   "visibility": "public",
+   "metrics": {
+    "loc": 8,
+    "methods": 0
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.BaseEndpoint.V1.Orders$",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.api.BaseEndpoint.V1$",
+   "name": "Orders",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/BaseEndpoint.scala",
+   "line": 9,
+   "visibility": "public",
+   "metrics": {
+    "loc": 5,
+    "methods": 0
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.OrderApi$",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.api/",
+   "name": "OrderApi",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+   "line": 3,
+   "visibility": "public",
+   "metrics": {
+    "loc": 10,
+    "methods": 3
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.OrderApi$#createEndpoint/0",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.api.OrderApi$",
+   "name": "createEndpoint",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [],
+    "returns": null
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.OrderApi$#getEndpoint/0",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.api.OrderApi$",
+   "name": "getEndpoint",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+   "line": 10,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [],
+    "returns": null
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.api.OrderApi$#notRoute/1",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.api.OrderApi$",
+   "name": "notRoute",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+   "line": 11,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "m",
+      "type": "Map[String, Int]"
+     }
+    ],
+    "returns": null
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.OrderRepo",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.repo/",
+   "name": "OrderRepo",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 6,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3,
+    "methods": 1
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.OrderRepo#save/2",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.repo.OrderRepo",
+   "name": "save",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 7,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "id",
+      "type": "String"
+     },
+     {
+      "name": "total",
+      "type": "BigDecimal"
+     }
+    ],
+    "returns": "Unit"
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.PgOrderRepo",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.repo/",
+   "name": "PgOrderRepo",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 10,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6,
+    "methods": 2
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.PgOrderRepo#save/2",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.repo.PgOrderRepo",
+   "name": "save",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 11,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "id",
+      "type": "String"
+     },
+     {
+      "name": "total",
+      "type": "BigDecimal"
+     }
+    ],
+    "returns": "Unit"
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.PgOrderRepo#load/2",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.repo.PgOrderRepo",
+   "name": "load",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 13,
+   "visibility": "private",
+   "metrics": {
+    "loc": 3
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "id",
+      "type": "String"
+     },
+     {
+      "name": "ctx",
+      "type": "Ctx"
+     }
+    ],
+    "returns": "Option[String]"
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.PgOrderRepo$",
+   "kind": "class",
+   "parent": "shop::io.demo.shop.repo/",
+   "name": "PgOrderRepo",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 17,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3,
+    "methods": 1
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo.PgOrderRepo$#live/0",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.repo.PgOrderRepo$",
+   "name": "live",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 18,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [],
+    "returns": "PgOrderRepo"
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo/OrderRepo.scala",
+   "kind": "file",
+   "parent": "shop::io.demo.shop.repo/",
+   "name": "OrderRepo.scala",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 22,
+    "methods": 1
+   }
+  },
+  {
+   "id": "shop::io.demo.shop.repo/OrderRepo.scala#helper/1",
+   "kind": "method",
+   "parent": "shop::io.demo.shop.repo/OrderRepo.scala",
+   "name": "helper",
+   "lang": "scala",
+   "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+   "line": 21,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "x",
+      "type": "Int"
+     }
+    ],
+    "returns": "Int"
+   }
+  },
+  {
+   "id": "worker::worker.__init__",
+   "kind": "file",
+   "parent": "worker::worker/",
+   "name": "__init__.py",
+   "lang": "python",
+   "file": "worker/__init__.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   }
+  },
+  {
+   "id": "worker::worker.main",
+   "kind": "file",
+   "parent": "worker::worker/",
+   "name": "main.py",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 37,
+    "methods": 3
+   }
+  },
+  {
+   "id": "worker::worker.main#run/2",
+   "kind": "method",
+   "parent": "worker::worker.main",
+   "name": "run",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 12,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "job_id",
+      "type": "str"
+     },
+     {
+      "name": "dry",
+      "type": "bool"
+     }
+    ],
+    "returns": "dict"
+   },
+   "summary": "Runs a job by asking shop to create an order."
+  },
+  {
+   "id": "worker::worker.main#health/0",
+   "kind": "method",
+   "parent": "worker::worker.main",
+   "name": "health",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 18,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [],
+    "returns": null
+   }
+  },
+  {
+   "id": "worker::worker.main.Job",
+   "kind": "class",
+   "parent": "worker::worker.main",
+   "name": "Job",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 22,
+   "visibility": "public",
+   "metrics": {
+    "loc": 11,
+    "methods": 3
+   }
+  },
+  {
+   "id": "worker::worker.main.Job#__init__/1",
+   "kind": "method",
+   "parent": "worker::worker.main.Job",
+   "name": "__init__",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 23,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "name",
+      "type": null
+     }
+    ],
+    "returns": null
+   }
+  },
+  {
+   "id": "worker::worker.main.Job#store/3",
+   "kind": "method",
+   "parent": "worker::worker.main.Job",
+   "name": "store",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 26,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "conn",
+      "type": null
+     },
+     {
+      "name": "*args",
+      "type": null
+     },
+     {
+      "name": "**kw",
+      "type": null
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "worker::worker.main.Job#_secret/0",
+   "kind": "method",
+   "parent": "worker::worker.main.Job",
+   "name": "_secret",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 30,
+   "visibility": "private",
+   "metrics": {
+    "loc": 3
+   },
+   "signature": {
+    "params": [],
+    "returns": null
+   }
+  },
+  {
+   "id": "worker::worker.main#run/1",
+   "kind": "method",
+   "parent": "worker::worker.main",
+   "name": "run",
+   "lang": "python",
+   "file": "worker/main.py",
+   "line": 35,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "x",
+      "type": null
+     }
+    ],
+    "returns": null
+   }
+  },
+  {
+   "id": "worker::worker.util.__init__",
+   "kind": "file",
+   "parent": "worker::worker.util/",
+   "name": "__init__.py",
+   "lang": "python",
+   "file": "worker/util/__init__.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 1
+   }
+  },
+  {
+   "id": "worker::worker.util.helpers",
+   "kind": "file",
+   "parent": "worker::worker.util/",
+   "name": "helpers.py",
+   "lang": "python",
+   "file": "worker/util/helpers.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 3,
+    "methods": 1
+   }
+  },
+  {
+   "id": "worker::worker.util.helpers#fmt/1",
+   "kind": "method",
+   "parent": "worker::worker.util.helpers",
+   "name": "fmt",
+   "lang": "python",
+   "file": "worker/util/helpers.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 2
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "code",
+      "type": "int"
+     }
+    ],
+    "returns": "str"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "batch",
+   "from": "svc:worker",
+   "to": "svc:shop",
+   "key": "nightly export",
+   "confidence": "confirmed",
+   "schedule": [
+    "0 2 * * *"
+   ],
+   "job": "nightly_export",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 6
+    }
+   ],
+   "id": "r:batch:svc:worker->svc:shop:nightly export",
+   "data": "forward"
+  },
+  {
+   "id": "r:calls:pylib::pylib.client#call/0->worker::worker.util.helpers#fmt/1:",
+   "kind": "calls",
+   "from": "pylib::pylib.client#call/0",
+   "to": "worker::worker.util.helpers#fmt/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pylib/client.py",
+     "line": 5
+    }
+   ]
+  },
+  {
+   "id": "r:calls:worker::worker.main#run/2->worker::worker.util.helpers#fmt/1:",
+   "kind": "calls",
+   "from": "worker::worker.main#run/2",
+   "to": "worker::worker.util.helpers#fmt/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 14
+    }
+   ]
+  },
+  {
+   "kind": "db-read",
+   "from": "shop::io.demo.shop.repo.PgOrderRepo#save/2",
+   "to": "db:redis:REDIS_URL",
+   "key": "cache orders",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+     "line": 11
+    }
+   ],
+   "id": "r:db-read:shop::io.demo.shop.repo.PgOrderRepo#save/2->db:redis:REDIS_URL:cache orders",
+   "data": "back"
+  },
+  {
+   "kind": "db-write",
+   "from": "shop::io.demo.shop.repo.PgOrderRepo#save/2",
+   "to": "db:postgres:DB_HOST/public.orders",
+   "key": "table public.orders",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+     "line": 11
+    }
+   ],
+   "id": "r:db-write:shop::io.demo.shop.repo.PgOrderRepo#save/2->db:postgres:DB_HOST/public.orders:table public.orders",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "shop::io.demo.shop.repo.PgOrderRepo#save/2",
+   "to": "db:redis:REDIS_URL",
+   "key": "cache orders",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+     "line": 11
+    }
+   ],
+   "id": "r:db-write:shop::io.demo.shop.repo.PgOrderRepo#save/2->db:redis:REDIS_URL:cache orders",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "shop::io.demo.shop.repo.PgOrderRepo#save/2",
+   "to": "topic:kafka:orders",
+   "key": "orders",
+   "confidence": "inferred",
+   "why": "publisher wiring is config-driven",
+   "evidence": [
+    {
+     "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+     "line": 11
+    }
+   ],
+   "id": "r:event:shop::io.demo.shop.repo.PgOrderRepo#save/2->topic:kafka:orders:orders",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:kafka:orders",
+   "to": "worker::worker.main#run/2",
+   "key": "orders",
+   "confidence": "confirmed",
+   "group": "worker",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 12
+    }
+   ],
+   "id": "r:event:topic:kafka:orders->worker::worker.main#run/2:orders",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "worker::worker.main#run/2",
+   "to": "topic:kafka:orders.dlq",
+   "key": "orders.dlq",
+   "confidence": "confirmed",
+   "on_failure": true,
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 14
+    }
+   ],
+   "id": "r:event:worker::worker.main#run/2->topic:kafka:orders.dlq:orders.dlq",
+   "data": "forward"
+  },
+  {
+   "kind": "request",
+   "from": "svc:worker",
+   "to": "shop::io.demo.shop.api.OrderApi$#createEndpoint/0",
+   "key": "POST /v1/orders/create",
+   "confidence": "inferred",
+   "why": "worker posts to SHOP_URL; compose names the shop service but the URL is set per deployment",
+   "deployment_dependent": true,
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 13
+    },
+    {
+     "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+     "line": 4
+    }
+   ],
+   "id": "r:request:svc:worker->shop::io.demo.shop.api.OrderApi$#createEndpoint/0:POST /v1/orders/create",
+   "data": "both"
+  },
+  {
+   "kind": "request",
+   "from": "svc:worker",
+   "to": "shop::io.demo.shop.api.OrderApi$#getEndpoint/0",
+   "key": "GET /v1/orders/{id}",
+   "confidence": "confirmed",
+   "via": "pylib::pylib.client#call/0",
+   "evidence": [
+    {
+     "file": "pylib/client.py",
+     "line": 4
+    },
+    {
+     "file": "shop/src/main/scala/io/demo/shop/api/OrderApi.scala",
+     "line": 10
+    }
+   ],
+   "id": "r:request:svc:worker->shop::io.demo.shop.api.OrderApi$#getEndpoint/0:GET /v1/orders/{id}",
+   "data": "both"
+  },
+  {
+   "kind": "stream",
+   "from": "svc:worker",
+   "to": "3p:feed",
+   "key": "wss://feed.example/prices",
+   "data": "back",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "worker/main.py",
+     "line": 6
+    }
+   ],
+   "id": "r:stream:svc:worker->3p:feed:wss://feed.example/prices"
+  },
+  {
+   "id": "r:uses-code:lib:common->svc:worker:",
+   "kind": "uses-code",
+   "from": "lib:common",
+   "to": "svc:worker",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pylib/client.py",
+     "line": 1
+    }
+   ]
+  },
+  {
+   "id": "r:uses-code:svc:shop->lib:common:",
+   "kind": "uses-code",
+   "from": "svc:shop",
+   "to": "lib:common",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala",
+     "line": 4
+    }
+   ]
+  }
+ ],
+ "pins": [
+  {
+   "id": "worker-job-creates-an-order",
+   "title": "worker job creates an order",
+   "start": "worker::worker.main#run/2",
+   "direction": "downstream",
+   "by": "agent"
+  }
+ ],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": [
+   {
+    "node": "worker::worker.main#run/2",
+    "key": "POST /v1/work/run/{job_id}",
+    "request": {
+     "job_id": "job-42",
+     "dry": false
+    },
+    "response": {
+     "ok": "201"
+    },
+    "fingerprint": "853ffbf95fbd"
+   }
+  ]
+ },
+ "files": {
+  "common/src/main/scala/io/demo/common/db/Db.scala": {
+   "lang": "scala",
+   "module": "mod:common",
+   "node": "common::io.demo.common.db.Db$",
+   "parse_error": false
+  },
+  "pylib/__init__.py": {
+   "lang": "python",
+   "module": "mod:pylib",
+   "node": "pylib::pylib.__init__",
+   "parse_error": false
+  },
+  "pylib/client.py": {
+   "lang": "python",
+   "module": "mod:pylib",
+   "node": "pylib::pylib.client",
+   "parse_error": false
+  },
+  "scripts/run_once.py": {
+   "lang": "python",
+   "module": "mod:scripts",
+   "node": "scripts::scripts.run_once",
+   "parse_error": false
+  },
+  "shop/src/main/scala/io/demo/shop/api/BaseEndpoint.scala": {
+   "lang": "scala",
+   "module": "mod:shop",
+   "node": "shop::io.demo.shop.api.BaseEndpoint$",
+   "parse_error": false
+  },
+  "shop/src/main/scala/io/demo/shop/api/OrderApi.scala": {
+   "lang": "scala",
+   "module": "mod:shop",
+   "node": "shop::io.demo.shop.api.OrderApi$",
+   "parse_error": false
+  },
+  "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala": {
+   "lang": "scala",
+   "module": "mod:shop",
+   "node": "shop::io.demo.shop.repo/OrderRepo.scala",
+   "parse_error": false
+  },
+  "worker/__init__.py": {
+   "lang": "python",
+   "module": "mod:worker",
+   "node": "worker::worker.__init__",
+   "parse_error": false
+  },
+  "worker/main.py": {
+   "lang": "python",
+   "module": "mod:worker",
+   "node": "worker::worker.main",
+   "parse_error": false
+  },
+  "worker/util/__init__.py": {
+   "lang": "python",
+   "module": "mod:worker",
+   "node": "worker::worker.util.__init__",
+   "parse_error": false
+  },
+  "worker/util/helpers.py": {
+   "lang": "python",
+   "module": "mod:worker",
+   "node": "worker::worker.util.helpers",
+   "parse_error": false
+  }
+ },
+ "problems": [
+  {
+   "text": "SHOP_URL value is per deployment",
+   "nodes": [
+    "svc:worker"
+   ],
+   "source": "agent"
+  }
+ ],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "topic:kafka:orders": {
+      "region": "bus",
+      "col": 2,
+      "row": 0
+     },
+     "topic:kafka:orders.dlq": {
+      "region": "bus",
+      "col": 3,
+      "row": 0
+     },
+     "db:redis:REDIS_URL": {
+      "region": "bus",
+      "col": 4,
+      "row": 1
+     },
+     "db:postgres:DB_HOST": {
+      "region": "bus",
+      "col": 4,
+      "row": 2
+     },
+     "3p:feed": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "svc:shop": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     },
+     "svc:worker": {
+      "region": "line",
+      "col": 2,
+      "row": 0
+     },
+     "lib:common": {
+      "region": "shelf",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [
+     {
+      "id": "broker:kafka",
+      "row": 0
+     },
+     {
+      "id": "db:redis:REDIS_URL",
+      "row": 1
+     },
+     {
+      "id": "db:postgres:DB_HOST",
+      "row": 2
+     }
+    ],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "common::io.demo.common.db.Db$": {
+    "strategy": "layered",
+    "items": {
+     "common::io.demo.common.db.Db$#connect/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "common::io.demo.common.db/": {
+    "strategy": "layered",
+    "items": {
+     "common::io.demo.common.db.Db$": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "db:postgres:DB_HOST": {
+    "strategy": "shelves",
+    "items": {
+     "db:postgres:DB_HOST/public.orders": {
+      "region": "shelf",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "lib:common": {
+    "strategy": "bands",
+    "items": {
+     "scripts::scripts/": {
+      "region": "bus",
+      "col": 0,
+      "row": 0
+     },
+     "pylib::pylib/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     },
+     "common::io.demo.common.db/": {
+      "region": "shelf",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "pylib::pylib.client": {
+    "strategy": "layered",
+    "items": {
+     "pylib::pylib.client#call/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "pylib::pylib/": {
+    "strategy": "layered",
+    "items": {
+     "pylib::pylib.__init__": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "pylib::pylib.client": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "scripts::scripts.run_once": {
+    "strategy": "layered",
+    "items": {
+     "scripts::scripts.run_once#main/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "scripts::scripts/": {
+    "strategy": "layered",
+    "items": {
+     "scripts::scripts.run_once": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.api.BaseEndpoint$": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.api.BaseEndpoint.V1$": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.api.BaseEndpoint.V1$": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.api.BaseEndpoint.V1.Orders$": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.api.OrderApi$": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.api.OrderApi$#createEndpoint/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "shop::io.demo.shop.api.OrderApi$#getEndpoint/0": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     },
+     "shop::io.demo.shop.api.OrderApi$#notRoute/1": {
+      "region": "line",
+      "col": 0,
+      "row": 2
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.api/": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.api.BaseEndpoint$": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "shop::io.demo.shop.api.OrderApi$": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.repo.OrderRepo": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.repo.OrderRepo#save/2": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.repo.PgOrderRepo": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.repo.PgOrderRepo#load/2": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "shop::io.demo.shop.repo.PgOrderRepo#save/2": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.repo.PgOrderRepo$": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.repo.PgOrderRepo$#live/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.repo/": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.repo.OrderRepo": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "shop::io.demo.shop.repo.PgOrderRepo": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     },
+     "shop::io.demo.shop.repo.PgOrderRepo$": {
+      "region": "line",
+      "col": 0,
+      "row": 2
+     },
+     "shop::io.demo.shop.repo/OrderRepo.scala": {
+      "region": "line",
+      "col": 0,
+      "row": 3
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "shop::io.demo.shop.repo/OrderRepo.scala": {
+    "strategy": "layered",
+    "items": {
+     "shop::io.demo.shop.repo/OrderRepo.scala#helper/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:shop": {
+    "strategy": "bands",
+    "items": {
+     "shop::io.demo.shop.repo/": {
+      "region": "bus",
+      "col": 0,
+      "row": 0
+     },
+     "shop::io.demo.shop.api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:worker": {
+    "strategy": "bands",
+    "items": {
+     "worker::worker/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "worker::worker.util/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "worker::worker.main": {
+    "strategy": "layered",
+    "items": {
+     "worker::worker.main#health/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "worker::worker.main#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     },
+     "worker::worker.main#run/2": {
+      "region": "line",
+      "col": 0,
+      "row": 2
+     },
+     "worker::worker.main.Job": {
+      "region": "line",
+      "col": 0,
+      "row": 3
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "worker::worker.main.Job": {
+    "strategy": "layered",
+    "items": {
+     "worker::worker.main.Job#__init__/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "worker::worker.main.Job#_secret/0": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     },
+     "worker::worker.main.Job#store/3": {
+      "region": "line",
+      "col": 0,
+      "row": 2
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "worker::worker.util.helpers": {
+    "strategy": "layered",
+    "items": {
+     "worker::worker.util.helpers#fmt/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "worker::worker.util/": {
+    "strategy": "layered",
+    "items": {
+     "worker::worker.util.__init__": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "worker::worker.util.helpers": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "worker::worker/": {
+    "strategy": "layered",
+    "items": {
+     "worker::worker.__init__": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "worker::worker.main": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

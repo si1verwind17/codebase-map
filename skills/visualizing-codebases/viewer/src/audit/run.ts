@@ -1,0 +1,87 @@
+// The map audit's runner: plans every floor of a code map as the viewer does and runs each drawing check over it, in
+// the order the time budget favours (site first, then the floors with the most boxes). Pure: no Pixi, no DOM, no file
+// access (cli.ts reads the map and prints the report).
+import { Model, SITE } from "../model/model";
+import type { CodeMap } from "../model/types";
+import { planFloor, type FloorPlan } from "../factory/plan";
+import type { TileRoute } from "../factory/router";
+import { failedViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
+import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
+import { lostViolations, measure, padCorridorViolations, travelViolations, type FloorMeasures } from "./floor";
+import { ROW, type CheckId, type CheckResult, type Violation } from "./types";
+
+/** `skipped` holds container ids; `skippedCodes` the same floors by their code, for the reader. */
+export interface AuditReport { checked: string[]; skipped: string[]; skippedCodes: string[]; results: CheckResult[]; measured: Record<string, FloorMeasures> }
+
+const firstLine = (e: unknown) => (String(e instanceof Error ? e.message : e).split("\n")[0] || "error").trim();
+
+/** The base's lines and each layer's, with the suffix a violation names its view by. */
+const views = (plan: FloorPlan): [string, TileRoute[]][] =>
+  [["", plan.routes], ...Object.entries(plan.layers ?? {}).map(([id, l]): [string, TileRoute[]] => [` (layer ${id})`, l!.routes])];
+
+/** A list check over each view (a layer's violations named by the layer), and a per-route check over each view's lines. */
+const perView = (plan: FloorPlan, check: (routes: TileRoute[]) => Violation[]) =>
+  views(plan).flatMap(([view, routes]) => check(routes).map((v) => ({ ...v, detail: v.detail + view })));
+const perRoute = (plan: FloorPlan, check: (r: TileRoute) => Violation[]) =>
+  perView(plan, (routes) => routes.filter((r) => r.pieces.length).flatMap(check));
+
+/** Every check over one floor's plan, in the order of the check table (spec §3). */
+function checks(model: Model, c: string, plan: FloorPlan): [CheckId, () => Violation[]][] {
+  const { tf } = plan, { bundles } = model.bundles(c);
+  return [
+    ["lines.failed", () => perView(plan, failedViolations)],
+    ["lines.plugged", () => perRoute(plan, (r) => pluggedViolations(tf, r))],
+    ["lines.trunks", () => perView(plan, (routes) => trunkViolations(tf, routes))],
+    ["lines.under", () => perRoute(plan, underViolations)],
+    // a layer shows over the base: a base line's end can take a side's middle tile in a layer view
+    ["lines.mid-side", () => [...midSideViolations(tf, plan.routes),
+      ...views(plan).slice(1).flatMap(([view, routes]) => midSideViolations(tf, [...plan.routes, ...routes])
+        .filter((v) => routes.some((r) => v.detail.startsWith(`${r.key} `))).map((v) => ({ ...v, detail: v.detail + view })))]],
+    ["lines.plate-wall", () => perRoute(plan, (r) => plateWallViolations(tf, r))],
+    ["text.cut", () => cutViolations(model, c, plan)],
+    ["text.over-line", () => overLineViolations(model, c, plan, bundles)],
+    ["zone.narrow", () => narrowZoneViolations(plan)],
+    ["pads.corridor", () => padCorridorViolations(plan)],
+    ["travel.long", () => travelViolations(plan)],
+    ["lost.relation", () => lostViolations(model, c, plan)],
+  ];
+}
+
+/** Audits every floor of `map` within `budgetMs` (read off `now`): floors not reached go to `skipped`. Each floor gets
+ *  one result per check (the first violation and how many more), or one `plan.crashed` when its plan throws; an empty
+ *  floor is checked with no results. `measured` holds each planned floor's numbers by its code. */
+export function auditMap(map: CodeMap, budgetMs = 45_000, now: () => number = Date.now): AuditReport {
+  const start = now();
+  const model = new Model(map);
+  const containers = map.layout.containers;
+  const size = (c: string) => Object.keys(containers[c].items ?? {}).length;
+  const floors = Object.keys(containers).sort((a, b) => Number(b === SITE) - Number(a === SITE) || size(b) - size(a) || a.localeCompare(b));
+  const out: AuditReport = { checked: [], skipped: [], skippedCodes: [], results: [], measured: {} };
+  for (const c of floors) {
+    if (now() - start > budgetMs) { out.skipped.push(c); out.skippedCodes.push(model.codes.get(c) ?? c); continue; }
+    out.checked.push(c);
+    if (!size(c)) continue;
+    const code = model.codes.get(c) ?? c;
+    const result = (check: CheckId, vs: Violation[]): CheckResult => {
+      const v = vs[0];
+      if (!v) return { check, floor: c, code, row: ROW[check], ok: true, detail: "" };
+      const more = vs.length > 1 ? ` (+${vs.length - 1} more)` : "";
+      return { check, floor: c, code, row: ROW[check], ok: false, detail: v.detail + more, ...(v.at ? { at: { x: v.at.x, y: v.at.y } } : {}) };
+    };
+    let plan: FloorPlan;
+    try {
+      const b = model.bundles(c);
+      plan = planFloor(model, c, b.doors, b.bundles, b.layered);
+    } catch (e) {
+      out.results.push(result("plan.crashed", [{ detail: `${code}: ${firstLine(e)}` }]));
+      continue;
+    }
+    for (const [check, run] of checks(model, c, plan)) {
+      let vs: Violation[];
+      try { vs = run(); } catch (e) { vs = [{ detail: `the check crashed: ${firstLine(e)}` }]; }
+      out.results.push(result(check, vs));
+    }
+    try { out.measured[code] = measure(plan, model, c); } catch { /* a floor that cannot be measured has no numbers */ }
+  }
+  return out;
+}

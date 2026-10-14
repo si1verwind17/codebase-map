@@ -1,0 +1,20 @@
+# GCP Pub/Sub resources (applied with `gcloud pubsub ...` from CI).
+topics:
+  - name: bay-status
+    publishers: [sensor-gateway]
+
+subscriptions:
+  # Push: Pub/Sub POSTs every message to the city-dashboard service.
+  - name: bay-status-dashboard
+    topic: bay-status
+    push_config:
+      push_endpoint: https://dashboard.parking.example/pubsub/bay-status
+      oidc_token:
+        service_account_email: pubsub-push@parking.iam.example
+    ack_deadline_seconds: 20
+
+  # Pull: analytics-loader fetches in batches with subscriber.pull.
+  - name: bay-status-analytics
+    topic: bay-status
+    ack_deadline_seconds: 60
+    retain_acked_messages: false

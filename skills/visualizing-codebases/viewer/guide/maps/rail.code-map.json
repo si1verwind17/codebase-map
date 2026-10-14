@@ -1,0 +1,291 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "rail",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:billing",
+   "kind": "service",
+   "name": "billing",
+   "modules": [
+    "billing"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "id": "svc:jobs",
+   "kind": "service",
+   "name": "jobs",
+   "modules": [
+    "jobs"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "jobs::dags/",
+   "kind": "package",
+   "parent": "svc:jobs",
+   "name": "dags",
+   "lang": "python",
+   "file": "jobs/dags",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "jobs::dags.nightly",
+   "kind": "file",
+   "parent": "jobs::dags/",
+   "name": "nightly.py",
+   "lang": "python",
+   "file": "jobs/dags/nightly.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "jobs::dags.nightly#nightly_invoices/0",
+   "kind": "method",
+   "parent": "jobs::dags.nightly",
+   "name": "nightly_invoices",
+   "lang": "python",
+   "file": "jobs/dags/nightly.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "billing::api/",
+   "kind": "package",
+   "parent": "svc:billing",
+   "name": "api",
+   "lang": "python",
+   "file": "billing/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "billing::api.routes",
+   "kind": "file",
+   "parent": "billing::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "billing::api.routes#close_day/1",
+   "kind": "method",
+   "parent": "billing::api.routes",
+   "name": "close_day",
+   "lang": "python",
+   "file": "billing/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "batch",
+   "from": "svc:jobs",
+   "to": "billing::api.routes#close_day/1",
+   "key": "task close_day",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/nightly.py",
+     "line": 1
+    }
+   ],
+   "schedule": [
+    "0 2 * * *"
+   ],
+   "job": "nightly_invoices",
+   "id": "r:batch:svc:jobs->billing::api.routes#close_day/1:task close_day",
+   "data": "forward"
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "jobs/dags/nightly.py": {
+   "lang": "python",
+   "module": "mod:jobs",
+   "node": "jobs::dags.nightly",
+   "parse_error": false
+  },
+  "billing/api/routes.py": {
+   "lang": "python",
+   "module": "mod:billing",
+   "node": "billing::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/close",
+     "handler": "billing::api.routes#close_day/1",
+     "line": 3
+    }
+   ]
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:jobs": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "svc:billing": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes#close_day/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "billing::api/": {
+    "strategy": "layered",
+    "items": {
+     "billing::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "jobs::dags.nightly": {
+    "strategy": "layered",
+    "items": {
+     "jobs::dags.nightly#nightly_invoices/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "jobs::dags/": {
+    "strategy": "layered",
+    "items": {
+     "jobs::dags.nightly": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:billing": {
+    "strategy": "bands",
+    "items": {
+     "billing::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:jobs": {
+    "strategy": "bands",
+    "items": {
+     "jobs::dags/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

@@ -1,0 +1,672 @@
+---
+name: visualizing-codebases
+description: >-
+  Use when asked to map, visualize or diagram a codebase — which services,
+  modules, APIs, events and databases it has and how they connect, how data
+  moves between methods, or to refresh a code map after new commits.
+  Covers code-map.json, incremental rescans, deployables vs shared
+  libraries, call matching between services, side effects, pinned traces and
+  examples; Scala, Python, Java, Kotlin, TS/JS, Go, C#, Rust, Ruby, PHP.
+  Keywords: code map, architecture map, service graph, lineage, viz-code.
+---
+
+# Visualizing codebases
+
+Scan the **committed** code of one repository into `code-map.json`: a tree of
+nodes on zoom floors (services → packages → classes and files → methods),
+the relations between them (calls between services, events, streams, batch
+jobs, DB reads and writes, code imports), pinned traces to start reading
+from, and example values for its entry points and data types. A viewer
+renders the file; this skill only produces it. Scripts do the deterministic
+structure pass; you do the meaning pass, which needs judgment.
+
+Baseline: Python ≥ 3.10.12, `tree-sitter` 0.26.0,
+`tree-sitter-language-pack` 1.20.0; source languages Scala, Python, Java,
+Kotlin, TypeScript, JavaScript, Go, C#, Rust, Ruby and PHP.
+Framework knowledge is data: built-in packs plus the `OUT/stack.yaml` you
+write for each repo (§ Stack).
+Field-by-field format, ids and a complete example: `format.md`.
+
+## Setup
+
+`SKILL_DIR` is this skill's folder. Create the environment once per machine:
+
+```bash
+python3 -m venv ~/.cache/viz-code-venv
+~/.cache/viz-code-venv/bin/pip install -r SKILL_DIR/scripts/requirements.txt
+PY=~/.cache/viz-code-venv/bin/python
+```
+
+Node 18+ is optional: it lets the skill check the drawing.
+
+## Run
+
+`REPO` is the project folder: the git top level, or a subfolder of a larger
+repository (a monorepo project, a demo) — pass its path to map only that subtree.
+In a subfolder scan, changes outside the folder (compose or k8s files at the
+repository root) never mark facts stale: after changing them, rescan in full.
+
+Ask the user for the output directory; default `docs/viz-code` (`OUT` below,
+inside the repo).
+
+1. `$PY SKILL_DIR/scripts/extract.py REPO --out-dir OUT` — writes
+   `structure.json` and `summary.md`. `--out-dir` is relative to `REPO`,
+   not to the current directory. Add `--exclude GLOB` for generated or
+   vendored code the defaults miss. In every language but Python and Scala
+   the defaults also drop build output: every file under a folder named
+   `dist`, `build`, `out`, `bin`, `obj`, `vendor`, `.gradle`, `.next` or
+   `coverage` (except Rust's `src/bin`, Cargo's extra binaries), under a
+   root `node_modules`, generated files (`*.min.js`, `*.d.ts`, `*.pb.go`,
+   `*_pb.ts`, EF Core's `Migrations/*.Designer.cs` and `*ModelSnapshot.cs`),
+   Gradle scripts (`*.gradle.kts`), and each language's test
+   files (`*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `spec/`,
+   `*Test.java`, `*Tests.cs`, Rust `tests/`, …). No flag brings such a
+   folder back: when `summary.md`'s excluded list holds real source from
+   one (a package named `build`), name it in `problems`; renaming the
+   folder is the user's call.
+2. If `OUT/code-map.json` exists: `$PY SKILL_DIR/scripts/diff.py REPO --out-dir OUT`.
+   - `none` → the code is unchanged; `diff.py` has refreshed the page and the
+     audit, and written `meaning.json` from the map. Read `OUT/map-notes.md`:
+     if a note the format can express is not yet on the map, apply it to
+     `meaning.json` and continue from step 4. Do the same when the export
+     had a `## Pins` section (§ Review comments).
+     Otherwise report the commit, the audit line and each note as applied
+     or "not supported yet", then stop.
+   - `rules` → the code is unchanged but the map predates newer meaning
+     rules; `meaning.json` holds every fact, no page or audit refresh. Read
+     `OUT/map-notes.md` and apply its notes as in `none`. For each
+     `stale.json` `rules.recheck` entry (`Rules <N>: <entry>`), re-check the
+     facts it names, or look in the code for the new kind of fact it adds,
+     using the section of this file it points to. Leave other facts alone.
+     Continue from step 4.
+   - `incremental` → `meaning.json` holds every fact; the ones touched by the
+     change carry `"stale": true` (`stale.json` lists them with the changed
+     files). Re-resolve each flagged fact against the new code: keep it
+     (delete the flag), change it (edit, delete the flag), or drop it. A
+     flagged example is rewritten, or deleted when its class or handler is
+     gone (§ Examples). Look at added source files for new facts. Leave
+     unflagged facts alone.
+     `assemble.py` refuses the map while any flag remains.
+   - `full` → do the whole meaning pass; `stale.json` says why. If
+     `meaning.previous.json` exists, start from it: copy it to `meaning.json`,
+     then resolve every `stale` flag. A scanner upgrade adds finer nodes (`val`
+     methods, `$impl` classes, nested DAG tasks, proto keys) — re-point facts
+     to them where they are more exact, look up ids with `find.py`, and do a
+     full pass for anything new in `summary.md`. Never carry a fact you have
+     not checked against the new structure.
+   - For `incremental` and `full`, also apply `rules.recheck` when present
+     (as in `rules`). `recheck: null` (`rules.floor` in `stale.json` names the oldest
+     `CHANGES.md` section) means the map is older than that entry: the full
+     pass covers it.
+2b. Stack: before going on as step 2 says (in every mode but `none`), and
+   on a first run right after step 1: if the Stack section at the top of
+   `summary.md` does not read `nothing unrecognised`, do § Stack, then
+   re-run step 1. Why after diff: the diff compares the map with the
+   `stack.yaml` it was made with, and this run's assemble stamps your edits.
+3. If `OUT/map-notes.md` exists, read it first and apply its free-text notes
+   (see Map notes). Then the meaning pass (rules below) → write
+   `OUT/meaning.json`.
+4. `$PY SKILL_DIR/scripts/assemble.py REPO --out-dir OUT`. On exit 1 fix
+   `meaning.json` from the printed errors and rerun until it exits 0. It also
+   lays out every floor; items keep their positions from the previous map so
+   the reviewer's mental map survives. Pass `--relayout` only when the user
+   asks for a fresh arrangement. On exit 0 it also writes `OUT/index.html`:
+   the prebuilt viewer with this map built in. Exit 3 means the map is valid
+   but the page was not written (the message says why): report it, do not
+   touch `meaning.json`.
+5. `assemble.py` prints the audit line last and writes `OUT/audit.md`. Fix
+   each `ext.missing`, `module.empty`, `example.missing` and `pin.few` content warning
+   in `meaning.json` and rerun `assemble.py`. An `ext.missing` key that names no
+   outside endpoint (a test helper's, a tool's own setting such as `DOCKER_HOST`)
+   gets a `problems` entry naming the key and why; that clears it. Report `name.container` and
+   `pin.start-missing` warnings and audit errors (`audit.error`); do not fix
+   them. Map limits and findings are reported, not fixed.
+6. Open `OUT/index.html` in a browser. (`view.py REPO --out-dir OUT` rewrites
+   only the page, for when the viewer changed but the map did not.)
+7. Report: commit scanned, the counts line it printed (paste that line as it is, never a retelling), every entry in `problems`,
+   the audit line, each map note as applied or "not supported yet", each
+   `rules.recheck` entry applied, the number of pins and examples, each
+   `## Pins` line applied, the `stack.yaml` entries added this run,
+   each Stack line left unresolved with its reason,
+   the path of `index.html`, a line pointing to the guide at
+   `OUT/field-guide.html`, and remind the user to commit
+   `OUT/code-map.json`, `OUT/stack.yaml` and `OUT/README.md`. `README.md` is
+   the skill's, rewritten each run; `map-notes.md` is the user's; both are
+   committed. Other files in `OUT` (`structure.json`, `summary.md`,
+   `meaning.json`, `meaning.previous.json`, `stale.json`, `index.html`,
+   `field-guide.html`, `audit.md`) are working files, already gitignored.
+   `CHANGES.md` is the skill's, not the user's: never edit it.
+
+Read `summary.md`, not `structure.json` (it can be megabytes). Look up ids with
+`$PY SKILL_DIR/scripts/find.py OUT/structure.json TEXT [--kind method]`.
+Read source, config and compose files **at the scanned commit**
+(`git -C REPO show <commit>:./<path>`; commit and scanned folder in the
+`summary.md` header), not from the working directory, which may hold someone
+else's uncommitted edits. Keep the `./`: without it git resolves the path from
+the repository's top level, and in a subfolder scan reads the wrong file
+without an error.
+`summary.md` also lists excluded files (tests, docs, vendored code) and
+FastAPI `include_router` prefixes, which you compose onto the included
+router's routes yourself.
+
+## Committed code only
+
+The scan reads the commit at `HEAD` through `git archive`, never the working
+directory, and stamps that one commit hash; `assemble.py` refuses if `HEAD`
+moved since `extract.py`. If the user expects uncommitted work in the map,
+tell them to commit it first. `git archive` also leaves out files marked
+`export-ignore`, submodule contents, and Git LFS file contents (it yields the
+pointer): name any of these in `problems` when the repo uses them. Why: one hash identifies
+exactly what the map shows, and another agent editing files during the scan
+cannot leak half-written code into it.
+
+## Never read secrets
+
+Do not open files that may hold credentials: `*.env`, `.env*`, `secrets*`,
+key stores, or connection files that map names to URLs and passwords. Use
+config **key names** (`ORDER_SERVICE_URL`, `DB_HOST`) as identifiers, never
+their values. Why: the map is committed and shared, and a value read once ends
+up in evidence, ids or problems.
+
+## Deployables, not folders
+
+A `service` is something that runs: a compose service, a Dockerfile, an app
+entrypoint. Shared code with no deployment of its own is a `library`. Read
+compose files and Dockerfiles first, then claim every module in
+`summary.md` from a service or library (`modules: [...]`). A module is an sbt
+project, a Python package or script folder, or the nearest folder holding a
+build file of the language's ecosystem (`pom.xml`, `settings.gradle`,
+`package.json` and its workspaces, `go.mod`, `Cargo.toml`, `*.csproj`,
+`Gemfile`, `composer.json`), else the top folder; its `summary.md` heading
+names the language and build. When one folder holds two languages, the
+second one's module is `<path>#<lang>`: claim it under that name
+(`"modules": ["dashboard#typescript"]`), as the heading writes it without `mod:`. Shared code that
+services import is a `library` even when a Dockerfile copies it into their
+image. Only application code that two deployments each run as their own (a
+workflow module registered into two orchestrator projects) is claimed by both
+services: its code sits under the service whose first-listed module it is,
+and the other shows a twin of it, reported in `problems`.
+Every service cites the line that deploys it in `evidence` (validation
+fails without it). Unclaimed modules are defaulted to libraries and reported. Why: drawing a
+shared library as a service invents traffic that never crosses a network.
+
+When code inside a library does anything at runtime (a call, an event, a
+DB read or write) the actor is the service that imports and runs it: write
+the relation `from` the service, with `via` naming the library method, once
+per service that runs it. `assemble.py` rejects runtime relations that start
+inside a library.
+
+Workflow orchestrators (Flyte, Airflow, Dagster, Prefect) deploy by
+registration, not by compose: each registered project or DAG group is a
+service, with the registration line as its evidence. Jobs the docs say to
+launch by hand on the orchestrator (`pyflyte run`, `airflow dags trigger`)
+form one more service (e.g. `adhoc`), with that doc line as evidence; when
+they sit in the same folder as scheduled jobs, both services claim that
+module and the code sits under the one a deploy file runs (the scheduler),
+the hand-run service showing a twin. A job that triggers a
+job owned by another project (`reference_task`, `TriggerDagRunOperator`, an
+external task sensor) is a `batch` relation from the calling service to the
+target task method, keyed `task <name>`. The platform the code runs on (the
+orchestrator itself, a Spark cluster, a Hive metastore, Kubernetes) is not a
+node: name it in `problems` only when a reviewer needs to know. Why: the map
+shows what the application does; platform boxes would sit on every floor and
+say nothing.
+
+## Matching interactions
+
+Match an outbound call to an inbound route, topic or table by its **protocol
+key**: HTTP method + path template, topic name, gRPC service/method, table
+name. The structure pass already lists routes per module (the packs' frameworks,
+`format.md` → Stack, and `stack.yaml`; methods upper-cased, and without the
+prefixes of mounts, which you compose onto them yourself), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
+lists tapir client endpoints as `http clients` (method + path: match them to
+routes like a URL), the gRPC services and rpcs of every `.proto` file as keys
+`grpc <package>.<Service>/<Rpc>` with the stubs and servicers tied to them
+(both ends found and keys equal → `confirmed`; copy a key exactly as
+`summary.md` writes it), and each Airflow DAG's id,
+schedule and tasks, each Flyte workflow's launch plan schedule and every
+`reference_task`.
+
+- `confirmed` only when both ends are in code or config and the keys match.
+  Anything you reasoned is `inferred`, with a `why` a reviewer can check.
+- A base URL that comes from config resolves through config files and
+  compose or env templates. A `confirmed` relation cites that config line in
+  `evidence` next to both code ends. When the target differs per deployment,
+  set `deployment_dependent: true` instead of choosing one.
+- A target outside the repo becomes a placeholder node: `ext:http:<config key>`,
+  `3p:<vendor>`, `db:<engine>:<config key>`, `topic:<broker>:<name>`. These
+  keys let a later merge join maps of several repos. Name an `ext:`
+  placeholder by its config key; when no config key exists, by the deployment
+  that runs it (the compose service, the k8s deployment, the folder of an
+  unscanned app): `ext:http:dashboard-frontend` for the app in
+  `deployment/dashboard`. Never a bare role word: `ext:http:dashboard` for a
+  frontend is ambiguous, so say which deployment. Notifications count:
+  a client posting to a URL from config (`DISCORD_WEBHOOK_URL`, a Slack or
+  Telegram token, SMTP settings) is an `ext-call` to `3p:<vendor>`, from each
+  service that runs it (with `via` when the client lives in a library).
+- An inbound webhook (a provider calling the service) is a `request` from the
+  `external` (e.g. `3p:stripe`) to the service route that receives it,
+  citing the route and the provider config if any.
+- Kinds: `request`, `event` (always through a `topic` node), `stream`
+  (websocket, SSE, gRPC streaming; `bidirectional` when both ways), `batch`
+  (scheduled or one-shot bulk jobs), `db-read`, `db-write`, `ext-call`.
+  Never add a runtime relation for an import, and never add `calls`: the
+  scanner writes `uses-code` for imports and resolves method-to-method
+  `calls` by name itself.
+- A generic job whose tables come from inputs (one replication task, many
+  tables) is one relation with a wildcard key (`table sales.*`); list in
+  `tables` the concrete tables its callers pass in (literal arguments, or
+  variables set right before the call) or that configs name.
+- `data` says which way data moves: `forward` (from → to), `back` (to → from)
+  or `both`. Kinds default (request `both`, db-read `back`, the rest
+  `forward`); a `stream` has no default and must be set: a subscription the
+  service opens is `back`. The layout orders the production line by it.
+
+Read these optional facts from code and config. Each is set only on evidence
+you can cite; leave it out when unsure. Why: the viewer draws the shape from
+them, and a guessed shape is worse than a plain one. When you set a node
+fact (`delivery`, `dead_letter_of`, `replicas`, a `store` override), put the
+line that shows it in that node's `evidence`; `assemble.py` refuses it
+without. Node facts go stale like relations when an evidence file changes.
+
+| Fact | Signal in code or config |
+|---|---|
+| topic `delivery` `queue` | SQS, a RabbitMQ queue, Celery: one consumer takes each message |
+| topic `delivery` `fan-out` | Kafka topic, Pub/Sub topic, SNS: every group or subscription gets a copy. A Pub/Sub pull subscription with one consumer is still `fan-out`; its relation carries `subscription: "pull"` |
+| `subscription` `push` | Pub/Sub subscription with a `push_endpoint`; SNS to HTTP |
+| `subscription` `pull` | a Pub/Sub pull subscription (`subscriber.pull`). Kafka, SQS and RabbitMQ consumers: leave `subscription` out; absent means the broker's normal consume |
+| `group` | Kafka `group.id`; the subscription name. Set `subscription` and `group` only on the event from the topic (the consume side) |
+| dead letter | `deadLetterPolicy`, a redrive policy, or a `*.dlq` topic produced on failure: the DLQ is a topic with `dead_letter_of` the source topic; the failure publish is an `event` to the topic with `on_failure: true`, set only on that event to the topic |
+| service `replicas` | compose `deploy.replicas`, k8s `replicas:` |
+| `schedule` | Airflow `schedule=`, a cron file, a Flyte `LaunchPlan` with a `CronSchedule`. Entries are a 5/6-field cron (presets like Airflow `@daily` and `@hourly` are written as cron: `0 0 * * *`, `0 * * * *`), `manual` for hand-launched jobs, or `on <event>` for event-triggered jobs |
+| `job` | the DAG or task name |
+| datastore `store` | set only when the engine default is wrong (a Redis used as the system of record) |
+
+## Stack
+
+What the scanner knows about libraries and route styles is data: the
+built-in packs (`scripts/vizcode/packs/<lang>.yaml`) and `OUT/stack.yaml`,
+which you create and write for this repo without asking; it is committed
+and reused on later runs. The Stack section at the top of `summary.md` lists what neither
+covers, total first: unrecognised imports (two `file:line` examples each),
+server libraries without routes (an `http-in` or `http` import with no route
+in its importers' modules), and `stack.yaml` route or table patterns with 0 matches.
+It never lists the standard library (the packs' `ignore` lists, Go paths
+without a host, Python's own list) or the repo's own code: relative imports,
+module folders and package names, Python sibling modules and `<stem>_pb2`
+stubs, Scala imports that start uppercase or name something declared in the
+file, workspace and `go.mod`/Cargo package names, tsconfig `paths` aliases,
+Rust `crate::`/`self::`/`super::` and `mod` names. Nor what the packs' code
+rules read (tapir, FastAPI, Airflow, Flyte, ZIO). The packs cover the common
+frameworks, ORMs and clients of every language (`format.md` → Stack lists
+them), so write `stack.yaml` entries only for what the Stack section lists
+and for routes or tables you see the pattern counts miss (step 3). A pack
+also ignores the wiring of the frameworks it covers (Spring, Micronaut,
+Quarkus, NestJS, ASP.NET, Laravel, Symfony): an IO part of one of them that
+the pack does not list never shows here, so when the code uses one (a
+messaging or client module), add it to `imports`.
+
+Sort each line into one group of its language:
+
+| Group | When | Effect on the map |
+|---|---|---|
+| `imports` | the library talks to the outside world: `{prefix, kind}`, kind one of `sql-db`, `doc-db`, `cache`, `http-out`, `http-in`, `http`, `ws`, `event`, `grpc`, `cloud-sdk`, `spark`. A vendor SDK that calls its API is `http-out` | the file's `sinks` (listed for you to attach) and the package role |
+| `routes` | the library receives requests: a regex or an annotation pattern that finds them (below). A server library usually needs both, `imports` as `http-in` plus a pattern | `routes` facts: matching and the `entry` role |
+| `effects` | Scala only: `val`s of these types hold behaviour (`IO`, `Resource`, `Stream`). It does not clear an import line: the library also goes in `ignore`, or in `imports` if it talks out | such a `val` becomes a method node |
+| `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`) | nothing; the line leaves the section |
+| `tables` | an ORM or query DSL names tables in code (Quill `query[Order]`, JPA `@Table(name = "orders")`, SQLAlchemy `__tablename__`, Django `db_table`): a regex that finds the name. Its library still goes in `imports` | `tables (patterns)` lines in `summary.md`, to attach (§ Side effects) |
+
+1. Read each example line at the scanned commit before deciding. Write only
+   what the repo shows: each pattern is checked against at least one real
+   route line, and a library goes into `ignore` only after you looked at how
+   it is used. Why: the file is committed and silences the section; a guess
+   hides a real side effect for good.
+2. Re-run `extract.py` after each edit. Repeat until the section reads
+   `nothing unrecognised`, or until each remaining line is one you cannot
+   resolve; report those with the reason (step 7).
+3. Check each pattern's count (the `Route patterns` and `Table patterns`
+   lines) against the code. When you see routes or tables it misses, fix the
+   regex; for a pack pattern, write a `stack.yaml` entry with the pack
+   entry's name, which replaces it for this repo (pack regexes expect the
+   usual receiver names, such as Express `app.` and `router.`). Never widen a
+   pattern to match something that is not one. A line `duplicates <pattern>`
+   is information, not a miss: every match of your entry was already that
+   pattern's; delete your entry.
+   When a library in `imports` is an ORM, look for how it names tables and
+   add a `tables` pattern even though no line asks for it.
+4. Files whose facts a new or changed pattern touches count as changed in
+   this run: on an incremental run, review them with the stale facts.
+
+- A server library without routes whose module only starts a server for
+  routes defined in another module (a shared module serving tapir
+  endpoints) goes into `ignore`; that clears the line. So does a framework
+  whose routes the scanner cannot read (Django `urls.py`): say so in the
+  report.
+- Prefixes match on the language's separator boundaries, in every group and
+  in `when`: `.` (Python, Scala, Java, Kotlin, C#), `/` (TypeScript,
+  JavaScript, Go, Ruby), `::` (Rust), `\` (PHP). Write a prefix without a
+  trailing separator (`java`, `std`; `java.` and `std::` are read the same).
+  A prefix ending in a single `:` covers everything after it: `node:` covers
+  every `node:*`. Python `from X import Y` is matched as `X.Y`.
+- `imports` wins over `ignore`, and when several `imports` prefixes name an
+  import the longest decides its kind (`jakarta.ws.rs.client` is `http-out`
+  inside `jakarta.ws.rs`, `http-in`). A `stack.yaml` kind replaces a pack's
+  kind for the same prefix, and a `stack.yaml` route or table entry named
+  like a pack entry replaces that entry; `summary.md` lists both.
+- A hand edit between runs makes the next run `full` ("stack.yaml changed
+  since the map was made"). Your edits during a run do not: this run's
+  assemble stamps them (`meta.stack`).
+
+Format (data only; you create the file, `extract.py` only adds the two
+header lines to it if missing and keeps the rest as written):
+
+```yaml
+python:
+  imports:
+    - {prefix: rq, kind: event}
+  ignore: [attrs]
+  routes:
+    - name: bottle
+      when: bottle
+      path: literal
+      regex: '@\w+\.(?P<method>get|post|put|delete)\(\s*["''](?P<path>[^"'']*)["'']'
+scala:
+  effects: [Future, Route]
+  routes:
+    - name: pekko-http
+      when: org.apache.pekko.http
+      path: segments
+      method: ANY
+      regex: '\bpath\(\s*(?P<path>"[^)]*)\)'
+```
+
+- Top-level keys: `python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
+  `javascript`, `go`, `rust`, `ruby`, `php`. Groups: `imports`, `routes`,
+  `effects` (Scala only; under any other language it is an error), `ignore`,
+  `tables`. Packs and `stack.yaml` add up; `stack.yaml` removes no pack
+  entry, but replaces one of the same name (above).
+- A route (`form: regex`, the default): `name` (unique per language;
+  `fastapi`, `tapir` and `tapir-client` are taken), `regex` (Python `re` over the whole file, multiline) with a
+  named group `path`; the method from a `method` group, a `methods` group
+  (each quoted word is one route), or the entry's `method:` (`ANY` for every
+  method); methods are upper-cased (`get` → `GET`). A pattern with a
+  `methods` group and no `method` group must also set `method:`, the
+  fallback for a match where the group is empty. `when`: an import prefix; the pattern runs only on files that
+  import it. Without `when` it runs on every file of its language.
+  `path: literal` (the default when `path:` is omitted, mounts too) reads a path string (`/users/<int:id>`);
+  `segments` reads `/`-separated parts (`Root / "users" / IntVar(id)`).
+  `<int:id>`, `<id>`, `:id` and `{id}` all become `{id}`. The handler is the
+  innermost function holding the match, else the next one after it (a
+  decorator), else the file (in Scala, its first class; in the other
+  languages but Python, the file's node, made when the file has none: never
+  the package or an unrelated class). A Scala `val` that
+  holds routes (Pekko `val route: Route = ...`) is a function only when its
+  type is in `effects`: add that type (`Route`), or the class becomes the
+  handler.
+  `expand` makes one match several routes: `{index: GET, show: GET /:id,
+  update: [PATCH /:id, PUT /:id]}` gives one route per item, its suffix
+  appended to the path; optional `only` / `except` groups list the actions
+  to keep or drop (any words: `[:index, :show]`, `%i[index]`), and an
+  optional `param` group renames the suffixes' `:id` (Rails `param: :slug`).
+  The Ruby pack's `rails-resources` / `rails-resource` use it.
+  An optional `handler` group (`app.get("/x", (?P<handler>[\w.]+))`) names
+  the handler by its last `.` or `::` segment (`h.GetOrder` → `GetOrder`):
+  when one method or function of that name exists in the same file, else the
+  same package, else the module, it is the handler; no match or several at
+  the first level that has any give the method around the match, else the
+  file. A pattern with a `handler` group never takes the function below the
+  match (that rule is for decorators): an inline handler
+  (`app.get("/x", (req, res) => …)`) leaves the group empty, and an empty
+  group `(?P<handler>)` at the end of the regex is how a route written as a
+  block (`get "/x" do`) gets the same rule.
+- A mount (`mount: true`): the route entry's regex has a `path` group and an
+  optional `target` group, no method. Its matches are not routes: `summary.md`
+  lists them per module (`- **mounts:** /v1 → router (file:line)`). The
+  scanner never joins them to routes: you compose each mounted prefix with
+  the routes of its target (follow the target to the file that defines its
+  routes) wherever you write a route's path, such as a `request` key; an
+  example's key follows `scripts/examples.py`, which writes the relation's
+  spelling when a relation names the route and the bare path when none does (Express
+  `app.use("/v1", router)`, Ktor `route("/v1") { }`, Chi `Route`, NestJS
+  `setGlobalPrefix`).
+- An annotation route (`form: annotated`; any language but Python and
+  Scala) reads the annotations on classes and methods instead of a regex.
+  The Java pack's Spring entry, shortened (in `stack.yaml` this name would
+  replace it):
+
+  ```yaml
+  java:
+    routes:
+      - name: spring-web
+        form: annotated
+        when: org.springframework.web.bind.annotation
+        prefix: [RequestMapping]          # class annotations whose path is the prefix
+        verbs: {GetMapping: GET, PostMapping: POST, RequestMapping: from-method-arg}
+        path_args: [value, path, 0]       # where the path is: named arguments, then positions
+  ```
+
+  Each method with a `verbs` annotation is one route per path, the class
+  prefix joined with the method's path, the method itself the handler.
+  `from-method-arg` reads the HTTP method from the argument `method_arg`
+  names (default `method`:
+  `method = RequestMethod.POST`; a list gives one route each, none `ANY`).
+  Optional keys: `method_path` (method annotations whose path is appended,
+  JAX-RS `@Path`), `token` (a path token replaced by `class-stem`, the class
+  name without `Controller`, or `method-name`: ASP.NET `[controller]`,
+  `[action]`), `absolute` (method paths starting with one of these drop the
+  class prefix: ASP.NET `/`, `~/`), `skip_class` (class annotations that
+  mark an HTTP client: such a class or interface gives no routes; the packs
+  set Feign `FeignClient`, Spring `HttpExchange`, MicroProfile
+  `RegisterRestClient`, Micronaut `Client`). A path that is not a string literal (a
+  constant) gives no route. Spring `${property}` placeholders stay in the
+  path as written: resolve them from the config when you match it.
+- Routes whose handler is the file: Rails (`config/routes.rb`, `to: "c#a"`,
+  and `resources :users` / `resource :profile` expanded to their REST
+  actions, `only:` / `except:` on the same line kept) and Sinatra blocks. Map
+  `c#a`, or a resource action, to the controller's method yourself when you
+  attach relations and examples. A resource nested in another or in a
+  `namespace` is listed with its own name only (`/posts`, not
+  `/users/{user_id}/posts`), and `path:` or options on a following line are
+  not read: compose the full path yourself, as for mounts. A
+  Grape API's `resource :x do` blocks look the same: in such a repo replace
+  both entries in `stack.yaml` with a `when` that nothing imports. ASP.NET controllers are found only
+  in files that name `Microsoft.AspNetCore.Mvc`: a project whose `using` is a
+  `global using` in `GlobalUsings.cs` (or implicit) names it in no controller
+  file; copy the pack's `aspnet` entry into `stack.yaml` without `when`.
+- A table pattern: `name` (unique per language among `tables`), `regex`
+  with a named group `table`, optional `when` as for routes:
+  `{name: peewee, when: peewee, regex: '\btable_name\s*=\s*["''](?P<table>[^"'']+)["'']'}`.
+  A match inside a method is listed as `in <method>` (an access); one on a
+  class outside any method as `defined on <class>` (an ORM mapping, not an
+  access: find the methods that use the class); elsewhere `in` the file.
+  A Django `db_table` inside `class Meta` reads `defined on Meta`: the
+  model is the class around `Meta`.
+- An effect: a type name, matched as a `val`'s declared type or a call
+  `Name.` / `Name(` in its value; `{name: X, match: type}` matches the type
+  only.
+- Invalid content stops `extract.py` with exit 2 and names the file, the
+  language, the entry and the reason: fix it and rerun.
+
+## Side effects
+
+For each client library, SQL table and `tables (patterns)` entry in
+`summary.md`, find the method that performs the read or write and attach the
+relation there, to a `table` node under its datastore. A pattern match says
+which table, not which way: decide `db-read` or `db-write` from the code, as
+for a client library. When an interface has several implementations, follow
+the wiring (ZLayer, dependency injection, constructors) to the one production
+runs. Why: a test double or an unused implementation is not the system.
+
+## Package roles
+
+The scanner gives each package a role from its facts: `entry` (routes),
+`storage` (database clients or SQL), `outbound` (HTTP, gRPC or broker
+clients), `model` (data classes only) or `logic`. The role decides where the
+package sits on its service's floor. When one is wrong, override it in
+`meaning.json` under `roles` (`{"<package id>": {"role": ..., "why": ...}}`).
+
+## Domain context first
+
+If the repo has `docs/domain-context.md`, read it before the meaning pass:
+its module map, core path and per-module facts outrank inference. Cite it in
+`evidence` and set `domain_context` in `meaning.json`. Why: it holds facts
+the code cannot show, such as a table only an unused path writes.
+
+## Pinned traces
+
+The viewer traces data through the map from any node, upstream and
+downstream. Pins are the traces it lists to start from: write `pins` in
+`meaning.json` on a first scan.
+
+- Pin 3–6 traces (fewer only when the map has fewer than 3 entry points):
+  the core path from the domain context if there is one, then the main
+  entry points of services the earlier pins' traces do not reach, until 6.
+- A pin is `{id, title, start, direction, by}`. `start` is a node id of
+  any kind: prefer an entry point's handler method (a pin says where data
+  starts), or a table, topic, external or datastore; a service, library,
+  package, file or class traces from the entry points inside it, else from
+  its boundary methods (those a relation crosses its edge at), else from
+  the container itself.
+  Lines and floor groups cannot be pinned (their ids are not map nodes).
+  `direction` is `downstream`, `upstream` or `both`; `by` is `agent`.
+- The title says in plain words what happens along it ("driver reserves a
+  bay, billing charges it"), never how much it matters: no key, main,
+  critical, core or important in it. Why: the map cannot know which path
+  matters most; the user pins and unpins what they want.
+- `id` is the title as a slug (`driver-reserves-a-bay-billing-charges-it`);
+  a repeated slug gets `-2`, `-3`.
+- Never remove or rename a `by: user` pin, and never pin an id listed in
+  `unpinned` (the user removed it).
+- `diff.py` carries pins over unchanged. When a pin's `start` no longer
+  exists, re-point it only when the code shows a rename (same file, the body
+  moved under a new name); otherwise leave it: the audit lists it
+  (`pin.start-missing`) for the user to decide.
+
+## Examples
+
+Example values show what the data looks like, the Swagger way: one per data
+type and one per entry point. Make them up at scan time, realistic; the
+viewer labels them `example values, not computed`. Never present them as
+what the code would output. Values need not agree across a chain.
+
+- **Entry points:** the handler method of a route, and the method a
+  `request`, `event`, `stream` or `batch` relation ends at. Give each an
+  `examples.entries` item: `node` (the handler), `key` (the key as on the
+  relation, or `METHOD path` for a route, as `scripts/examples.py` prints
+  it: `POST /v1/reservations`, a topic or stream name, `task nightly_settlement`
+  for a batch), `request` (the payload that comes in; `{}` for a job that takes
+  none) and, for a route, `response` (what it sends back; none for events,
+  streams and jobs). A method that serves several routes gets one item per
+  key. One item per route, not per spelling: a route that `files` lists
+  without its mount prefix and a relation writes with it is one item, keyed
+  as on the relation.
+- **Data types:** a class whose `fields` the scanner lists, referred to by a
+  signature (`signature.params[].refs`, `signature.returns_refs`). Give an
+  `examples.types` entry (`"<class id>": {"value": {...}}`) to every type in
+  the refs of an entry point's handler and of the methods within two hops
+  downstream of a pin's start. Not every type in the codebase. `value` is an
+  object keyed by the class's field names; leave out a field you cannot fill
+  sensibly, never add one it does not declare.
+- Write type examples only for data types: payloads, records, entities. A
+  class that holds services or dependencies (a repository, a client, a
+  handler with injected collaborators) gets none, even when
+  `scripts/examples.py` lists it. Why: its fields are wiring, not data; an
+  example of it shows nothing a reader needs.
+- Leave `fingerprint` out: `assemble.py` stamps it. On a rescan `diff.py`
+  flags an example `stale` when its class's fields or its handler's
+  signature changed, or the class or handler is gone: rewrite the value (or
+  delete the example when its class or handler is gone) and delete the flag.
+- Write examples after the rest of the meaning pass: once `assemble.py`
+  exits 0, `$PY SKILL_DIR/scripts/examples.py REPO --out-dir OUT` lists every
+  entry point and data type that should have one, totals first, each `ok`,
+  `missing` or `stale` (`ok 1/3 keys` when a method with several keys has
+  fewer examples; `key gone` when an example's key is no longer one of its
+  method's). Write the missing ones (for types, data types only)
+  and assemble again. The audit lists entry points still without one, and
+  those with a key still without one (`example.missing`). A root route
+  (`GET /`) under a mount stays a key apart from the relation's (`GET /v1`):
+  give it an example under each key.
+
+## Problems
+
+Record everything you could not resolve in `problems`, with the nodes it
+concerns. A visible gap is useful; a confident guess is not.
+
+## Large repos
+
+When `summary.md` lists more modules than one pass can read carefully, run
+the meaning pass per service (one sub-agent each, all following this
+skill), then one pass that matches interactions between services.
+
+## Review comments
+
+If `OUT/export-comment.md` exists, read it before anything else. It is review
+feedback a person left on the map in the viewer: each block names a node or
+the line between two nodes, its `file:line`, the map commit it was made on,
+and what they want. Read the code a comment points at with
+`git -C REPO show <map commit>:./<file>`. Act on every comment in the code,
+say which ones you handled and which you could not (and why), and rescan so
+the map matches the new code. Delete the file once the rescan has applied its
+`## Pins` section (below), or as soon as you have read it when it has none. A
+comment that questions the map rather than the code is answered in the map:
+set the fact's `why` (and `deployment_dependent`) in `meaning.json`. Before
+you reply, find every change you report in the rescanned `code-map.json`;
+report only what is there. Why: the comment loop is how a reviewer steers an
+agent without reading every file; a comment left unread, or a fix claimed but
+not made, is a review that never happened.
+
+A `## Pins` section, when present, holds the pins the user added and removed
+in the viewer, one per line:
+
+```
+## Pins
+- pin: <title> | start: <node id> | direction: <downstream|upstream|both>
+- unpin: <pin id>
+```
+
+Apply each line to `meaning.json` whatever mode `diff.py` reports, `none`
+included (after `diff.py` wrote it; on a full rescan, after you copied
+`meaning.previous.json`), before you delete the file: a `pin:` line whose
+start and direction match an agent pin turns that pin into the user's
+(`by: user`, the line's title, its id that title as a slug); any other
+`pin:` line becomes a `by: user` pin whose id is its title as a slug (the
+next free `-2`, `-3` when the slug is taken, by a pin or in `unpinned`); an `unpin:` of an agent pin
+deletes it and adds its id to `unpinned`; an `unpin:` of a user pin deletes
+it; an `unpin:` naming no pin needs nothing. These lines change the map, not
+the code. Report each line as applied.
+
+## Map notes
+
+`OUT/map-notes.md` is the user's standing notes on the map: committed, read
+on every run, never edited by you. `export-comment.md` is different: it is
+about the code and the pins, handled once, then deleted.
+
+- Free-text notes: apply what the format can express — which deployables are
+  services, excludes, a relation's `why` and `deployment_dependent`, a
+  missing outside service. Anything else (a layout override) is "not
+  supported yet". Name each note in the report as applied or not supported
+  yet.
+- Acceptances keep a map limit out of the count:
+  `- accept <check id> <floor code or *>  — <reason>` (the reason is
+  optional). `audit.md` prints the line to paste under each map limit.
+
+The audit (`audit.py`, run by `assemble.py` and on `none`) never blocks the
+map. Map limits are drawing-check failures the viewer cannot draw well yet:
+report them, never fix them, never put them on the map. Findings are what the
+map shows about the code; the only one is a cycle between services (events
+through a topic do not count). Content warnings `ext.missing`,
+`module.empty`, `example.missing` and `pin.few` you fix in `meaning.json`;
+`name.container` is a labelling gap in the scanner or viewer,
+`pin.start-missing` a pin whose start is gone (the user decides), and an
+audit error (`audit.error`) is a check that broke: report them. Without
+Node 18+ the drawing checks are skipped and the line says why. Check ids:
+`format.md` → Audit.
+
+## Common mistakes
+
+- Treating a shared library, a scripts folder or a test helper as a service.
+- Marking a URL built from config as `confirmed` without resolving the config.
+- Calling a pin the key, main, critical, core or important path.
+- Writing an example field the class does not declare, or a `fingerprint`.
+- Re-resolving facts `diff.py` kept, which wastes the incremental scan and
+  churns the committed map.

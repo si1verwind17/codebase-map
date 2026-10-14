@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "code-map.json",
+  "type": "object",
+  "required": ["meta", "nodes", "relations", "pins", "unpinned", "examples", "files", "problems", "layout"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["schema_version", "scanner_version", "repo", "commit", "scanned_at", "languages", "domain_context"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": 3},
+        "scanner_version": {"type": "string"},
+        "rules_version": {"type": "integer", "minimum": 1},
+        "stack": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "repo": {"type": "string"},
+        "root": {"type": ["string", "null"]},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "scanned_at": {"type": "string"},
+        "languages": {"type": "array", "items": {"type": "string"}},
+        "domain_context": {"type": ["string", "null"]}
+      }
+    },
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "relations": {"type": "array", "items": {"$ref": "#/$defs/relation"}},
+    "pins": {"type": "array", "items": {"$ref": "#/$defs/pin"}},
+    "unpinned": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "examples": {
+      "type": "object", "required": ["types", "entries"], "additionalProperties": false,
+      "properties": {
+        "types": {"type": "object", "additionalProperties": {"$ref": "#/$defs/type_example"}},
+        "entries": {"type": "array", "items": {"$ref": "#/$defs/entry_example"}}
+      }
+    },
+    "layout": {
+      "type": "object", "required": ["version", "containers"],
+      "properties": {"version": {"const": 1}, "containers": {"type": "object", "additionalProperties": {
+        "type": "object", "required": ["strategy", "items"],
+        "properties": {"strategy": {"enum": ["main-bus", "city-grid", "bands", "layered", "shelves"]},
+                       "items": {"type": "object", "additionalProperties": {"type": "object", "required": ["region", "col", "row"],
+                         "properties": {"region": {"type": "string"}, "col": {"type": "integer"}, "row": {"type": "integer"}}}}}}}}
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["lang", "module", "node"],
+        "properties": {"lang": {"type": "string"}, "module": {"type": "string"}, "node": {"type": "string"},
+                       "parse_error": {"type": "boolean"},
+                       "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}}
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text"],
+        "properties": {"text": {"type": "string"},
+                       "nodes": {"type": "array", "items": {"type": "string"}},
+                       "removed": {"type": "array", "items": {"type": "string"}},
+                       "source": {"enum": ["agent", "assemble", "diff"]}}
+      }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "object", "required": ["file"],
+                "properties": {"file": {"type": "string"}, "line": {"type": "integer", "minimum": 1}}}
+    },
+    "ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "node": {
+      "type": "object",
+      "required": ["id", "kind", "name"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["service", "library", "datastore", "external", "topic", "package", "class", "file", "method", "table"]},
+        "parent": {"type": ["string", "null"]},
+        "name": {"type": "string"},
+        "lang": {"type": "string"},
+        "file": {"type": "string"},
+        "line": {"type": "integer"},
+        "visibility": {"enum": ["public", "private"]},
+        "metrics": {"type": "object"},
+        "signature": {
+          "type": "object", "required": ["params", "returns"],
+          "properties": {"params": {"type": "array", "items": {"type": "object", "required": ["name", "type"],
+                                                               "properties": {"refs": {"$ref": "#/$defs/ids"}}}},
+                         "returns": {"type": ["string", "null"]},
+                         "returns_refs": {"$ref": "#/$defs/ids"}}
+        },
+        "fields": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "object", "required": ["name", "type"], "additionalProperties": false,
+                    "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": ["string", "null"]}}}
+        },
+        "modules": {"type": "array", "items": {"type": "string"}},
+        "twins": {"type": "array", "items": {"type": "string"}},
+        "implements": {"type": "array", "items": {"type": "string"}},
+        "defaulted": {"type": "boolean"},
+        "role": {"enum": ["entry", "logic", "outbound", "storage", "model"]},
+        "role_why": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"},
+        "delivery": {"enum": ["fan-out", "queue"]},
+        "dead_letter_of": {"type": "string"},
+        "replicas": {"type": "integer", "minimum": 1},
+        "store": {"enum": ["database", "cache", "bucket", "warehouse"]},
+        "stale": {"type": "boolean"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": ["id", "kind", "from", "to", "confidence", "evidence"],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "uses-code", "calls"]},
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "key": {"type": ["string", "null"]},
+        "confidence": {"enum": ["confirmed", "inferred"]},
+        "why": {"type": "string"},
+        "deployment_dependent": {"type": "boolean"},
+        "bidirectional": {"type": "boolean"},
+        "via": {"type": "string"},
+        "tables": {"type": "array", "items": {"type": "string"}},
+        "data": {"enum": ["forward", "back", "both"]},
+        "stale": {"type": "boolean"},
+        "subscription": {"enum": ["push", "pull"]},
+        "group": {"type": "string", "minLength": 1},
+        "on_failure": {"type": "boolean"},
+        "schedule": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "job": {"type": "string", "minLength": 1},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      }
+    },
+    "pin": {
+      "type": "object", "required": ["id", "title", "start", "direction", "by"], "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+        "title": {"type": "string", "minLength": 1},
+        "start": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["downstream", "upstream", "both"]},
+        "by": {"enum": ["agent", "user"]}
+      }
+    },
+    "type_example": {
+      "type": "object", "required": ["value"], "additionalProperties": false,
+      "properties": {"value": {"type": "object"}, "fingerprint": {"type": "string"}, "stale": {"type": "boolean"}}
+    },
+    "entry_example": {
+      "type": "object", "required": ["node", "key", "request"], "additionalProperties": false,
+      "properties": {"node": {"type": "string", "minLength": 1}, "key": {"type": "string", "minLength": 1},
+                     "request": {}, "response": {}, "fingerprint": {"type": "string"}, "stale": {"type": "boolean"}}
+    },
+    "route": {
+      "type": "object", "required": ["method", "path", "handler", "line"], "additionalProperties": false,
+      "properties": {"method": {"type": "string"}, "path": {"type": "string"}, "handler": {"type": "string"},
+                     "line": {"type": "integer"}}
+    }
+  }
+}

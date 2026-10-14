@@ -1,0 +1,12 @@
+# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.
+# Libraries and route styles the scanner does not know built in. Commit it; edit it by hand if a fact is wrong.
+python:
+  imports:
+    - {prefix: twilio, kind: http-out}
+  ignore: [pandas, stripe, uvicorn]
+scala:
+  imports:
+    - {prefix: com.stripe, kind: http-out}
+    - {prefix: com.zaxxer, kind: sql-db}
+    - {prefix: io.lettuce, kind: cache}
+  ignore: [sttp.model]

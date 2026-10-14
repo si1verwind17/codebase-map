@@ -1,0 +1,300 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "pipe",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "svc:tracking",
+   "kind": "service",
+   "name": "tracking",
+   "modules": [
+    "tracking"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 3
+    }
+   ]
+  },
+  {
+   "id": "orders::api/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "api",
+   "lang": "python",
+   "file": "orders/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "orders::api.routes",
+   "kind": "file",
+   "parent": "orders::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::api.routes#watch/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "watch",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "tracking::api/",
+   "kind": "package",
+   "parent": "svc:tracking",
+   "name": "api",
+   "lang": "python",
+   "file": "tracking/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "tracking::api.routes",
+   "kind": "file",
+   "parent": "tracking::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "tracking/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "tracking::api.routes#stream/1",
+   "kind": "method",
+   "parent": "tracking::api.routes",
+   "name": "stream",
+   "lang": "python",
+   "file": "tracking/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "stream",
+   "from": "orders::api.routes#watch/1",
+   "to": "tracking::api.routes#stream/1",
+   "key": "grpc tracking.v1.Tracking/Watch",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "data": "forward",
+   "id": "r:stream:orders::api.routes#watch/1->tracking::api.routes#stream/1:grpc tracking.v1.Tracking/Watch"
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/api/routes.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/run",
+     "handler": "orders::api.routes#watch/1",
+     "line": 3
+    }
+   ]
+  },
+  "tracking/api/routes.py": {
+   "lang": "python",
+   "module": "mod:tracking",
+   "node": "tracking::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "GET",
+     "path": "/v1/track",
+     "handler": "tracking::api.routes#stream/1",
+     "line": 3
+    }
+   ]
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "svc:tracking": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes#watch/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api/": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "orders::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:tracking": {
+    "strategy": "bands",
+    "items": {
+     "tracking::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "tracking::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "tracking::api.routes#stream/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "tracking::api/": {
+    "strategy": "layered",
+    "items": {
+     "tracking::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

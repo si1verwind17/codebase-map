@@ -1,0 +1,49 @@
+# Built-in pack: what the scanner knows about Python libraries. Same format as stack.yaml; stack.yaml adds to it.
+# imports: prefix -> resource kind, matched on dotted boundaries.
+# Kinds: sql-db, doc-db, cache, http-in, http-out, http, ws, event, grpc, cloud-sdk,
+# spark (DataFrame reads/writes: JDBC, Hudi/Delta/Parquet lakes; tables come from .option/.table calls)
+# Rules kept in code because a pattern cannot express them: FastAPI router prefixes and include_router,
+# Airflow DAGs, Flyte workflows and launch plans, gRPC and proto services.
+# tables: SQLAlchemy (also through Flask-SQLAlchemy or SQLModel) `__tablename__ = "x"` and Django `db_table = "x"` (in the model's Meta), defined on the class.
+# The standard library is ignored in code (sys.stdlib_module_names), not listed here.
+# ignore: libraries the code rules above read (Airflow, Flyte), so they are not listed as unrecognised.
+python:
+  ignore: [airflow, flytekit]
+  imports:
+  - {prefix: psycopg, kind: sql-db}
+  - {prefix: psycopg2, kind: sql-db}
+  - {prefix: asyncpg, kind: sql-db}
+  - {prefix: sqlalchemy, kind: sql-db}
+  - {prefix: sqlite3, kind: sql-db}
+  - {prefix: pymssql, kind: sql-db}
+  - {prefix: pymysql, kind: sql-db}
+  - {prefix: mysql.connector, kind: sql-db}
+  - {prefix: pyodbc, kind: sql-db}
+  - {prefix: google.cloud.bigquery, kind: sql-db}
+  - {prefix: pyspark, kind: spark}
+  - {prefix: pymongo, kind: doc-db}
+  - {prefix: motor, kind: doc-db}
+  - {prefix: redis, kind: cache}
+  - {prefix: requests, kind: http-out}
+  - {prefix: httpx, kind: http-out}
+  - {prefix: aiohttp, kind: http}
+  - {prefix: urllib.request, kind: http-out}
+  - {prefix: fastapi, kind: http-in}
+  - {prefix: flask, kind: http-in}
+  - {prefix: websockets, kind: ws}
+  - {prefix: websocket, kind: ws}
+  - {prefix: kafka, kind: event}
+  - {prefix: confluent_kafka, kind: event}
+  - {prefix: aiokafka, kind: event}
+  - {prefix: pika, kind: event}
+  - {prefix: aio_pika, kind: event}
+  - {prefix: grpc, kind: grpc}
+  - {prefix: boto3, kind: cloud-sdk}
+  - {prefix: google.cloud.storage, kind: cloud-sdk}
+  - {prefix: google.cloud.pubsub, kind: event}
+  - {prefix: google.cloud.pubsub_v1, kind: event}
+  tables:
+    - {name: sqlalchemy, when: sqlalchemy, regex: '\b__tablename__\s*=\s*["''](?P<table>[^"'']+)["'']'}
+    - {name: flask-sqlalchemy, when: flask_sqlalchemy, regex: '\b__tablename__\s*=\s*["''](?P<table>[^"'']+)["'']'}
+    - {name: sqlmodel, when: sqlmodel, regex: '\b__tablename__\s*=\s*["''](?P<table>[^"'']+)["'']'}
+    - {name: django, when: django, regex: '\bdb_table\s*=\s*["''](?P<table>[^"'']+)["'']'}

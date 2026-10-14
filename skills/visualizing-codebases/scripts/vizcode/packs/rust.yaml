@@ -1,0 +1,61 @@
+# Built-in pack: what the scanner knows about Rust libraries. Same format as stack.yaml; stack.yaml adds to it.
+# use paths are matched on `::` boundaries; `crate::`, `self::`, `super::` and `mod` are the crate's own. A crate
+# is named as code writes it (`tokio_postgres`, `actix_web`); each AWS SDK crate is its own entry (`aws_sdk_s3`).
+# ignore: the standard library.
+# routes (regex, gated on the import): Axum `.route("/x", get(h))` (the handler group is the method router's
+# argument when it is a name; a chained router `get(a).put(b).delete(c)` gives one route per call, its 2nd to 4th
+# calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
+# actix-web attributes `#[get("/x")]` (the function below) and `web::scope` (a mount).
+rust:
+  ignore: [std, core, alloc]
+  imports:
+  - {prefix: sqlx, kind: sql-db}
+  - {prefix: diesel, kind: sql-db}
+  - {prefix: tokio_postgres, kind: sql-db}
+  - {prefix: rdkafka, kind: event}
+  - {prefix: lapin, kind: event}
+  - {prefix: redis, kind: cache}
+  - {prefix: reqwest, kind: http-out}
+  - {prefix: axum, kind: http-in}
+  - {prefix: actix_web, kind: http-in}
+  - {prefix: aws_config, kind: cloud-sdk}
+  - {prefix: aws_sdk_s3, kind: cloud-sdk}
+  - {prefix: aws_sdk_sqs, kind: cloud-sdk}
+  - {prefix: aws_sdk_sns, kind: cloud-sdk}
+  - {prefix: aws_sdk_dynamodb, kind: cloud-sdk}
+  - {prefix: aws_sdk_kinesis, kind: cloud-sdk}
+  - {prefix: aws_sdk_lambda, kind: cloud-sdk}
+  - {prefix: aws_sdk_secretsmanager, kind: cloud-sdk}
+  - {prefix: tonic, kind: grpc}
+  routes:
+    - name: axum
+      when: axum
+      path: literal
+      method: ANY
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:\w+::)*(?:(?P<method>get|post|put|delete|patch|head|options)|any)\(\s*(?:(?P<handler>[\w:]+)\s*\))?'
+    - name: axum-chain-2
+      when: axum
+      path: literal
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:\w+::)*(?:get|post|put|delete|patch|head|options|any)\(\s*[\w:]+\s*\)\s*\.\s*(?P<method>get|post|put|delete|patch|head|options)\(\s*(?:(?P<handler>[\w:]+)\s*\))?'
+    - name: axum-chain-3
+      when: axum
+      path: literal
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:\w+::)*(?:get|post|put|delete|patch|head|options|any)\(\s*[\w:]+\s*\)(?:\s*\.\s*(?:get|post|put|delete|patch|head|options)\(\s*[\w:]+\s*\)){1}\s*\.\s*(?P<method>get|post|put|delete|patch|head|options)\(\s*(?:(?P<handler>[\w:]+)\s*\))?'
+    - name: axum-chain-4
+      when: axum
+      path: literal
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:\w+::)*(?:get|post|put|delete|patch|head|options|any)\(\s*[\w:]+\s*\)(?:\s*\.\s*(?:get|post|put|delete|patch|head|options)\(\s*[\w:]+\s*\)){2}\s*\.\s*(?P<method>get|post|put|delete|patch|head|options)\(\s*(?:(?P<handler>[\w:]+)\s*\))?'
+    - name: axum-nest
+      when: axum
+      path: literal
+      mount: true
+      regex: '\.nest\(\s*"(?P<path>[^"]*)"\s*,\s*(?P<target>[\w:]+)'
+    - name: actix
+      when: actix_web
+      path: literal
+      regex: '#\[(?:actix_web::)?(?P<method>get|post|put|delete|patch|head|options)\(\s*"(?P<path>[^"]*)"'
+    - name: actix-scope
+      when: actix_web
+      path: literal
+      mount: true
+      regex: '\bweb::scope\(\s*"(?P<path>[^"]*)"'

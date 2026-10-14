@@ -1,0 +1,11 @@
+[project]
+name = "common-py"
+version = "0.4.0"
+description = "Shared runtime helpers for the parking-city Python services"
+requires-python = ">=3.11"
+dependencies = [
+  "redis>=5.0",
+  "google-cloud-pubsub>=2.23",
+  "twilio>=9.3",
+  "psycopg[binary]>=3.2",
+]

@@ -1,0 +1,129 @@
+# Every runtime service of parking-city. Databases, caches, brokers and SaaS
+# are NOT started here: they are reached through the env keys below
+# (DB_HOST, REDIS_URL, SHARED_CACHE_URL, KAFKA_BROKERS, ...).
+#
+# The Airflow project (jobs/) and the Flyte projects (forecast/, features/)
+# are deployed by registration, see deploy/register.sh.
+
+x-db: &db
+  DB_HOST: ${DB_HOST}
+  DB_USER: ${DB_USER}
+  DB_PASSWORD: ${DB_PASSWORD}
+
+x-kafka: &kafka
+  KAFKA_BROKERS: ${KAFKA_BROKERS}
+
+x-gcp: &gcp
+  GCP_PROJECT: ${GCP_PROJECT}
+
+services:
+  reservations:
+    build:
+      context: .
+      dockerfile: reservations/Dockerfile
+    ports: ["8081:8080"]
+    environment:
+      <<: [*db, *kafka]
+      PRICING_URL: http://pricing:8080
+      REDIS_URL: ${RESERVATIONS_REDIS_URL}
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
+    depends_on: [pricing]
+
+  pricing:
+    build:
+      context: .
+      dockerfile: pricing/Dockerfile
+    ports: ["8082:8080"]
+    environment:
+      <<: *db
+      SHARED_CACHE_URL: ${SHARED_CACHE_URL}
+      MAPS_API_KEY: ${MAPS_API_KEY}
+
+  billing:
+    build:
+      context: .
+      dockerfile: billing/Dockerfile
+    ports: ["8083:8080"]
+    environment:
+      <<: [*db, *kafka]
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
+      RECEIPTS_BUCKET: ${RECEIPTS_BUCKET}
+
+  notifier:
+    build:
+      context: .
+      dockerfile: notifier/Dockerfile
+    deploy:
+      replicas: 2
+    environment:
+      <<: *kafka
+      ACCOUNTS_API_URL: ${ACCOUNTS_API_URL}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_FROM: ${TWILIO_FROM}
+      SMTP_HOST: ${SMTP_HOST}
+
+  sensor-gateway:
+    build:
+      context: .
+      dockerfile: sensor_gateway/Dockerfile
+    environment:
+      <<: *gcp
+      SENSORCLOUD_WS_URL: ${SENSORCLOUD_WS_URL}
+      SENSORCLOUD_TOKEN: ${SENSORCLOUD_TOKEN}
+      OCCUPANCY_GRPC_ADDR: occupancy:50051
+    depends_on: [occupancy]
+
+  occupancy:
+    build:
+      context: .
+      dockerfile: occupancy/Dockerfile
+    ports: ["8084:8080"]
+    environment:
+      <<: *db
+      SHARED_CACHE_URL: ${SHARED_CACHE_URL}
+      VIOLATIONS_QUEUE_URL: ${VIOLATIONS_QUEUE_URL}
+
+  enforcement-worker:
+    build:
+      context: .
+      dockerfile: enforcement_worker/Dockerfile
+    deploy:
+      replicas: 3
+    environment:
+      VIOLATIONS_QUEUE_URL: ${VIOLATIONS_QUEUE_URL}
+      FINES_API_URL: ${FINES_API_URL}
+      FINES_API_KEY: ${FINES_API_KEY}
+
+  payments-webhook:
+    build:
+      context: .
+      dockerfile: payments_webhook/Dockerfile
+    ports: ["8085:8080"]
+    environment:
+      <<: *db
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+
+  city-dashboard:
+    build:
+      context: .
+      dockerfile: city_dashboard/Dockerfile
+    ports: ["8086:8080"]
+    environment:
+      SHARED_CACHE_URL: ${SHARED_CACHE_URL}
+
+  analytics-loader:
+    build:
+      context: .
+      dockerfile: analytics_loader/Dockerfile
+    environment:
+      <<: *gcp
+      BQ_PROJECT: ${BQ_PROJECT}
+
+  reporting-api:
+    build:
+      context: .
+      dockerfile: reporting_api/Dockerfile
+    ports: ["8087:8080"]
+    environment:
+      <<: *db

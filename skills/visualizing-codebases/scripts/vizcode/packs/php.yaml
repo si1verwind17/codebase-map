@@ -1,0 +1,65 @@
+# Built-in pack: what the scanner knows about PHP libraries. Same format as stack.yaml; stack.yaml adds to it.
+# use names are matched on `\` boundaries; the standard library is global functions and classes (`PDO`, the
+# phpredis `Redis`), not namespaces. Imports win over ignore, and the longest matching prefix names the kind.
+# ignore: the wiring of Laravel (`Illuminate`) and Symfony (their IO parts are imports entries: Laravel's `DB`,
+# `Route`, `Http`, `Redis`, `Queue` facades, Eloquent, Symfony Routing, HttpClient, Messenger).
+# routes: Laravel `Route::get('/x', [C::class, 'm'])` (regex; the handler is the action named; `Route::prefix`, or
+# a chain from `Route::` ending in `->prefix`, is a mount; not when a chained call's arguments hold parentheses). No `when`: a routes file may call the global `Route`
+# alias without a `use`, and `Route::verb('` is Laravel's alone; Symfony `#[Route('/x', methods: ['GET'])]` (`form: annotated`: a class
+# `Route` is the prefix, the method comes from `methods`, none: ANY). tables: Eloquent `protected $table = 'x'`,
+# Doctrine `ORM\Table(name: 'x')` (attribute or docblock annotation), both defined on the class.
+php:
+  ignore: [Illuminate, Symfony]
+  imports:
+  - {prefix: PDO, kind: sql-db}
+  - {prefix: Doctrine\DBAL, kind: sql-db}
+  - {prefix: Doctrine\ORM, kind: sql-db}
+  - {prefix: Illuminate\Database, kind: sql-db}
+  - {prefix: Illuminate\Support\Facades\DB, kind: sql-db}
+  - {prefix: PhpAmqpLib, kind: event}
+  - {prefix: Enqueue, kind: event}
+  - {prefix: Interop\Queue, kind: event}
+  - {prefix: Illuminate\Support\Facades\Queue, kind: event}
+  - {prefix: Symfony\Component\Messenger, kind: event}
+  - {prefix: Google\Cloud\PubSub, kind: event}
+  - {prefix: Predis, kind: cache}
+  - {prefix: Redis, kind: cache}
+  - {prefix: Illuminate\Redis, kind: cache}
+  - {prefix: Illuminate\Support\Facades\Redis, kind: cache}
+  - {prefix: GuzzleHttp, kind: http-out}
+  - {prefix: Illuminate\Http\Client, kind: http-out}
+  - {prefix: Illuminate\Support\Facades\Http, kind: http-out}
+  - {prefix: Symfony\Component\HttpClient, kind: http-out}
+  - {prefix: Symfony\Contracts\HttpClient, kind: http-out}
+  - {prefix: Illuminate\Support\Facades\Route, kind: http-in}
+  - {prefix: Illuminate\Routing, kind: http-in}
+  - {prefix: Symfony\Component\Routing, kind: http-in}
+  - {prefix: Aws, kind: cloud-sdk}
+  - {prefix: Google\Cloud, kind: cloud-sdk}
+  - {prefix: Grpc, kind: grpc}
+  routes:
+    - name: laravel
+      path: literal
+      method: ANY
+      regex: '\bRoute::(?:(?P<method>get|post|put|patch|delete|options)|any)\(\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?[\w\\]+::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
+    # `Route::match(['get', 'post'], '/x', ...)`
+    - name: laravel-match
+      path: literal
+      method: ANY
+      regex: '\bRoute::match\(\s*(?P<methods>\[[^\]]*\])\s*,\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?[\w\\]+::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
+    - name: laravel-prefix
+      path: literal
+      mount: true
+      regex: '\bRoute::(?:\w+\([^()]*\)\s*->\s*)*prefix\(\s*["''](?P<path>[^"'']*)["'']'
+    - name: symfony
+      form: annotated
+      when: Symfony\Component\Routing
+      prefix: [Route]
+      verbs: {Route: from-method-arg}
+      method_arg: methods
+      path_args: [path, 0]
+  tables:
+    - {name: eloquent-table, when: Illuminate\Database,
+       regex: '\bprotected\s+(?:\??string\s+)?\$table\s*=\s*["''](?P<table>[^"'']+)["'']'}
+    - {name: doctrine-table, when: Doctrine\ORM,
+       regex: '\b(?:ORM|Mapping)\\Table\(\s*[^()]*?\bname\s*[:=]\s*["''](?P<table>[^"'']+)["'']'}

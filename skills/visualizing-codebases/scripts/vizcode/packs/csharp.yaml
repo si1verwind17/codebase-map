@@ -1,0 +1,64 @@
+# Built-in pack: what the scanner knows about C# libraries. Same format as stack.yaml; stack.yaml adds to it.
+# usings are matched on `.` boundaries; imports win over ignore (`System.Net.Http` is a client although `System`
+# is ignored), and the longest matching prefix names the kind. ignore: the standard library, and the wiring of
+# ASP.NET Core and its generic host (`Microsoft.AspNetCore`, `Microsoft.Extensions`: their IO parts are imports
+# entries; MVC controllers and the `WebApplication` bootstrap in `Microsoft.AspNetCore.Builder` are the server).
+# A project with implicit usings (`<ImplicitUsings>`) names `Microsoft.AspNetCore.*` and `System.Net.Http` in no
+# file, so minimal APIs and `MapGroup` run without `when` (see the entries); for the sinks of such a file the agent adds what it needs.
+# routes: ASP.NET controllers (`form: annotated`: `[Route]` prefix with the `[controller]` token, `[HttpGet]`...;
+# a method template starting with `/` or `~/` overrides the prefix); minimal APIs `app.MapGet("/x", h)` (regex;
+# `MapGroup` is a mount). tables: EF Core `[Table("x")]` (defined on the class) and `ToTable("x")`.
+csharp:
+  ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions]
+  imports:
+  - {prefix: Microsoft.EntityFrameworkCore, kind: sql-db}
+  - {prefix: Dapper, kind: sql-db}
+  - {prefix: Npgsql, kind: sql-db}
+  - {prefix: Microsoft.Data.SqlClient, kind: sql-db}
+  - {prefix: System.Data.SqlClient, kind: sql-db}
+  - {prefix: Google.Cloud.BigQuery, kind: sql-db}
+  - {prefix: MongoDB.Driver, kind: doc-db}
+  - {prefix: Confluent.Kafka, kind: event}
+  - {prefix: RabbitMQ.Client, kind: event}
+  - {prefix: Google.Cloud.PubSub, kind: event}
+  - {prefix: StackExchange.Redis, kind: cache}
+  - {prefix: Microsoft.Extensions.Caching.StackExchangeRedis, kind: cache}
+  - {prefix: Microsoft.Extensions.Caching.SqlServer, kind: cache}
+  - {prefix: Microsoft.Extensions.Caching.Cosmos, kind: cache}
+  - {prefix: Microsoft.Extensions.Azure, kind: cloud-sdk}
+  - {prefix: System.Net.Http, kind: http-out}
+  - {prefix: Microsoft.Extensions.Http, kind: http-out}
+  - {prefix: Microsoft.AspNetCore.Mvc, kind: http-in}
+  - {prefix: Microsoft.AspNetCore.Builder, kind: http-in}
+  - {prefix: Microsoft.AspNetCore.SignalR, kind: ws}
+  - {prefix: Amazon, kind: cloud-sdk}
+  - {prefix: Google.Cloud, kind: cloud-sdk}
+  - {prefix: Grpc, kind: grpc}
+  routes:
+    - name: aspnet
+      form: annotated
+      when: Microsoft.AspNetCore.Mvc
+      prefix: [Route]
+      verbs: {HttpGet: GET, HttpPost: POST, HttpPut: PUT, HttpDelete: DELETE, HttpPatch: PATCH, HttpHead: HEAD,
+              HttpOptions: OPTIONS}
+      path_args: [template, 0]
+      method_path: [Route]
+      token: {"[controller]": class-stem, "[action]": method-name}
+      absolute: ["/", "~/"]
+    # `app.MapGet("/x", h)`: the handler is the second argument when it is a name. No `when`: with implicit
+    # usings `Program.cs` names nothing; the regex is tight instead (a receiver, a plain string literal path
+    # without spaces, then a comma), which keeps look-alikes out
+    - name: aspnet-minimal
+      path: literal
+      regex: '\b\w+\.Map(?P<method>Get|Post|Put|Delete|Patch)\(\s*@?"(?P<path>[^"\s]*)"\s*,(?:\s*(?P<handler>[\w.]+)\s*\))?'
+    # `app.MapGroup("/v1")`: no `when` for the same reason (its MapGet routes are found in the same file); a
+    # receiver and one plain string literal argument without spaces
+    - name: aspnet-map-group
+      path: literal
+      mount: true
+      regex: '\b\w+\.MapGroup\(\s*@?"(?P<path>[^"\s]*)"\s*\)'
+  tables:
+    # `[Table("x")]`, alone or in an attribute list
+    - {name: ef-table-attribute, when: System.ComponentModel.DataAnnotations.Schema,
+       regex: '\[(?:[^\[\]]*?,\s*)?(?:System\.ComponentModel\.DataAnnotations\.Schema\.)?Table(?:Attribute)?\(\s*@?"(?P<table>[^"]+)"'}
+    - {name: ef-to-table, when: Microsoft.EntityFrameworkCore, regex: '\.ToTable\(\s*@?"(?P<table>[^"]+)"'}

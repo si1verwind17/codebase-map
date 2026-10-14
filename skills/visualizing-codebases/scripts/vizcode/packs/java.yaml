@@ -1,0 +1,114 @@
+# Built-in pack: what the scanner knows about Java libraries. Same format as stack.yaml; stack.yaml adds to it.
+# imports are matched on `.` boundaries; imports win over ignore (`java.sql` and `java.net.http` are kinds
+# although `java` is ignored). The longest matching prefix names the kind (`jakarta.ws.rs.client` is a
+# client although `jakarta.ws.rs` is a server). ignore: the standard library, and the wiring of the frameworks
+# this pack covers (Spring, Micronaut, Quarkus, Jakarta EE and MicroProfile wiring such as `jakarta.inject` or
+# `jakarta.validation`: their IO parts are imports entries, which win: `jakarta.persistence`, `jakarta.ws.rs` and its
+# `client`, `jakarta.jms`, MicroProfile's rest client and reactive messaging).
+# routes (`form: annotated`): Spring MVC/WebFlux, JAX-RS (Jakarta and javax; Quarkus uses it), Micronaut. A client
+# interface (`skip_class`: Feign `@FeignClient`, `@HttpExchange`, MicroProfile `@RegisterRestClient`, Micronaut
+# `@Client`) declares calls out, not routes.
+# tables: JPA `@Table(name = ...)` and `@Entity(name = ...)`: a mapping, defined on the class.
+java:
+  ignore: [java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
+           jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json, jakarta.xml.bind,
+           org.eclipse.microprofile]
+  imports:
+  - {prefix: java.sql, kind: sql-db}
+  - {prefix: javax.sql, kind: sql-db}
+  - {prefix: org.springframework.jdbc, kind: sql-db}
+  - {prefix: org.springframework.data.jpa, kind: sql-db}
+  - {prefix: org.springframework.data.jdbc, kind: sql-db}
+  - {prefix: jakarta.persistence, kind: sql-db}
+  - {prefix: javax.persistence, kind: sql-db}
+  - {prefix: org.hibernate, kind: sql-db}
+  - {prefix: org.jooq, kind: sql-db}
+  - {prefix: org.apache.ibatis, kind: sql-db}
+  - {prefix: org.mybatis, kind: sql-db}
+  - {prefix: com.google.cloud.bigquery, kind: sql-db}
+  - {prefix: com.mongodb, kind: doc-db}
+  - {prefix: org.springframework.data.mongodb, kind: doc-db}
+  - {prefix: org.apache.kafka, kind: event}
+  - {prefix: org.springframework.kafka, kind: event}
+  - {prefix: com.rabbitmq.client, kind: event}
+  - {prefix: org.springframework.amqp, kind: event}
+  - {prefix: com.google.cloud.pubsub, kind: event}
+  - {prefix: redis.clients.jedis, kind: cache}
+  - {prefix: io.lettuce, kind: cache}
+  - {prefix: org.redisson, kind: cache}
+  - {prefix: org.springframework.data.redis, kind: cache}
+  - {prefix: okhttp3, kind: http-out}
+  - {prefix: org.springframework.web.client, kind: http-out}
+  - {prefix: org.springframework.web.reactive.function.client, kind: http-out}
+  - {prefix: retrofit2, kind: http-out}
+  - {prefix: java.net.http, kind: http-out}
+  - {prefix: org.springframework.web.bind.annotation, kind: http-in}
+  - {prefix: jakarta.ws.rs, kind: http-in}
+  - {prefix: javax.ws.rs, kind: http-in}
+  - {prefix: io.micronaut.http.annotation, kind: http-in}
+  - {prefix: org.springframework.data.r2dbc, kind: sql-db}
+  - {prefix: org.springframework.r2dbc, kind: sql-db}
+  - {prefix: io.micronaut.data, kind: sql-db}
+  - {prefix: io.quarkus.hibernate.orm, kind: sql-db}
+  - {prefix: io.quarkus.hibernate.reactive, kind: sql-db}
+  - {prefix: org.springframework.data.cassandra, kind: doc-db}
+  - {prefix: org.springframework.data.elasticsearch, kind: doc-db}
+  - {prefix: io.quarkus.mongodb, kind: doc-db}
+  - {prefix: org.springframework.jms, kind: event}
+  - {prefix: jakarta.jms, kind: event}
+  - {prefix: javax.jms, kind: event}
+  - {prefix: org.springframework.cloud.stream, kind: event}
+  - {prefix: io.micronaut.configuration.kafka, kind: event}
+  - {prefix: org.eclipse.microprofile.reactive.messaging, kind: event}
+  - {prefix: io.quarkus.redis, kind: cache}
+  - {prefix: org.springframework.cloud.openfeign, kind: http-out}
+  - {prefix: jakarta.ws.rs.client, kind: http-out}
+  - {prefix: javax.ws.rs.client, kind: http-out}
+  - {prefix: io.micronaut.http.client, kind: http-out}
+  - {prefix: io.quarkus.rest.client, kind: http-out}
+  - {prefix: org.eclipse.microprofile.rest.client, kind: http-out}
+  - {prefix: org.springframework.web.reactive.function.server, kind: http-in}
+  - {prefix: org.springframework.web.socket, kind: ws}
+  - {prefix: software.amazon.awssdk, kind: cloud-sdk}
+  - {prefix: com.google.cloud.storage, kind: cloud-sdk}
+  - {prefix: io.grpc, kind: grpc}
+  routes:
+    - name: spring-web
+      form: annotated
+      when: org.springframework.web.bind.annotation
+      prefix: [RequestMapping]
+      verbs: {GetMapping: GET, PostMapping: POST, PutMapping: PUT, DeleteMapping: DELETE, PatchMapping: PATCH,
+              RequestMapping: from-method-arg}
+      path_args: [value, path, 0]
+      skip_class: [FeignClient, HttpExchange]
+    - name: jaxrs
+      form: annotated
+      when: jakarta.ws.rs
+      prefix: [Path]
+      verbs: {GET: GET, POST: POST, PUT: PUT, DELETE: DELETE, PATCH: PATCH, HEAD: HEAD, OPTIONS: OPTIONS}
+      method_path: [Path]
+      skip_class: [RegisterRestClient]
+    - name: jaxrs-javax
+      form: annotated
+      when: javax.ws.rs
+      prefix: [Path]
+      verbs: {GET: GET, POST: POST, PUT: PUT, DELETE: DELETE, PATCH: PATCH, HEAD: HEAD, OPTIONS: OPTIONS}
+      method_path: [Path]
+      skip_class: [RegisterRestClient]
+    - name: micronaut
+      form: annotated
+      when: io.micronaut.http.annotation
+      prefix: [Controller]
+      verbs: {Get: GET, Post: POST, Put: PUT, Delete: DELETE, Patch: PATCH, Head: HEAD, Options: OPTIONS}
+      path_args: [value, uri, uris, 0]
+      skip_class: [Client]
+  # `[^()]*?` stays inside the annotation's own parentheses: `name` of a nested `@Index(...)` is not read
+  tables:
+    - {name: jpa-table-name, when: jakarta.persistence,
+       regex: '@(?:jakarta\.persistence\.)?Table\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-entity-name, when: jakarta.persistence,
+       regex: '@(?:jakarta\.persistence\.)?Entity\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-table-name-javax, when: javax.persistence,
+       regex: '@(?:javax\.persistence\.)?Table\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-entity-name-javax, when: javax.persistence,
+       regex: '@(?:javax\.persistence\.)?Entity\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}

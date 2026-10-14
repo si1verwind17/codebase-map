@@ -1,0 +1,320 @@
+"""Method-to-method `calls` relations, resolved by name from the structure pass's call sites."""
+from __future__ import annotations
+
+import re
+
+from . import ids
+from .adapters import without_suffix
+
+MAX_CANDIDATES = 3
+SELF_RECEIVERS = {"self", "this", "cls"}
+IDENT = re.compile(r"[A-Za-z_]\w*")
+TYPE_WORD = re.compile(r"[A-Za-z_][\w.]*")
+TYPE_SKIP = {"mut", "const", "final", "in", "out", "ref", "dyn", "impl", "readonly", "var", "val",
+             "None", "null", "undefined"}   # `None | Order`, `undefined | Order`: the type is the other side
+# wrappers a value is used through as the type inside them (`Arc<dyn Repo>`, `Annotated[Repo, Depends(..)]`)
+TYPE_UNWRAP = {"Optional", "Annotated", "Box", "Arc", "Rc", "RefCell", "Mutex", "RwLock", "Pin", "Readonly",
+               "Partial", "Required", "NonNullable"}
+# collections and futures: a call on one is the library's method, whatever repo type it holds (`orders.get(0)`)
+TYPE_CONTAINERS = {"list", "List", "dict", "Dict", "set", "Set", "tuple", "Tuple", "Sequence", "Iterable", "Mapping",
+                   "Map", "HashMap", "Seq", "Vector", "Vec", "Array", "ArrayList", "Collection", "Iterator",
+                   "Promise", "Future", "Task", "IO", "ZIO", "Option", "Either", "Result", "Mono", "Flux",
+                   "Observable", "Stream", "IEnumerable", "IList", "Dictionary", "MutableList", "MutableMap"}
+QUOTED = re.compile(r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+
+
+def callee_parts(callee: str) -> list[str]:
+    """Identifiers of the called expression only: string literals and bracketed argument text are dropped
+    (`ZIO.when(a.fill)` → ZIO, when; `super().save` → super, save)."""
+    text, out, depth = QUOTED.sub("\x00", callee), [], 0
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+            if depth == 1:
+                out.append("\x00")   # where a bracket group stood
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    flat = "".join(out).lstrip()
+    parts = IDENT.findall(flat)
+    # `", ".join`, `{}.get`, `(a or b).save`: the receiver was a literal or an expression: never trust it
+    if flat.startswith("\x00") and parts:
+        return ["?"] + parts
+    return parts
+
+
+COPY_FILES = 3          # a top-level function defined in this many files of one service reads as copy-paste
+COPY_EXEMPT = {"main", "run", "handler", "lambda_handler", "setup", "teardown"}
+
+
+def _package(nid: str, by_id: dict[str, dict]) -> str | None:
+    n = by_id.get(nid)
+    while n is not None and n["kind"] not in ("package", "service", "library"):
+        n = by_id.get(n.get("parent") or "")
+    return n["id"] if n is not None and n["kind"] == "package" else None
+
+
+def _copy_paste(index: dict[str, dict[str, list[str]]], by_id: dict[str, dict]) -> list[dict]:
+    """Problems for top-level functions repeated across files: the map should show the smell, not hide it."""
+    out = []
+    for rt, names in sorted(index.items()):
+        repeated = []
+        for name, ms in names.items():
+            files = {by_id[m].get("file") for m in ms if (by_id.get(by_id[m].get("parent") or "") or {}).get("kind") == "file"}
+            if len(files) >= COPY_FILES and name not in COPY_EXEMPT and not name.startswith("__"):
+                repeated.append((len(files), name))
+        if repeated:
+            repeated.sort(key=lambda kv: (-kv[0], kv[1]))
+            shown = ", ".join(f"`{n}` ×{k}" for k, n in repeated[:6]) + (" …" if len(repeated) > 6 else "")
+            out.append({"text": f"{len(repeated)} function(s) in {rt} are each defined in {COPY_FILES}+ files, likely "
+                                f"copy-paste ({shown}); calls resolve to the caller's own file",
+                        "nodes": [rt], "source": "assemble"})
+    return out
+
+
+def _accepts(method: dict, n: int) -> bool:
+    """Can `method` take n arguments? Unknown signatures and *args/**kw take any count."""
+    params = (method.get("signature") or {}).get("params")
+    if params is None or any(p["name"].startswith("*") for p in params):
+        return True
+    return n <= len(params)
+
+
+def _outer_type(type_text: str | None) -> str | None:
+    """The outermost type name of a declared type (`Map<String, Object>` -> Map, `*orders.Handler` -> Handler,
+    `Optional[Order]` -> Order, `&mut Repo` -> Repo), or None when there is none."""
+    words = [w.rsplit(".", 1)[-1] for w in TYPE_WORD.findall(type_text or "") if w not in TYPE_SKIP]
+    while len(words) > 1 and words[0] in TYPE_UNWRAP:
+        words = words[1:]
+    return words[0] if words else None
+
+
+def _param_type(method: dict, name: str) -> tuple[str, list[str]] | None:
+    """(outer type name, repo class ids it names) of the caller's parameter called `name` that declares a type."""
+    for p in (method.get("signature") or {}).get("params", []):
+        if p.get("name") == name and (outer := _outer_type(p.get("type"))):
+            return outer, p.get("refs") or []
+    return None
+
+
+def _ancestors(cid: str, by_id: dict[str, dict]) -> set[str]:
+    """A class and every class it extends or implements in the repo."""
+    out, todo = set(), [cid]
+    while todo:
+        c = todo.pop()
+        if c not in out and c in by_id:
+            out.add(c)
+            todo += by_id[c].get("implements") or []
+    return out
+
+
+def _owner_names(node: dict, nodes: dict[str, dict]) -> set[str]:
+    """Lower-cased names of the class/file holding a method, used to trust `Receiver.method`."""
+    parent = nodes.get(node.get("parent") or "")
+    if not parent:
+        return set()
+    name = without_suffix(parent["name"].lower())
+    return {name, name.rstrip("$")}
+
+
+def _abstractions(by_id: dict[str, dict]) -> dict[str, str]:
+    """Method id -> the method it implements: a same-named method of a class or trait in `implements`
+    (followed upward, so a chain of implementations reaches the top). A trait method and its
+    implementations count as one call target, drawn to the trait method."""
+    methods: dict[str, dict[str, list[str]]] = {}
+    for n in by_id.values():
+        if n["kind"] == "method" and n.get("parent"):
+            methods.setdefault(n["parent"], {}).setdefault(n["name"], []).append(n["id"])
+    up: dict[str, str] = {}
+    for n in by_id.values():
+        for sup in n.get("implements") or []:
+            for name, mine in methods.get(n["id"], {}).items():
+                theirs = methods.get(sup, {}).get(name, [])
+                for m in mine:
+                    arity = m.rsplit("/", 1)[-1]
+                    same = [t for t in theirs if t.rsplit("/", 1)[-1] == arity] or theirs
+                    if len(same) == 1 and m not in up:
+                        up[m] = same[0]
+
+    def top(m: str) -> str:
+        seen = {m}
+        while m in up and up[m] not in seen:
+            m = up[m]
+            seen.add(m)
+        return m
+
+    return {m: top(m) for m in up}
+
+
+def _id_name(nid: str) -> str:
+    return nid.split("#", 1)[1].rsplit("/", 1)[0] if "#" in nid else ""
+
+
+def _dag_scopes(by_id: dict[str, dict]) -> dict[str, tuple]:
+    """Qualified Airflow tasks (`<file>#<dag>.<task>/n`, named `<task>`) -> (file node, DAG prefix, DAG
+    function line spans). Such a task is a call target only from inside its own DAG."""
+    out = {}
+    for n in by_id.values():
+        name = _id_name(n["id"])
+        if n["kind"] == "method" and "." in name and name.endswith("." + n["name"]):
+            prefix = name[: -len(n["name"]) - 1]
+            spans = [(m["line"], m["line"] + (m.get("metrics") or {}).get("loc", 1) - 1) for m in by_id.values()
+                     if m["kind"] == "method" and m.get("parent") == n.get("parent") and _id_name(m["id"]) == prefix]
+            out[n["id"]] = (n.get("parent"), prefix, spans)
+    return out
+
+
+def _in_scope(caller: dict, scope: tuple) -> bool:
+    owner, prefix, spans = scope
+    if caller.get("parent") != owner:
+        return False
+    name = _id_name(caller["id"])
+    if name == prefix or name.startswith(prefix + "."):
+        return True
+    return any(a <= caller.get("line", 0) <= b for a, b in spans)
+
+
+def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) -> tuple[list[dict], list[dict]]:
+    """Return (calls relations, problems). Candidates come from the caller's service or library
+    and the libraries it uses; a unique match with a trusted receiver is confirmed, other
+    matches are inferred, and call sites matching more than MAX_CANDIDATES methods are dropped."""
+    by_id = {n["id"]: n for n in nodes}
+    abstract = _abstractions(by_id)
+    scoped = _dag_scopes(by_id)
+    # names a capitalized receiver may point at: the scan's classes, objects and files
+    known = {name for n in nodes if n["kind"] in ("class", "file")
+             for name in _owner_names({"parent": n["id"]}, by_id)}
+    classes: dict[str, list[str]] = {}   # a class's own name -> its ids (`Book`, a Scala object `Book$` too)
+    for n in nodes:
+        if n["kind"] == "class":
+            classes.setdefault(n["name"].rstrip("$"), []).append(n["id"])
+
+    def root(nid: str) -> str | None:
+        n = by_id.get(nid)
+        while n is not None and n.get("parent"):
+            n = by_id.get(n["parent"])
+        return n["id"] if n and n["kind"] in ("service", "library") else None
+
+    uses: dict[str, set[str]] = {}
+    for r in relations:
+        if r["kind"] == "uses-code":
+            uses.setdefault(r["from"], set()).add(r["to"])
+    index: dict[str, dict[str, list[str]]] = {}
+    for n in nodes:
+        if n["kind"] == "method":
+            rt = root(n["id"])
+            if rt:
+                index.setdefault(rt, {}).setdefault(n["name"], []).append(n["id"])
+
+    found: dict[str, dict] = {}
+    dropped: dict[str, int] = {}
+    for file, ff in sorted(facts.items()):
+        for c in ff["calls"]:
+            caller = c.get("in")
+            if not caller or caller not in by_id:
+                continue
+            rt = root(caller)
+            if not rt:
+                continue
+            parts = callee_parts(c["callee"])
+            if not parts:
+                continue
+            name, receiver = parts[-1], (parts[-2] if len(parts) > 1 else None)
+            if receiver is not None and receiver == c.get("self") and len(parts) == 2:
+                receiver = "self"      # the method's own object under the name it gives it (Go receiver)
+            elif receiver == "Self" and len(parts) == 2 and "::" in c["callee"]:
+                receiver = "self"      # Rust `Self::x()` inside an `impl`: the caller's own type
+            cands = list(index.get(rt, {}).get(name, []))
+            if not cands:
+                for lib in sorted(uses.get(rt, ())):
+                    cands += index.get(lib, {}).get(name, [])
+            cands = [m for m in cands if m != caller]
+            # a parameter with a declared type: only its outer type's methods; a library type has none of ours
+            typed = (_param_type(by_id[caller], receiver)
+                     if receiver and len(parts) == 2 and receiver not in SELF_RECEIVERS else None)
+            if typed is not None:
+                outer, refs = typed
+                # the repo classes the outer type names: its resolved ref, else every class of that name
+                named = [r for r in refs if by_id.get(r, {}).get("name", "").rstrip("$") == outer] or classes.get(outer, [])
+                if named:
+                    owners = {a for r in named for a in _ancestors(r, by_id)}
+                    cands = [m for m in cands if by_id[m].get("parent") in owners
+                             or by_id.get(abstract.get(m, m), {}).get("parent") in owners]
+                    if not cands:
+                        continue   # `repo.save(...)` inherited from a framework base the scan does not hold
+                elif outer not in TYPE_CONTAINERS and (refs or (len(outer) == 1 and outer.isupper())):
+                    typed = None   # a container of repo types (`List[Order]`) or a type parameter: the name rules
+                else:
+                    continue       # `order.get(...)` on a Map: a library type has none of the repo's methods
+            if scoped and any(m in scoped for m in cands):
+                # a DAG's own task shadows same-named functions inside the DAG and is invisible outside it
+                mine = [m for m in cands if m in scoped and receiver is None and _in_scope(by_id[caller], scoped[m])]
+                cands = mine or [m for m in cands if m not in scoped]
+            if not cands:
+                continue
+            caller_owner = by_id[caller].get("parent")
+            if receiver in SELF_RECEIVERS:
+                same = [m for m in cands if by_id[m].get("parent") == caller_owner]
+                cands = same or cands
+            elif receiver == "super" and name.startswith("__") and name.endswith("__"):
+                continue   # super().__init__() and friends: the base class is unknown and every class has one
+            elif receiver == "super":   # a base class's method: never the caller's own class
+                cands = [m for m in cands if by_id[m].get("parent") != caller_owner]
+                if not cands:
+                    continue
+            if (receiver and receiver[:1].isupper() and receiver.lower() not in known
+                    and not any(receiver.lower() in _owner_names(by_id[m], by_id) for m in cands)):
+                continue   # `RedisClient.create`, `Request.get`: a type the scan does not define
+            if typed is None and receiver and receiver[:1].isupper() and len(parts) == 2 and receiver in classes:
+                # `Book.create!`: a repo class, so only its own or its repo ancestors' methods; none means the
+                # method comes from a library base class (ActiveRecord), never another class's same name
+                mine = {a for c in classes[receiver] for a in _ancestors(c, by_id)}
+                cands = [m for m in cands if by_id[m].get("parent") in mine]
+                if not cands:
+                    continue
+            if receiver is None and len(cands) > 1:
+                # a bare name that collides means the nearest definition: the caller's own file, then package
+                near = [m for m in cands if by_id[m].get("file") == file] or \
+                    [m for m in cands if _package(m, by_id) == _package(caller, by_id)]
+                cands = near or cands
+            elif receiver not in SELF_RECEIVERS and receiver not in ("super", "?") and len(cands) > 1:
+                # another object: the class its name points at, else anything but the caller's own class
+                named = [m for m in cands if receiver.lower() in _owner_names(by_id[m], by_id)]
+                others = [m for m in cands if by_id[m].get("parent") != caller_owner]
+                cands = named or others or cands
+            # an implementation and the trait method it implements are one target: the trait method
+            folded = list(dict.fromkeys(abstract.get(m, m) for m in cands))
+            cands = [m for m in folded if m != abstract.get(caller, caller)]
+            if not cands:
+                continue
+            if c.get("args") is not None:   # prefer methods that can take this many arguments; never drop the call
+                fit = [m for m in cands if _accepts(by_id[m], c["args"])]
+                cands = fit or cands
+            if len(cands) > MAX_CANDIDATES:
+                dropped[rt] = dropped.get(rt, 0) + 1
+                continue
+            trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
+            for m in cands:
+                if len(cands) == 1 and (trusted or (receiver or "").lower() in _owner_names(by_id[m], by_id)):
+                    conf, why = "confirmed", None
+                elif len(cands) == 1:
+                    conf, why = "inferred", "matched by method name only"
+                else:
+                    conf, why = "inferred", f"name matches {len(cands)} methods"
+                rid = ids.relation_id("calls", caller, m, None)
+                rel = found.get(rid)
+                if rel is None:
+                    rel = found[rid] = {"id": rid, "kind": "calls", "from": caller, "to": m, "key": None,
+                                        "confidence": conf, "evidence": []}
+                    if why:
+                        rel["why"] = why
+                elif conf == "confirmed" and rel["confidence"] == "inferred":
+                    rel["confidence"] = "confirmed"
+                    rel.pop("why", None)
+                if len(rel["evidence"]) < 3:
+                    rel["evidence"].append({"file": file, "line": c["line"]})
+    problems = [{"text": f"{n} call site(s) in {rt} match more than {MAX_CANDIDATES} methods by name; not drawn",
+                 "nodes": [rt], "source": "assemble"} for rt, n in sorted(dropped.items())]
+    problems += _copy_paste(index, by_id)
+    return sorted(found.values(), key=lambda r: r["id"]), problems

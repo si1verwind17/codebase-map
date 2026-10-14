@@ -1,0 +1,405 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "codes",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "orders::api/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "api",
+   "lang": "python",
+   "file": "orders/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "orders::api.routes",
+   "kind": "file",
+   "parent": "orders::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::api.routes#place_order/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "place_order",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "orders::core/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "core",
+   "lang": "python",
+   "file": "orders/core",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::core.service",
+   "kind": "file",
+   "parent": "orders::core/",
+   "name": "service.py",
+   "lang": "python",
+   "file": "orders/core/service.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::core.service.OrderService",
+   "kind": "class",
+   "parent": "orders::core.service",
+   "name": "OrderService",
+   "lang": "python",
+   "file": "orders/core/service.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 10
+   }
+  },
+  {
+   "id": "orders::core.service.OrderService#create/1",
+   "kind": "method",
+   "parent": "orders::core.service.OrderService",
+   "name": "create",
+   "lang": "python",
+   "file": "orders/core/service.py",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "orders::core.service.OrderService#check/1",
+   "kind": "method",
+   "parent": "orders::core.service.OrderService",
+   "name": "check",
+   "lang": "python",
+   "file": "orders/core/service.py",
+   "line": 6,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "bool"
+   }
+  },
+  {
+   "id": "orders::core.rules",
+   "kind": "file",
+   "parent": "orders::core/",
+   "name": "rules.py",
+   "lang": "python",
+   "file": "orders/core/rules.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::core.rules#limit_for/1",
+   "kind": "method",
+   "parent": "orders::core.rules",
+   "name": "limit_for",
+   "lang": "python",
+   "file": "orders/core/rules.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "customer",
+      "type": "str"
+     }
+    ],
+    "returns": "int"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "id": "r:calls:orders::api.routes#place_order/1->orders::core.service.OrderService#create/1:",
+   "kind": "calls",
+   "from": "orders::api.routes#place_order/1",
+   "to": "orders::core.service.OrderService#create/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::core.service.OrderService#check/1->orders::core.rules#limit_for/1:",
+   "kind": "calls",
+   "from": "orders::core.service.OrderService#check/1",
+   "to": "orders::core.rules#limit_for/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/core/service.py",
+     "line": 10
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::core.service.OrderService#create/1->orders::core.service.OrderService#check/1:",
+   "kind": "calls",
+   "from": "orders::core.service.OrderService#create/1",
+   "to": "orders::core.service.OrderService#check/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/core/service.py",
+     "line": 8
+    }
+   ]
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/api/routes.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/orders",
+     "handler": "orders::api.routes#place_order/1",
+     "line": 3
+    }
+   ]
+  },
+  "orders/core/service.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::core.service",
+   "parse_error": false
+  },
+  "orders/core/rules.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::core.rules",
+   "parse_error": false
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes#place_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api/": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::core.rules": {
+    "strategy": "layered",
+    "items": {
+     "orders::core.rules#limit_for/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::core.service": {
+    "strategy": "layered",
+    "items": {
+     "orders::core.service.OrderService": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::core.service.OrderService": {
+    "strategy": "layered",
+    "items": {
+     "orders::core.service.OrderService#create/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "orders::core.service.OrderService#check/1": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::core/": {
+    "strategy": "layered",
+    "items": {
+     "orders::core.service": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "orders::core.rules": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "orders::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "orders::core/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

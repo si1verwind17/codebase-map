@@ -1,0 +1,957 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "layers",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "orders::audit/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "audit",
+   "lang": "python",
+   "file": "orders/audit",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::audit.log",
+   "kind": "file",
+   "parent": "orders::audit/",
+   "name": "log.py",
+   "lang": "python",
+   "file": "orders/audit/log.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::audit.log#record/1",
+   "kind": "method",
+   "parent": "orders::audit.log",
+   "name": "record",
+   "lang": "python",
+   "file": "orders/audit/log.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "event",
+      "type": "str"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::create/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "create",
+   "lang": "python",
+   "file": "orders/create",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::create.handler",
+   "kind": "file",
+   "parent": "orders::create/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/create/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::create.handler#run/1",
+   "kind": "method",
+   "parent": "orders::create.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/create/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::cancel/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "cancel",
+   "lang": "python",
+   "file": "orders/cancel",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::cancel.handler",
+   "kind": "file",
+   "parent": "orders::cancel/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/cancel/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::cancel.handler#run/1",
+   "kind": "method",
+   "parent": "orders::cancel.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/cancel/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::refund/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "refund",
+   "lang": "python",
+   "file": "orders/refund",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::refund.handler",
+   "kind": "file",
+   "parent": "orders::refund/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/refund/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::refund.handler#run/1",
+   "kind": "method",
+   "parent": "orders::refund.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/refund/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::ship/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "ship",
+   "lang": "python",
+   "file": "orders/ship",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::ship.handler",
+   "kind": "file",
+   "parent": "orders::ship/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/ship/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::ship.handler#run/1",
+   "kind": "method",
+   "parent": "orders::ship.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/ship/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::invoice/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "invoice",
+   "lang": "python",
+   "file": "orders/invoice",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::invoice.handler",
+   "kind": "file",
+   "parent": "orders::invoice/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/invoice/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::invoice.handler#run/1",
+   "kind": "method",
+   "parent": "orders::invoice.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/invoice/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::notify/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "notify",
+   "lang": "python",
+   "file": "orders/notify",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::notify.handler",
+   "kind": "file",
+   "parent": "orders::notify/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/notify/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::notify.handler#run/1",
+   "kind": "method",
+   "parent": "orders::notify.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/notify/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::report/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "report",
+   "lang": "python",
+   "file": "orders/report",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::report.handler",
+   "kind": "file",
+   "parent": "orders::report/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/report/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::report.handler#run/1",
+   "kind": "method",
+   "parent": "orders::report.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/report/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  },
+  {
+   "id": "orders::search/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "search",
+   "lang": "python",
+   "file": "orders/search",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "logic"
+  },
+  {
+   "id": "orders::search.handler",
+   "kind": "file",
+   "parent": "orders::search/",
+   "name": "handler.py",
+   "lang": "python",
+   "file": "orders/search/handler.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::search.handler#run/1",
+   "kind": "method",
+   "parent": "orders::search.handler",
+   "name": "run",
+   "lang": "python",
+   "file": "orders/search/handler.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "order",
+      "type": "dict"
+     }
+    ],
+    "returns": "None"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "id": "r:calls:orders::cancel.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::cancel.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/cancel/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::create.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::create.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/create/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::invoice.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::invoice.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/invoice/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::notify.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::notify.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/notify/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::refund.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::refund.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/refund/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::report.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::report.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/report/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::search.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::search.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/search/handler.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "r:calls:orders::ship.handler#run/1->orders::audit.log#record/1:",
+   "kind": "calls",
+   "from": "orders::ship.handler#run/1",
+   "to": "orders::audit.log#record/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/ship/handler.py",
+     "line": 4
+    }
+   ]
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/audit/log.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::audit.log",
+   "parse_error": false
+  },
+  "orders/create/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::create.handler",
+   "parse_error": false
+  },
+  "orders/cancel/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::cancel.handler",
+   "parse_error": false
+  },
+  "orders/refund/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::refund.handler",
+   "parse_error": false
+  },
+  "orders/ship/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::ship.handler",
+   "parse_error": false
+  },
+  "orders/invoice/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::invoice.handler",
+   "parse_error": false
+  },
+  "orders/notify/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::notify.handler",
+   "parse_error": false
+  },
+  "orders/report/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::report.handler",
+   "parse_error": false
+  },
+  "orders/search/handler.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::search.handler",
+   "parse_error": false
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::audit.log": {
+    "strategy": "layered",
+    "items": {
+     "orders::audit.log#record/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::audit/": {
+    "strategy": "layered",
+    "items": {
+     "orders::audit.log": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::cancel.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::cancel.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::cancel/": {
+    "strategy": "layered",
+    "items": {
+     "orders::cancel.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::create.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::create.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::create/": {
+    "strategy": "layered",
+    "items": {
+     "orders::create.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::invoice.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::invoice.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::invoice/": {
+    "strategy": "layered",
+    "items": {
+     "orders::invoice.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::notify.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::notify.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::notify/": {
+    "strategy": "layered",
+    "items": {
+     "orders::notify.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::refund.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::refund.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::refund/": {
+    "strategy": "layered",
+    "items": {
+     "orders::refund.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::report.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::report.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::report/": {
+    "strategy": "layered",
+    "items": {
+     "orders::report.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::search.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::search.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::search/": {
+    "strategy": "layered",
+    "items": {
+     "orders::search.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::ship.handler": {
+    "strategy": "layered",
+    "items": {
+     "orders::ship.handler#run/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::ship/": {
+    "strategy": "layered",
+    "items": {
+     "orders::ship.handler": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "orders::audit/": {
+      "region": "hubs",
+      "col": 0,
+      "row": 0
+     },
+     "orders::cancel/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     },
+     "orders::create/": {
+      "region": "line",
+      "col": 1,
+      "row": 1
+     },
+     "orders::invoice/": {
+      "region": "line",
+      "col": 1,
+      "row": 2
+     },
+     "orders::notify/": {
+      "region": "line",
+      "col": 1,
+      "row": 3
+     },
+     "orders::refund/": {
+      "region": "line",
+      "col": 1,
+      "row": 4
+     },
+     "orders::report/": {
+      "region": "line",
+      "col": 1,
+      "row": 5
+     },
+     "orders::search/": {
+      "region": "line",
+      "col": 2,
+      "row": 0
+     },
+     "orders::ship/": {
+      "region": "line",
+      "col": 2,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": [
+     "orders::audit/"
+    ]
+   }
+  }
+ }
+}

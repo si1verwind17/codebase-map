@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package parking.occupancy.v1;
+
+// Bay state changes flow from sensor-gateway to occupancy over one
+// long-lived bidirectional stream; occupancy acknowledges each batch so the
+// gateway can drop it from its retry buffer.
+service OccupancyFeed {
+  rpc Stream(stream BayUpdate) returns (stream Ack);
+}
+
+message BayUpdate {
+  string zone_id = 1;
+  string bay_id = 2;
+  bool occupied = 3;
+  string plate = 4;      // empty when the sensor has no camera
+  int64 observed_at_ms = 5;
+  string sequence = 6;
+}
+
+message Ack {
+  string sequence = 1;
+  bool accepted = 2;
+}

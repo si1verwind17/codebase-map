@@ -1,0 +1,133 @@
+# Built-in pack: what the scanner knows about Kotlin libraries. Same format as stack.yaml; stack.yaml adds to it.
+# imports are matched on `.` boundaries; imports win over ignore; the longest matching prefix names the kind.
+# ignore: the standard library (kotlinx.* are libraries, not ignored), and the wiring of the frameworks this
+# pack covers (Spring, Micronaut, Quarkus, Ktor, Jakarta EE and MicroProfile, as in the Java pack: their IO parts
+# are imports entries, which win: Ktor's `client` is http-out, its `server.routing` http-in).
+# routes: Spring MVC/WebFlux, JAX-RS, Micronaut (`form: annotated`, the Java pack's entries: Kotlin annotations
+# have the same names; a client interface, `skip_class`, gives none); Ktor's routing DSL (regex: `get("/x") {`;
+# `route("/v1") {` is a mount, a nested prefix the agent composes). tables: JPA (as in the Java pack) and Exposed
+# `object X : Table("x")` (no argument: the object's name), defined on the object.
+kotlin:
+  ignore: [kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,
+           jakarta.enterprise, jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json,
+           jakarta.xml.bind, org.eclipse.microprofile]
+  imports:
+  - {prefix: java.sql, kind: sql-db}
+  - {prefix: javax.sql, kind: sql-db}
+  - {prefix: org.springframework.jdbc, kind: sql-db}
+  - {prefix: org.springframework.data.jpa, kind: sql-db}
+  - {prefix: org.springframework.data.jdbc, kind: sql-db}
+  - {prefix: jakarta.persistence, kind: sql-db}
+  - {prefix: javax.persistence, kind: sql-db}
+  - {prefix: org.hibernate, kind: sql-db}
+  - {prefix: org.jooq, kind: sql-db}
+  - {prefix: org.apache.ibatis, kind: sql-db}
+  - {prefix: org.mybatis, kind: sql-db}
+  - {prefix: org.jetbrains.exposed, kind: sql-db}
+  - {prefix: com.google.cloud.bigquery, kind: sql-db}
+  - {prefix: com.mongodb, kind: doc-db}
+  - {prefix: org.litote.kmongo, kind: doc-db}
+  - {prefix: org.springframework.data.mongodb, kind: doc-db}
+  - {prefix: org.apache.kafka, kind: event}
+  - {prefix: org.springframework.kafka, kind: event}
+  - {prefix: com.rabbitmq.client, kind: event}
+  - {prefix: org.springframework.amqp, kind: event}
+  - {prefix: com.google.cloud.pubsub, kind: event}
+  - {prefix: redis.clients.jedis, kind: cache}
+  - {prefix: io.lettuce, kind: cache}
+  - {prefix: org.redisson, kind: cache}
+  - {prefix: org.springframework.data.redis, kind: cache}
+  - {prefix: okhttp3, kind: http-out}
+  - {prefix: org.springframework.web.client, kind: http-out}
+  - {prefix: org.springframework.web.reactive.function.client, kind: http-out}
+  - {prefix: io.ktor.client, kind: http-out}
+  - {prefix: retrofit2, kind: http-out}
+  - {prefix: java.net.http, kind: http-out}
+  - {prefix: org.springframework.web.bind.annotation, kind: http-in}
+  - {prefix: jakarta.ws.rs, kind: http-in}
+  - {prefix: javax.ws.rs, kind: http-in}
+  - {prefix: io.micronaut.http.annotation, kind: http-in}
+  - {prefix: io.ktor.server.routing, kind: http-in}
+  - {prefix: io.ktor.server.websocket, kind: ws}
+  - {prefix: org.springframework.data.r2dbc, kind: sql-db}
+  - {prefix: org.springframework.r2dbc, kind: sql-db}
+  - {prefix: io.micronaut.data, kind: sql-db}
+  - {prefix: io.quarkus.hibernate.orm, kind: sql-db}
+  - {prefix: io.quarkus.hibernate.reactive, kind: sql-db}
+  - {prefix: org.springframework.data.cassandra, kind: doc-db}
+  - {prefix: org.springframework.data.elasticsearch, kind: doc-db}
+  - {prefix: io.quarkus.mongodb, kind: doc-db}
+  - {prefix: org.springframework.jms, kind: event}
+  - {prefix: jakarta.jms, kind: event}
+  - {prefix: javax.jms, kind: event}
+  - {prefix: org.springframework.cloud.stream, kind: event}
+  - {prefix: io.micronaut.configuration.kafka, kind: event}
+  - {prefix: org.eclipse.microprofile.reactive.messaging, kind: event}
+  - {prefix: io.quarkus.redis, kind: cache}
+  - {prefix: org.springframework.cloud.openfeign, kind: http-out}
+  - {prefix: jakarta.ws.rs.client, kind: http-out}
+  - {prefix: javax.ws.rs.client, kind: http-out}
+  - {prefix: io.micronaut.http.client, kind: http-out}
+  - {prefix: io.quarkus.rest.client, kind: http-out}
+  - {prefix: org.eclipse.microprofile.rest.client, kind: http-out}
+  - {prefix: org.springframework.web.reactive.function.server, kind: http-in}
+  - {prefix: org.springframework.web.socket, kind: ws}
+  - {prefix: software.amazon.awssdk, kind: cloud-sdk}
+  - {prefix: aws.sdk.kotlin, kind: cloud-sdk}
+  - {prefix: com.google.cloud.storage, kind: cloud-sdk}
+  - {prefix: io.grpc, kind: grpc}
+  routes:
+    - name: spring-web
+      form: annotated
+      when: org.springframework.web.bind.annotation
+      prefix: [RequestMapping]
+      verbs: {GetMapping: GET, PostMapping: POST, PutMapping: PUT, DeleteMapping: DELETE, PatchMapping: PATCH,
+              RequestMapping: from-method-arg}
+      path_args: [value, path, 0]
+      skip_class: [FeignClient, HttpExchange]
+    - name: jaxrs
+      form: annotated
+      when: jakarta.ws.rs
+      prefix: [Path]
+      verbs: {GET: GET, POST: POST, PUT: PUT, DELETE: DELETE, PATCH: PATCH, HEAD: HEAD, OPTIONS: OPTIONS}
+      method_path: [Path]
+      skip_class: [RegisterRestClient]
+    - name: jaxrs-javax
+      form: annotated
+      when: javax.ws.rs
+      prefix: [Path]
+      verbs: {GET: GET, POST: POST, PUT: PUT, DELETE: DELETE, PATCH: PATCH, HEAD: HEAD, OPTIONS: OPTIONS}
+      method_path: [Path]
+      skip_class: [RegisterRestClient]
+    - name: micronaut
+      form: annotated
+      when: io.micronaut.http.annotation
+      prefix: [Controller]
+      verbs: {Get: GET, Post: POST, Put: PUT, Delete: DELETE, Patch: PATCH, Head: HEAD, Options: OPTIONS}
+      path_args: [value, uri, uris, 0]
+      skip_class: [Client]
+    # `(?<![\w.])`: a bare DSL call, not a member call (`client.get("/x") { }`, `map.get("/x")`); a `$` template
+    # path is skipped
+    - name: ktor
+      when: io.ktor.server.routing
+      path: literal
+      regex: '(?<![\w.])(?P<method>get|post|put|delete|patch|head|options)\s*\(\s*"(?P<path>[^"$]*)"\s*\)\s*\{'
+    - name: ktor-route
+      when: io.ktor.server.routing
+      path: literal
+      mount: true
+      regex: '(?<![\w.])route\s*\(\s*"(?P<path>[^"$]*)"\s*\)\s*\{'
+  tables:
+    - {name: jpa-table-name, when: jakarta.persistence,
+       regex: '@(?:jakarta\.persistence\.)?Table\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-entity-name, when: jakarta.persistence,
+       regex: '@(?:jakarta\.persistence\.)?Entity\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-table-name-javax, when: javax.persistence,
+       regex: '@(?:javax\.persistence\.)?Table\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: jpa-entity-name-javax, when: javax.persistence,
+       regex: '@(?:javax\.persistence\.)?Entity\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+    - {name: exposed, when: org.jetbrains.exposed,
+       regex: '\b(?:object|class)\s+\w+\s*:\s*(?:[\w.]+\.)?(?:Table|IntIdTable|LongIdTable|UUIDTable|UIntIdTable|ULongIdTable|IdTable<[^>]*>)\s*\(\s*"(?P<table>[^"]+)"'}
+    # `object Users : Table()`: Exposed names the table after the object, less a trailing `Table`
+    - {name: exposed-unnamed, when: org.jetbrains.exposed,
+       regex: '\b(?:object|class)\s+(?P<table>\w+?)(?:Table)?\s*:\s*(?:[\w.]+\.)?(?:Table|IntIdTable|LongIdTable|UUIDTable|UIntIdTable|ULongIdTable|IdTable<[^>]*>)\s*\(\s*\)'}

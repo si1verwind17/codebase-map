@@ -1,0 +1,1022 @@
+"""Framework knowledge as data: built-in packs plus the agent-written stack.yaml."""
+from __future__ import annotations
+
+import hashlib
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+
+from .adapters.langs import ALL, SPECS
+
+LANGS = ("python", "scala", *dict.fromkeys(spec.lang for spec in ALL))
+KINDS = ("sql-db", "doc-db", "cache", "http-in", "http-out", "http", "ws", "event", "grpc", "cloud-sdk", "spark")
+GROUPS = ("imports", "routes", "effects", "ignore", "tables")
+READERS = ("literal", "segments")
+HEADER = ("# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.\n"
+          "# Libraries and route styles the scanner does not know built in. Commit it; edit it by hand if a fact is wrong.\n")
+PACKS = Path(__file__).parent / "packs"
+CODE_RULES = {"python": ("fastapi",), "scala": ("tapir", "tapir-client")}   # route framework names kept in code
+FORMS = ("regex", "annotated")
+FROM_ARG = "from-method-arg"
+TOKENS = ("class-stem", "method-name")   # class name without a trailing `Controller`; the method's name
+PATH_ARGS = ("value", "path", 0)
+
+
+class StackError(ValueError):
+    """Invalid pack or stack.yaml content; the message names file, language, group, entry and reason."""
+
+
+@dataclass(frozen=True)
+class RoutePattern:
+    lang: str
+    name: str
+    regex: re.Pattern
+    path: str
+    when: str | None
+    method: str | None
+    source: str
+    mount: bool = False   # a nested prefix (`mount: true`): listed in summary.md, never a route
+    # `expand`: action -> ((METHOD, path suffix), ...); a match gives one route per pair of each action its
+    # `only` / `except` groups keep (Rails `resources :users, only: [:index]`); a `param` group renames `:id`
+    expand: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+
+
+@dataclass(frozen=True)
+class AnnotatedPattern:
+    """A route built from a class prefix annotation and a method verb annotation (`form: annotated`)."""
+    lang: str
+    name: str
+    when: str | None
+    source: str
+    prefix: tuple[str, ...]              # class annotation names whose path is the prefix
+    verbs: dict[str, str]                # annotation name -> HTTP method, or "from-method-arg"
+    path_args: tuple[str | int, ...]     # named args to read, then positional indexes; first present wins
+    method_arg: str | None               # named arg holding the method for "from-method-arg" (None: "method")
+    token: dict[str, str]                # path token -> TOKENS replacement ("[controller]": "class-stem")
+    method_path: tuple[str, ...]         # method annotations whose path is appended (JAX-RS `@Path` on a method)
+    absolute: tuple[str, ...] = ()       # a method path starting with one of these drops the class prefix (ASP.NET `~/`)
+    skip_class: tuple[str, ...] = ()     # class annotations marking an HTTP client (Feign): such a class gives no routes
+
+
+@dataclass(frozen=True)
+class TablePattern:
+    lang: str
+    name: str
+    regex: re.Pattern
+    when: str | None
+    source: str
+
+
+@dataclass(frozen=True)
+class Effect:
+    name: str
+    match: str
+
+
+@dataclass
+class Stack:
+    imports: dict[str, list[tuple[str, str, str]]] = field(default_factory=dict)
+    ignore: dict[str, list[str]] = field(default_factory=dict)
+    stack_ignore: dict[str, list[str]] = field(default_factory=dict)   # the stack.yaml entries of `ignore`
+    effects: dict[str, list[Effect]] = field(default_factory=dict)
+    patterns: list[RoutePattern | AnnotatedPattern] = field(default_factory=list)
+    tables: list[TablePattern] = field(default_factory=list)
+    digest: str | None = None
+    overrides: list[dict] = field(default_factory=list)
+
+
+def _fail(fname: str, where: str, name: str | None, reason: str) -> StackError:
+    return StackError(f"{fname}: {where}" + (f" ({name})" if name else "") + f": {reason}")
+
+
+def _trim(prefix, lang: str):
+    """A prefix written with its language's separator at the end (`java.`, `std::`) names the same library
+    without it; `node:` keeps its single `:` (see prefix_match)."""
+    s = sep(lang)
+    if isinstance(prefix, str) and len(prefix) > len(s) and prefix.endswith(s):
+        return prefix[:-len(s)]
+    return prefix
+
+
+def _add_imports(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    have = st.imports.setdefault(lang, [])
+    for i, e in enumerate(entries):
+        where = f"{lang}.imports[{i}]"
+        if not isinstance(e, dict):
+            raise _fail(fname, where, None, "must be a mapping with prefix and kind")
+        name = _trim(e.get("prefix"), lang) if isinstance(e.get("prefix"), str) else None
+        if extra := sorted(set(e) - {"prefix", "kind"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        if not name:
+            raise _fail(fname, where, None, "missing prefix")
+        if "kind" not in e:
+            raise _fail(fname, where, name, "missing kind")
+        if e["kind"] not in KINDS:
+            raise _fail(fname, where, name, f"unknown kind '{e['kind']}' (one of {', '.join(KINDS)})")
+        kind = e["kind"]
+        old = next((h for h in have if h[0] == name), None)
+        if old is None:
+            have.append((name, kind, source))
+        elif old[1] != kind:
+            have[have.index(old)] = (name, kind, source)
+            st.overrides.append({"lang": lang, "prefix": name, "pack_kind": old[1], "kind": kind})
+
+
+def _add_ignore(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    have = st.ignore.setdefault(lang, [])
+    mine = st.stack_ignore.setdefault(lang, []) if source == "stack.yaml" else []
+    for i, e in enumerate(entries):
+        if not isinstance(e, str) or not e:
+            raise _fail(fname, f"{lang}.ignore[{i}]", None, "must be a prefix string")
+        e = _trim(e, lang)
+        if e not in have:
+            have.append(e)
+        if e not in mine and source == "stack.yaml":
+            mine.append(e)
+
+
+def _add_effects(st: Stack, fname: str, lang: str, entries: list) -> None:
+    have = st.effects.setdefault(lang, [])
+    for i, e in enumerate(entries):
+        where = f"{lang}.effects[{i}]"
+        if isinstance(e, str):
+            e = {"name": e}
+        if not isinstance(e, dict) or not isinstance(e.get("name"), str) or not e["name"]:
+            raise _fail(fname, where, None, "must be a type name or {name, match}")
+        name, match = e["name"], e.get("match", "both")
+        if extra := sorted(set(e) - {"name", "match"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        if match not in ("type", "both"):
+            raise _fail(fname, where, name, f"unknown match '{match}' (type or both)")
+        if all(x.name != name for x in have):
+            have.append(Effect(name, match))
+
+
+def _place(st: Stack, have: list, group: str, fname: str, where: str, name: str, new) -> None:
+    """Add a route or table entry. A stack.yaml entry named like a pack entry of its language and group
+    replaces it in place (listed in `overrides`); any other repeated name is an error."""
+    old = next((i for i, p in enumerate(have) if p.lang == new.lang and p.name == name), None)
+    if old is None:
+        have.append(new)
+    elif new.source == "stack.yaml" and have[old].source == "pack":
+        have[old] = new
+        st.overrides.append({"lang": new.lang, "group": group, "name": name})
+    else:
+        raise _fail(fname, where, name, f"duplicate {group[:-1]} name")
+
+
+def _names(fname: str, where: str, name: str, e: dict, key: str) -> tuple[str, ...]:
+    v = e.get(key, [])
+    if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
+        raise _fail(fname, where, name, f"{key} must be a list of annotation names")
+    return tuple(v)
+
+
+def _path_arg(x) -> bool:
+    """An argument name, or a position (a non-negative int, not a bool)."""
+    return (isinstance(x, str) and bool(x)) or (isinstance(x, int) and not isinstance(x, bool) and x >= 0)
+
+
+def _annotated(fname: str, lang: str, where: str, name: str, e: dict, source: str) -> AnnotatedPattern:
+    if extra := sorted(set(e) - {"name", "form", "when", "prefix", "verbs", "path_args", "method_arg", "token",
+                                 "method_path", "absolute", "skip_class"}):
+        raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+    if "verbs" not in e:
+        raise _fail(fname, where, name, "missing verbs")
+    verbs = e["verbs"]
+    if not isinstance(verbs, dict) or not verbs or not all(isinstance(k, str) and k for k in verbs):
+        raise _fail(fname, where, name, "verbs must be a non-empty mapping of annotation name to HTTP method")
+    for k, v in verbs.items():
+        if not (isinstance(v, str) and (v == FROM_ARG or re.fullmatch(r"\w+", v))):
+            raise _fail(fname, where, name, f"verb {k}: {v!r} is not an HTTP method word or {FROM_ARG}")
+    path_args = e.get("path_args", list(PATH_ARGS))
+    if not isinstance(path_args, list) or not path_args or not all(map(_path_arg, path_args)):
+        raise _fail(fname, where, name, "path_args must be a non-empty list of argument names or positions")
+    method_arg = e.get("method_arg", "method")
+    if not isinstance(method_arg, str) or not method_arg:
+        raise _fail(fname, where, name, "method_arg must be an argument name")
+    token = e.get("token", {})
+    if not isinstance(token, dict) or not all(isinstance(k, str) and k for k in token):
+        raise _fail(fname, where, name, "token must be a mapping of path token to replacement")
+    for k, v in token.items():
+        if v not in TOKENS:
+            raise _fail(fname, where, name, f"token '{k}': unknown replacement '{v}' (one of {', '.join(TOKENS)})")
+    if e.get("when") is not None and not isinstance(e["when"], str):
+        raise _fail(fname, where, name, "when must be an import prefix")
+    prefix, method_path = _names(fname, where, name, e, "prefix"), _names(fname, where, name, e, "method_path")
+    skip_class = _names(fname, where, name, e, "skip_class")
+    absolute = e.get("absolute", [])
+    if not isinstance(absolute, list) or not all(isinstance(x, str) and x for x in absolute):
+        raise _fail(fname, where, name, "absolute must be a list of path starts")
+    if lang not in SPECS:
+        raise _fail(fname, where, name, f"the annotated form needs a language the generic walker parses (not {lang})")
+    return AnnotatedPattern(
+        lang, name, _trim(e.get("when"), lang), source, prefix,
+        {k: v if v == FROM_ARG else v.upper() for k, v in verbs.items()}, tuple(path_args), method_arg,
+        dict(token), method_path, tuple(absolute), skip_class)
+
+
+def _add_routes(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    for i, e in enumerate(entries):
+        where = f"{lang}.routes[{i}]"
+        name = e.get("name") if isinstance(e, dict) and isinstance(e.get("name"), str) else None
+        if not isinstance(e, dict):
+            raise _fail(fname, where, None, "must be a mapping")
+        form = e.get("form", "regex")
+        if form not in FORMS:
+            raise _fail(fname, where, name, f"unknown form '{form}' (regex or annotated)")
+        if form == "annotated":
+            if not name:
+                raise _fail(fname, where, None, "missing name")
+            if name in CODE_RULES.get(lang, ()):
+                raise _fail(fname, where, name, "clashes with a built-in rule")
+            _place(st, st.patterns, "routes", fname, where, name, _annotated(fname, lang, where, name, e, source))
+            continue
+        if extra := sorted(set(e) - {"name", "form", "regex", "path", "when", "method", "mount", "expand"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        for key in ("name", "regex"):
+            if not isinstance(e.get(key), str) or not e[key]:
+                raise _fail(fname, where, name, f"missing {key}")
+        reader = e.get("path", "literal")   # the path reader: `literal` when omitted
+        if reader not in READERS:
+            raise _fail(fname, where, name, f"unknown path reader '{reader}' (one of {', '.join(READERS)})")
+        if name in CODE_RULES.get(lang, ()):
+            raise _fail(fname, where, name, "clashes with a built-in rule")
+        if e.get("when") is not None and not isinstance(e["when"], str):
+            raise _fail(fname, where, name, "when must be an import prefix")
+        if e.get("mount") is not None and not isinstance(e["mount"], bool):
+            raise _fail(fname, where, name, "mount must be true or false")
+        mount = e.get("mount") is True
+        if e.get("method") is not None and not (isinstance(e["method"], str) and re.fullmatch(r"\w+", e["method"])):
+            raise _fail(fname, where, name, "method must be a word such as GET or ANY")
+        try:
+            regex = re.compile(e["regex"], re.M)
+        except re.error as err:
+            raise _fail(fname, where, name, f"regex does not compile: {err}") from None
+        if "path" not in regex.groupindex:
+            raise _fail(fname, where, name, "regex has no path group")
+        expand = _expand(fname, where, name, e.get("expand"))
+        if mount and expand:
+            raise _fail(fname, where, name, "a mount has no expand")
+        if mount:
+            if extra := sorted(set(regex.groupindex) - {"path", "target"}):
+                raise _fail(fname, where, name, f"mount regex has group '{extra[0]}': only path and target")
+        elif "method" not in regex.groupindex and not e.get("method") and not expand:
+            raise _fail(fname, where, name, "no method source: add a method group, or method: "
+                        "(also required with a methods group, for a match where that group is empty)")
+        method = e["method"].upper() if e.get("method") else None
+        _place(st, st.patterns, "routes", fname, where, name,
+               RoutePattern(lang, name, regex, reader, _trim(e.get("when"), lang), method, source, mount, expand))
+
+
+EXPAND_ITEM = re.compile(r"(\w+)(?:\s+(/\S*))?")
+
+
+def _expand(fname: str, where: str, name: str | None, value) -> tuple:
+    """`expand: {index: GET, show: GET /:id, update: [PATCH /:id, PUT /:id]}` -> the RoutePattern tuple."""
+    if value is None:
+        return ()
+    shape = "expand must map an action to `METHOD` or `METHOD /suffix`, or a list of them"
+    if not isinstance(value, dict) or not value:
+        raise _fail(fname, where, name, shape)
+    out = []
+    for action, items in value.items():
+        items = items if isinstance(items, list) else [items]
+        pairs = []
+        for item in items:
+            if not isinstance(item, str) or not (m := EXPAND_ITEM.fullmatch(item.strip())):
+                raise _fail(fname, where, name, shape)
+            pairs.append((m.group(1).upper(), m.group(2) or ""))
+        if not isinstance(action, str) or not pairs:
+            raise _fail(fname, where, name, shape)
+        out.append((action, tuple(pairs)))
+    return tuple(out)
+
+
+ACTION_WORD = re.compile(r"(?<!%)\b\w+")   # `[:index, :show]`, `%i[index show]`, `:index`, `"index"`
+
+
+def _add_tables(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    for i, e in enumerate(entries):
+        where = f"{lang}.tables[{i}]"
+        name = e.get("name") if isinstance(e, dict) and isinstance(e.get("name"), str) else None
+        if not isinstance(e, dict):
+            raise _fail(fname, where, None, "must be a mapping")
+        if extra := sorted(set(e) - {"name", "regex", "when"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        for key in ("name", "regex"):
+            if not isinstance(e.get(key), str) or not e[key]:
+                raise _fail(fname, where, name, f"missing {key}")
+        if e.get("when") is not None and not isinstance(e["when"], str):
+            raise _fail(fname, where, name, "when must be an import prefix")
+        try:
+            regex = re.compile(e["regex"], re.M)
+        except re.error as err:
+            raise _fail(fname, where, name, f"regex does not compile: {err}") from None
+        if "table" not in regex.groupindex:
+            raise _fail(fname, where, name, "regex has no table group")
+        _place(st, st.tables, "tables", fname, where, name,
+               TablePattern(lang, name, regex, _trim(e.get("when"), lang), source))
+
+
+def _read(st: Stack, fname: str, doc, source: str) -> None:
+    if doc is None:
+        return
+    if not isinstance(doc, dict):
+        raise _fail(fname, "top level", None, "must be a mapping of language to groups")
+    for lang, groups in doc.items():
+        if lang not in LANGS:
+            raise _fail(fname, f"unknown language '{lang}'", None, f"the scanner parses {', '.join(LANGS)}")
+        if groups is None:
+            continue
+        if not isinstance(groups, dict):
+            raise _fail(fname, lang, None, "must be a mapping of groups")
+        for group, entries in groups.items():
+            if group not in GROUPS:
+                raise _fail(fname, f"{lang}: unknown group '{group}'", None, f"one of {', '.join(GROUPS)}")
+            if entries is None:
+                continue
+            if not isinstance(entries, list):
+                raise _fail(fname, f"{lang}.{group}", None, "must be a list")
+            if group == "imports":
+                _add_imports(st, fname, lang, entries, source)
+            elif group == "ignore":
+                _add_ignore(st, fname, lang, entries, source)
+            elif group == "effects":
+                if lang != "scala":
+                    raise _fail(fname, f"{lang}.effects", None, "effects are Scala only for now")
+                _add_effects(st, fname, lang, entries)
+            elif group == "tables":
+                _add_tables(st, fname, lang, entries, source)
+            else:
+                _add_routes(st, fname, lang, entries, source)
+
+
+def load(stack_file: Path | None) -> Stack:
+    """Packs always, then stack_file when it exists. Raises StackError."""
+    st = Stack()
+    for lang in LANGS:
+        pack = PACKS / f"{lang}.yaml"
+        _read(st, pack.name, yaml.safe_load(pack.read_text(encoding="utf-8")), "pack")
+    if stack_file is not None and Path(stack_file).is_file():
+        raw = Path(stack_file).read_bytes()
+        try:
+            text = raw.removeprefix(b"\xef\xbb\xbf").decode().replace("\r\n", "\n")
+        except UnicodeDecodeError as err:
+            raise StackError(f"{Path(stack_file).name}: not valid UTF-8: {err}") from None
+        st.digest = hashlib.sha256(text.encode()).hexdigest()   # of the normalised text: a CRLF checkout digests the same
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as err:
+            raise StackError(f"{Path(stack_file).name}: not valid YAML: {err}") from None
+        _read(st, Path(stack_file).name, doc, "stack.yaml")
+    return st
+
+
+_DEFAULT: list[Stack] = []
+
+
+def default() -> Stack:
+    """The packs alone, loaded once: for callers that parse a file without a repository."""
+    if not _DEFAULT:
+        _DEFAULT.append(load(None))
+    return _DEFAULT[0]
+
+
+def ensure_header(stack_file: Path) -> None:
+    """Prepend HEADER when the first line is not its first line; the rest stays byte for byte."""
+    raw = Path(stack_file).read_bytes()
+    bom = b"\xef\xbb\xbf" if raw.startswith(b"\xef\xbb\xbf") else b""
+    body = raw[len(bom):]
+    if body.split(b"\n", 1)[0].rstrip(b"\r") != HEADER.split("\n", 1)[0].encode():
+        crlf = body.split(b"\n", 1)[0].endswith(b"\r")
+        header = (HEADER.replace("\n", "\r\n") if crlf else HEADER).encode()
+        Path(stack_file).write_bytes(bom + header + body)
+
+
+def sep(lang: str) -> str:
+    """The separator of the language's import paths: `.` for Python and Scala, else its table's."""
+    return SPECS[lang].sep if lang in SPECS else "."
+
+
+def prefix_match(prefix: str, target: str, separator: str = ".") -> bool:
+    """On segment boundaries; a prefix ending in a single `:` (a scheme such as `node:`) covers whatever
+    follows it, but not one ending in `::` (Rust `std::`), which stays segment-bounded."""
+    scheme = prefix.endswith(":") and not prefix.endswith("::")
+    return target == prefix or target.startswith(prefix if scheme else prefix + separator)
+
+
+def sink_kinds(st: Stack, lang: str, target: str) -> list[dict]:
+    """The kind of the longest imports prefix naming the target (`jakarta.ws.rs.client` over `jakarta.ws.rs`)."""
+    hits = [(p, kind) for p, kind, _ in st.imports.get(lang, []) if prefix_match(p, target, sep(lang))]
+    longest = max((len(p) for p, _ in hits), default=0)
+    return [{"kind": kind, "lib": p} for p, kind in hits if len(p) == longest]
+
+
+def targets(imp: dict, lang: str = "python") -> list[str]:
+    """What an import names: `X.Y` for each name of `from X import Y` (absolute), else the target alone;
+    a language whose names are exports (`names_extend`) names the target alone. A leading separator (Rust
+    `::serde`) is dropped."""
+    s = sep(lang)
+    t = imp["target"].lstrip(".") if s == "." else imp["target"].removeprefix(s)
+    if imp.get("names") and not imp["relative"] and (lang not in SPECS or SPECS[lang].names_extend):
+        return [f"{t}{s}{n}" for n in imp["names"]]
+    return [t]
+
+
+def import_sinks(st: Stack, lang: str, imp: dict) -> list[dict]:
+    """Sink kinds of every name an import brings in, once per library."""
+    out = []
+    for t in targets(imp, lang):
+        out += [h for h in sink_kinds(st, lang, t) if h not in out]
+    return out
+
+
+def covered(st: Stack, lang: str, target: str) -> bool:
+    """An import that some imports, ignore or route `when` prefix of the language names."""
+    prefixes = [p for p, _, _ in st.imports.get(lang, [])] + st.ignore.get(lang, []) \
+        + [p.when for p in (*st.patterns, *st.tables) if p.lang == lang and p.when]
+    return any(prefix_match(p, target, sep(lang)) for p in prefixes)
+
+
+def effect_names(st: Stack, lang: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(names matched as declared types, names also matched in values)."""
+    es = st.effects.get(lang, [])
+    return tuple(e.name for e in es), tuple(e.name for e in es if e.match == "both")
+
+
+def normalise(path: str) -> str:
+    path = re.sub(r"<(?:[^<>:]*:)?([^<>]+)>", r"{\1}", path.strip())
+    path = re.sub(r"(?:(?<=/)|^):(\w+)", r"{\1}", path)
+    return "/" + path.strip("/")
+
+
+SEGMENT = re.compile(r'"([^"]*)"|\w+\(\s*(?:"([^"]*)"|(\w+))\s*\)|(\w+)')
+
+
+def read_path(text: str, reader: str) -> str:
+    if reader == "literal":
+        return normalise(text)
+    segs = []
+    for lit, qcap, wcap, bare in SEGMENT.findall(text):
+        if cap := qcap or wcap:
+            segs.append("{" + cap + "}")
+        elif bare and bare != "Root":
+            segs.append("{" + bare + "}")
+        elif lit:
+            segs += [s for s in lit.split("/") if s]
+    return normalise("/".join(segs))
+
+
+def _handler(spans: list[tuple[int, int, str]], line: int, file_id: str, below: bool = True) -> str:
+    """The innermost method around the line, else (below) the first one below it, else the file."""
+    inside = [s for s in spans if s[0] <= line <= s[1]]
+    if inside:
+        return max(inside, key=lambda s: s[0])[2]
+    if not below:
+        return file_id
+    after = [s for s in spans if s[0] > line]
+    return min(after, key=lambda s: s[0])[2] if after else file_id
+
+
+def import_names(imports: list[dict], lang: str = "python") -> list[str]:
+    """Every absolute target the imports name (see targets): what a `when` prefix is matched against."""
+    return [t for i in imports if not i["relative"] for t in targets(i, lang)]
+
+
+def _when_line(when: str, imports: list[dict], lang: str) -> int | None:
+    return next((i["line"] for i in imports if not i["relative"]
+                 and any(prefix_match(when, t, sep(lang)) for t in targets(i, lang))), None)
+
+
+def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
+    """(pattern, match, text) of every non-empty path match of the language's regex patterns (mounts or routes)."""
+    for pat in st.patterns:
+        if not isinstance(pat, RoutePattern) or pat.lang != lang or pat.mount != mount \
+                or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
+            continue
+        for m in pat.regex.finditer(src):
+            if text := (m.group("path") or "").strip():
+                yield pat, m, text
+
+
+def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
+                file_id: str) -> list[dict]:
+    """Route facts from every pattern of the language that applies to the file (imports: import_names). A match
+    of a pattern with a `handler` group carries the group's text as `handler_name` for structure to resolve; such
+    a pattern names its handler in the call, so when the group is empty (an inline function) the handler is the
+    method around the match or the file, never the method below it (the rule for decorators)."""
+    out = []
+    for pat, m, text in _matches(st, lang, src, imports, False):
+        groups = pat.regex.groupindex
+        if pat.expand:
+            only, exclude = ({w for w in ACTION_WORD.findall(m.group(g) or "")} if g in groups and m.group(g)
+                             else None for g in ("only", "except"))
+            line = src.count("\n", 0, m.start()) + 1
+            handler = _handler(spans, line, file_id, "handler" not in groups)
+            base = read_path(text, pat.path)
+            param = (m.group("param") or "").strip() if "param" in groups else ""
+            out += [{"method": method, "handler": handler, "line": line,
+                     "path": normalise(base + (re.sub(r"(?<=/):id\b", ":" + param, suffix) if param else suffix)),
+                     "framework": pat.name, "source": pat.source}
+                    for action, pairs in pat.expand
+                    if (only is None or action in only) and (exclude is None or action not in exclude)
+                    for method, suffix in pairs]
+            continue
+        methods = re.findall(r"[\"'](\w+)[\"']", m.group("methods") or "") if "methods" in groups else []
+        if not methods and "method" in groups and m.group("method"):
+            methods = [m.group("method")]
+        methods = [x.upper() for x in methods] or ([pat.method] if pat.method else [])
+        line = src.count("\n", 0, m.start()) + 1
+        handler = _handler(spans, line, file_id, "handler" not in groups)
+        named = m.group("handler") if "handler" in groups else None
+        for method in methods:
+            out.append({"method": method, "path": read_path(text, pat.path), "handler": handler,
+                        "line": line, "framework": pat.name, "source": pat.source,
+                        **({"handler_name": named.strip()} if named and named.strip() else {})})
+    return out
+
+
+def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict]:
+    """Mount facts (nested prefixes) from the `mount: true` patterns that apply to the file."""
+    out = []
+    for pat, m, text in _matches(st, lang, src, imports, True):
+        target = m.group("target") if "target" in pat.regex.groupindex else None
+        out.append({"path": read_path(text, pat.path), "target": (target or "").strip() or None,
+                    "line": src.count("\n", 0, m.start()) + 1, "framework": pat.name, "source": pat.source})
+    return out
+
+
+def find_tables(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
+                class_spans: list[tuple[int, int, str]], file_id: str) -> list[dict]:
+    """Table facts from every table pattern of the language that applies to the file. `in` is the innermost
+    method around the match (access), else the innermost class (defined), else the file (access)."""
+    out = []
+    for pat in st.tables:
+        if pat.lang != lang or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
+            continue
+        for m in pat.regex.finditer(src):
+            if not (table := (m.group("table") or "").strip()):
+                continue
+            line = src.count("\n", 0, m.start()) + 1
+            method = [s for s in spans if s[0] <= line <= s[1]]
+            klass = [s for s in class_spans if s[0] <= line <= s[1]]
+            if method:
+                where, kind = max(method, key=lambda s: s[0])[2], "access"
+            elif klass:
+                where, kind = max(klass, key=lambda s: s[0])[2], "defined"
+            else:
+                where, kind = file_id, "access"
+            out.append({"table": table, "line": line, "in": where, "kind": kind, "pattern": pat.name,
+                        "source": pat.source})
+    return out
+
+
+_CLOSE = {"(": ")", "[": "]", "{": "}"}
+_ESCAPED = {'"': '"', "'": "'", "\\": "\\", "`": "`", "/": "/"}
+_QNAME = r"\\?[A-Za-z_]\w*(?:(?:\.|::|\\)[A-Za-z_]\w*)*"
+_ITEM = re.compile(rf"(?:\w+\s*:(?!:)\s*)?({_QNAME})\s*(?:<[^<>()]*>\s*)?")
+_NAMED = re.compile(r"([A-Za-z_]\w*)\s*(?:=(?!=)|:(?!:))\s*(.*)", re.S)
+_ARRAY = re.compile(r"(?:new\s*(?:\w+\s*)?\[\s*\]\s*|(?:arrayOf|listOf|array)\s*(?=\())")
+
+
+def _last(name: str) -> str:
+    return re.split(r"\.|::|\\", name)[-1]
+
+
+def _string_at(s: str, i: int) -> tuple[int, str | None] | None:
+    """A string literal starting at s[i]: (index after it, its value; None when interpolated), (-1, None) when
+    unterminated, None when no string starts there. Text blocks, C# verbatim (`@"..."`) and interpolated
+    (`$"..."`) strings, JS template literals (interpolated when they hold `${`)."""
+    interp = verbatim = False
+    j = i
+    while j < len(s) and s[j] in "@$" and j - i < 2:
+        interp, verbatim = interp or s[j] == "$", verbatim or s[j] == "@"
+        j += 1
+    if j >= len(s) or s[j] not in "\"'`" or (j > i and s[j] != '"'):
+        return None
+    if s.startswith('"""', j):
+        end = s.find('"""', j + 3)
+        return (-1, None) if end < 0 else (end + 3, None if interp else s[j + 3:end].strip())
+    q, out, k = s[j], [], j + 1
+    while k < len(s):
+        c = s[k]
+        if verbatim and c == q:
+            if s.startswith(q * 2, k):
+                out.append(q)
+                k += 2
+                continue
+            break
+        if not verbatim and c == "\\" and k + 1 < len(s):
+            out.append(_ESCAPED.get(s[k + 1], c + s[k + 1]))
+            k += 2
+            continue
+        if c == q:
+            break
+        out.append(c)
+        k += 1
+    else:
+        return -1, None
+    value = "".join(out)
+    return k + 1, None if interp or (q == "`" and "${" in value) else value
+
+
+def _close(s: str, i: int) -> int:
+    """The index of the bracket closing s[i], skipping strings and nested brackets; -1 when unbalanced."""
+    stack_, k = [], i
+    while k < len(s):
+        if (hit := _string_at(s, k)) is not None:
+            if hit[0] < 0:
+                return -1
+            k = hit[0]
+            continue
+        c = s[k]
+        if c in _CLOSE:
+            stack_.append(_CLOSE[c])
+        elif c in ")]}":
+            if not stack_ or stack_.pop() != c:
+                return -1
+            if not stack_:
+                return k
+        k += 1
+    return -1
+
+
+def _split(s: str) -> list[str] | None:
+    """Top-level comma-separated pieces (strings and brackets kept whole); None when unbalanced."""
+    out, start, k = [], 0, 0
+    while k < len(s):
+        if (hit := _string_at(s, k)) is not None:
+            if hit[0] < 0:
+                return None
+            k = hit[0]
+            continue
+        if s[k] in _CLOSE:
+            if (end := _close(s, k)) < 0:
+                return None
+            k = end + 1
+            continue
+        if s[k] in ")]}":
+            return None
+        if s[k] == ",":
+            out.append(s[start:k])
+            start = k + 1
+        k += 1
+    out.append(s[start:])
+    return [x.strip() for x in out if x.strip()] if any(x.strip() for x in out) else []
+
+
+def _scalar(v: str) -> tuple[str, str]:
+    """("str", value) for a string literal, ("name", last segment) for a constant name, else ("other", text)."""
+    if (hit := _string_at(v, 0)) is not None and hit[0] == len(v):
+        return ("str", hit[1]) if hit[1] is not None else ("other", v)
+    if re.fullmatch(_QNAME, v):
+        return "name", _last(v)
+    return "other", v
+
+
+def _value(v: str) -> tuple[list[tuple[str, str]], dict[str, list[tuple[str, str]]]]:
+    """An argument value as its elements (a scalar is one; an array its elements), and the pairs of an object
+    literal (`{ path: 'x' }`), which also count as named arguments."""
+    v = v.strip()
+    body = v[m.end():] if (m := _ARRAY.match(v)) else v
+    if body[:1] in "{[(" and body and _close(body, 0) == len(body) - 1 and (body[0] != "(" or m):
+        parts = _split(body[1:-1])
+        if parts is None:
+            return [("other", v)], {}
+        pairs = [_NAMED.fullmatch(x) for x in parts]
+        if body[0] == "{" and parts and all(pairs):
+            return [("other", v)], {p.group(1): _value(p.group(2))[0] for p in pairs}
+        return [_scalar(x) for x in parts], {}
+    return [_scalar(v)], {}
+
+
+Parsed = tuple[str, list[list[tuple[str, str]]], dict[str, list[tuple[str, str]]]]
+
+
+_GAP = re.compile(r"(?:\s+|//[^\n]*|/\*.*?\*/)*", re.S)
+
+
+def _groups(t: str) -> list[tuple[list[str] | None, bool]] | None:
+    """The top-level attribute groups of a bracketed annotation text, each as (its items, C#): PHP records stacked
+    groups (`#[Route('/x')]` then `#[IsGranted('y')]`) as one text, so might a C# `[A] [B]`. None when unreadable."""
+    out, k = [], 0
+    while k < len(t):
+        start = k + 2 if t.startswith("#[", k) else k + 1 if t.startswith("[", k) else -1
+        if start < 0 or (end := _close(t, start - 1)) < 0:
+            return None
+        out.append((_split(t[start:end]), start == k + 1))
+        k = _GAP.match(t, end + 1).end()
+    return out
+
+
+def _parse(text: str) -> list[Parsed] | None:
+    """Every annotation in one recorded annotation text, its arguments as typed elements; None when unreadable."""
+    t = text.strip()
+    if t.startswith("[") or t.startswith("#["):
+        groups = _groups(t)
+    elif t.startswith("@"):
+        groups = [([t[1:]], False)]
+    else:
+        return None
+    if not groups or any(not items for items, _ in groups):
+        return None
+    out = []
+    for items, csharp in groups:
+        if (one := _parse_items(items, csharp)) is None:
+            return None
+        out += one
+    return out
+
+
+def _parse_items(items: list[str], csharp: bool) -> list[Parsed] | None:
+    out = []
+    for item in items:
+        if not (m := _ITEM.match(item)):
+            return None
+        name, rest = _last(m.group(1)), item[m.end():]
+        if csharp and name.endswith("Attribute") and name != "Attribute":
+            name = name.removesuffix("Attribute")
+        positional, named = [], {}
+        if rest:
+            if not rest.startswith("(") or _close(rest, 0) != len(rest) - 1 or (args := _split(rest[1:-1])) is None:
+                return None
+            for a in args:
+                if nm := _NAMED.fullmatch(a):
+                    named[nm.group(1)] = _value(nm.group(2))[0]
+                else:
+                    elems, pairs = _value(a)
+                    positional.append(elems)
+                    for k, v in pairs.items():
+                        named.setdefault(k, v)
+        out.append((name, positional, named))
+    return out
+
+
+def _strings(elems: list[tuple[str, str]]) -> list[str]:
+    """The strings of a value made of string literals only; [] when any element is not one."""
+    return [v for _, v in elems] if all(k == "str" for k, _ in elems) else []
+
+
+def parse_annotations(text: str) -> list[tuple[str, list[list[str]], dict[str, list[str]]]]:
+    """Every annotation in a recorded annotation text (a C# `[A, B(...)]` or PHP `#[A, B]` list holds several):
+    (name, positional values, named values). A name is the last segment of a qualified name; a C# target
+    (`[method: X]`) and Kotlin use-site target (`@get:X`) are dropped, as is C#'s `Attribute` suffix. Each value
+    is its strings: a literal gives one, an array of literals each; any other value gives []. An object literal
+    argument (`@Controller({ path: 'x' })`) also gives its pairs as named values. [] when unreadable."""
+    return [(n, [_strings(p) for p in pos], {k: _strings(v) for k, v in named.items()})
+            for n, pos, named in _parse(text) or []]
+
+
+def parse_annotation(text: str) -> tuple[str, list[list[str]], dict[str, list[str]]] | None:
+    """The first annotation of parse_annotations, or None."""
+    return next(iter(parse_annotations(text)), None)
+
+
+def _arg_paths(parsed: Parsed, path_args: tuple[str | int, ...]) -> list[str] | None:
+    """The paths of the first path argument present (an empty array: [""]); [""] when none is; None when that
+    argument is not made of string literals."""
+    _, positional, named = parsed
+    for a in path_args:
+        elems = named.get(a) if isinstance(a, str) else (positional[a] if a < len(positional) else None)
+        if elems is not None:
+            return [v for _, v in elems] or [""] if all(k == "str" for k, _ in elems) else None
+    return [""]
+
+
+def _alternatives(items: list[tuple[Parsed, int]], path_args: tuple[str | int, ...]) -> list[str] | None:
+    """The paths of several annotations as alternatives: [""] for none; None when none of them is literal."""
+    if not items:
+        return [""]
+    out = [p for it, _ in items for p in (_arg_paths(it, path_args) or [])]
+    return list(dict.fromkeys(out)) or None
+
+
+def annotated_routes(pat: AnnotatedPattern, annotations: list[dict], nodes: list[dict]) -> list[dict]:
+    """Route facts of one annotated pattern over a file's recorded annotations and nodes: one per method verb
+    annotation x class prefix x verb path x method path; a non-literal prefix or path gives none. A verb or method
+    path starting with one of the pattern's `absolute` starts drops the class prefix (the start itself is dropped).
+    A class carrying one of the pattern's `skip_class` annotations (an HTTP client interface) gives none."""
+    by_id = {n["id"]: n for n in nodes}
+    on: dict[str, list[tuple[Parsed, int]]] = {}
+    for a in annotations:
+        for parsed in _parse(a["text"]) or []:
+            on.setdefault(a["node"], []).append((parsed, a["line"]))
+    out, seen = [], set()
+    for n in nodes:
+        if n["kind"] != "method":
+            continue
+        mine = on.get(n["id"], [])
+        verbs = [(it, line) for it, line in mine if it[0] in pat.verbs]
+        if not verbs:
+            continue
+        owner = by_id.get(n["parent"])
+        klass = owner if owner is not None and owner["kind"] == "class" else None
+        if klass and any(x[0][0] in pat.skip_class for x in on.get(klass["id"], [])):
+            continue
+        prefixes = _alternatives([x for x in on.get(klass["id"], []) if x[0][0] in pat.prefix] if klass else [],
+                                 pat.path_args)
+        tails = _alternatives([x for x in mine if x[0][0] in pat.method_path], pat.path_args)
+        if prefixes is None or tails is None:
+            continue
+        for verb, line in verbs:
+            paths = _arg_paths(verb, pat.path_args)
+            if paths is None:
+                continue
+            if (how := pat.verbs[verb[0]]) == FROM_ARG:
+                elems = verb[2].get(pat.method_arg or "method", [])
+                how = list(dict.fromkeys(_last(v).upper() for k, v in elems if k in ("str", "name") and v)) or ["ANY"]
+            else:
+                how = [how]
+            for pre in prefixes:
+                for path in paths:
+                    for tail in tails:
+                        parts = [pre, path, tail]
+                        for i in (1, 2):
+                            if hit := next((a for a in pat.absolute if parts[i].startswith(a)), None):
+                                parts[:i + 1] = [""] * i + [parts[i][len(hit):]]
+                        raw = "/".join(x.strip("/") for x in parts if x.strip("/"))
+                        for tok, repl in pat.token.items():
+                            if repl == "class-stem" and klass:
+                                raw = raw.replace(tok, re.sub(r"Controller$", "", klass["name"]))
+                            elif repl == "method-name":
+                                raw = raw.replace(tok, n["name"])
+                        for method in how:
+                            key = (method, normalise(raw), n["id"])
+                            if key not in seen:
+                                seen.add(key)
+                                out.append({"method": method, "path": key[1], "handler": n["id"], "line": line,
+                                            "framework": pat.name, "source": pat.source})
+    return out
+
+
+def find_annotated(st: Stack, lang: str, annotations: list[dict], nodes: list[dict], imports: list[str]) -> list[dict]:
+    """Route facts from every annotated pattern of the language that applies to the file (imports: import_names)."""
+    out = []
+    for pat in st.patterns:
+        if isinstance(pat, AnnotatedPattern) and pat.lang == lang \
+                and (not pat.when or any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
+            out += annotated_routes(pat, annotations, nodes)
+    return out
+
+
+BUILT_IN = {"fastapi": "python", "tapir": "scala"}   # route rules kept in code, counted in the pattern report
+SERVER_KINDS = ("http-in", "http")
+
+
+GROUP_DEPTH = {"python": 1, "scala": 2, **{spec.lang: spec.group_depth for spec in ALL}}
+
+
+def _prefix(lang: str, target: str) -> str:
+    """The library an import belongs to: the language's `group_depth` segments; an npm `@scope/name` is two,
+    a Go path without a host (no dot in its first segment) one. A leading separator (Rust `::serde`) is dropped."""
+    s = sep(lang)
+    parts = target.removeprefix(s).split(s)
+    depth = GROUP_DEPTH[lang]
+    if s == "/" and parts[0].startswith("@"):
+        depth = 2
+    elif lang == "go" and "." not in parts[0]:
+        depth = 1
+    return s.join(parts[:depth])
+
+
+def _index(internal: set[str], separator: str = ".") -> tuple[set[str], set[str]]:
+    """(internal names, every proper prefix of them): built once, so a lookup is a few set probes."""
+    above = set()
+    for n in internal:
+        parts = n.split(separator)
+        above.update(separator.join(parts[:i]) for i in range(1, len(parts)))
+    return set(internal), above
+
+
+def _is_internal(target: str, index: tuple[set[str], set[str]], separator: str = ".") -> bool:
+    """The target is, sits under, or is a parent of an internal name."""
+    names, above = index
+    if target in above:
+        return True
+    parts = target.split(separator)
+    return any(separator.join(parts[:i]) in names for i in range(1, len(parts) + 1))
+
+
+def _declared(name: str, src: str) -> bool:
+    n = re.escape(name)
+    return bool(re.search(rf"\b(?:val|var|def|lazy val|object|class|trait|given|case class)\s+{n}\b|\b{n}\s*(?::|<-)", src))
+
+
+def _local_scala(target: str, src: str, package: str, index: tuple[set[str], set[str]]) -> bool:
+    """An import of something the repo defines: a capitalised name, one declared in the importing file, or
+    a package relative to the file's own (`import model.User` inside `package com.acme` is `com.acme.model`)."""
+    first = target.split(".")[0]
+    if first[:1].isupper() or _declared(first, src):
+        return True
+    parts = package.split(".") if package and package != "_root_" else []
+    names, above = index
+    return any((c := ".".join(parts[:i] + [first])) in names or c in above for i in range(1, len(parts) + 1))
+
+
+def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str]]) -> list[dict]:
+    """internal: language -> the import names of the repo's own code in that language."""
+    seen: dict[tuple[str, str], dict[str, int]] = {}
+    indexes: dict[str, tuple[set[str], set[str]]] = {}
+    for path in sorted(files):
+        f = files[path]
+        lang, s = f["lang"], sep(f["lang"])
+        if lang not in indexes:
+            indexes[lang] = _index(internal.get(lang, set()), s)
+        index = indexes[lang]
+        for imp in f["imports"]:
+            t = imp["target"]
+            if imp["relative"]:
+                continue
+            if lang == "python" and t.split(".")[0] in sys.stdlib_module_names:
+                continue
+            if lang == "go" and "." not in t.split("/")[0]:
+                continue      # the standard library: no host in the path
+            if lang in ("typescript", "javascript") and t.startswith("/"):
+                continue      # rooted at the project (Vite `/src/main`): the repo's own
+            if _is_internal(t, index, s):
+                continue
+            if lang == "scala" and _local_scala(t, f.get("src", ""), f.get("package", ""), index):
+                continue
+            if not all(covered(st, lang, x) for x in targets(imp, lang)):
+                seen.setdefault((lang, _prefix(lang, t)), {}).setdefault(path, imp["line"])
+    return [{"lang": lang, "prefix": prefix, "files": len(at),
+             "examples": [f"{p}:{n}" for p, n in list(at.items())[:2]]}
+            for (lang, prefix), at in sorted(seen.items())]
+
+
+def _servers(st: Stack, files: dict[str, dict]) -> list[dict]:
+    libs: dict[tuple[str, str], dict] = {}
+    for path, f in files.items():
+        for imp in f["imports"]:
+            for hit in import_sinks(st, f["lang"], imp):
+                if hit["kind"] in SERVER_KINDS:
+                    e = libs.setdefault((f["lang"], hit["lib"]), {"kind": hit["kind"], "files": set()})
+                    e["files"].add(path)
+    return [{"lang": lang, "prefix": lib, "kind": e["kind"], "files": len(e["files"])}
+            for (lang, lib), e in sorted(libs.items())
+            if not any(prefix_match(i, lib, sep(lang)) or prefix_match(lib, i, sep(lang))
+                       for i in st.stack_ignore.get(lang, []))
+            and not any(f["routes"] for f in files.values() if f["module"] in {files[p]["module"] for p in e["files"]})]
+
+
+def _patterns(st: Stack, files: dict[str, dict], langs: set[str]) -> list[dict]:
+    def entry(group, lang, name, source, hits, first):
+        return {"group": group, "lang": lang, "name": name, "source": source, "matches": len(hits),
+                "files": len({p for p, _ in hits}), "first_file": first}
+
+    def hits_of(group, lang, name):
+        return [(p, r) for p, f in sorted(files.items()) if f["lang"] == lang
+                for r in f.get(group, []) if (r["framework"] if group in ("routes", "mounts") else r["pattern"]) == name]
+
+    out = []
+    for name, lang in BUILT_IN.items():
+        if hits := hits_of("routes", lang, name):
+            out.append(entry("routes", lang, name, "built in", hits, hits[0][0]))
+    for group, pats in (("routes", st.patterns), ("tables", st.tables)):
+        for pat in pats:
+            if pat.lang not in langs:
+                continue
+            users = [p for p, f in sorted(files.items()) if f["lang"] == pat.lang
+                     and (not pat.when or _when_line(pat.when, f["imports"], pat.lang) is not None)]
+            if pat.source != "stack.yaml" and not users:
+                continue
+            if users and pat.when:
+                line = _when_line(pat.when, files[users[0]]["imports"], pat.lang)
+                first = f"{users[0]}:{line}"
+            elif users:
+                first = users[0]
+            else:
+                first = next(p for p, f in sorted(files.items()) if f["lang"] == pat.lang)
+            mount = isinstance(pat, RoutePattern) and pat.mount
+            out.append(entry(group, pat.lang, pat.name, pat.source,
+                             hits_of("mounts" if mount else group, pat.lang, pat.name), first))
+            if mount:
+                out[-1]["mount"] = True
+            if isinstance(pat, AnnotatedPattern):
+                out[-1]["form"] = "annotated"
+            if not out[-1]["matches"] and (by := [k for f in files.values() if f["lang"] == pat.lang
+                                                  for g, n, k in f.get("deduped", []) if g == group and n == pat.name]):
+                out[-1]["duplicates"] = max(dict.fromkeys(by), key=by.count)   # every match was another pattern's
+    return sorted(out, key=lambda e: e["lang"])
+
+
+def report(st: Stack, files: dict[str, dict], internal: dict[str, set[str]], langs: set[str]) -> dict:
+    """The Stack block of structure.json: what no pack or stack.yaml covers, and how each route pattern did."""
+    return {"digest": st.digest, "unrecognised": _unrecognised(st, files, internal),
+            "servers_without_routes": _servers(st, files), "patterns": _patterns(st, files, langs),
+            "overrides": list(st.overrides)}
+
+
+def flagged(p: dict) -> bool:
+    """A stack.yaml pattern that matched nothing (one whose matches another pattern also gave is a duplicate,
+    not flagged); pack patterns are only counted."""
+    return p["matches"] == 0 and p["source"] == "stack.yaml" and not p.get("duplicates")
+
+
+def count(rep: dict) -> int:
+    return len(rep["unrecognised"]) + len(rep["servers_without_routes"]) \
+        + sum(1 for p in rep["patterns"] if flagged(p))
