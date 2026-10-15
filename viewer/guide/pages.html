@@ -93,6 +93,7 @@
     { "map": "push_pull", "steps": [["find", "billing"], ["pick"], ["down"], ["floor", "billing"]] },
     { "map": "push_pull", "steps": [["find", "reports"], ["pick"], ["down"], ["floor", "reports"]] }
   ] },
+  "in_process": { "map": "in_process", "steps": [["find", "orders"], ["pick"], ["down"], ["floor", "orders"]] },
   "rail": { "map": "rail", "steps": [["legend"]] },
   "storage": { "map": "storage", "steps": [["legend"]] },
   "outside": { "map": "outside", "steps": [["legend"]] },
@@ -129,7 +130,7 @@
 <template class="page" data-title="Names and codes" data-kicker="Getting around">
   <figure class="pic" data-pic="codes"></figure>
   <p class="cap">Top, zoomed out on floor 0 and shown enlarged: the orders factory shows only its code, S1. Below, zoomed in on its file service.py: the class shows its code and its name, S1·P2·F2·C1 OrderService, and the doors name where its lines come from and go to, S1·P1 api and S1·P2·F1 rules.py.</p>
-  <p>Every item has a short <b>code</b> that says where it is: <span class="code">S2</span> is a service, <span class="code">S2·P1</span> a package inside it, <span class="code">S2·P1·F3</span> a file in that package; <span class="code">C</span> is a class and <span class="code">M</span> a method. Databases are <span class="code">D</span>, libraries <span class="code">L</span>, outside services <span class="code">X</span>, topics <span class="code">T</span>.</p>
+  <p>Every item has a short <b>code</b> that says where it is: <span class="code">S2</span> is a service, <span class="code">S2·P1</span> a package inside it, <span class="code">S2·P1·F3</span> a file in that package; <span class="code">C</span> is a class and <span class="code">M</span> a method. Databases are <span class="code">D</span>, libraries <span class="code">L</span>, outside services <span class="code">X</span>, topics <span class="code">T</span>, in-process queues <span class="code">Q</span>.</p>
   <p>Zoomed out there is no room for names, so a machine shows only its code. Hover it, or zoom in, to see the name. <b>Find</b> takes a name or a code.</p>
 </template>
 
@@ -173,42 +174,49 @@
   <p>A tag on a consumer such as <span class="code">3 replicas</span> says how many copies of it run.</p>
 </template>
 
-<template class="page" data-title="Rail — batch jobs" data-kicker="Pattern 7">
+<template class="page" data-title="In-process queues" data-kicker="Pattern 7">
+  <figure class="pic" data-pic="in_process"></figure>
+  <p class="cap">Inside orders: the api package's routes enqueue to outbox, a hub on the service's own airfield with a solid edge; the workers package takes from it and calls the mailer.</p>
+  <p>An <b>in-process queue</b> hands work from one part of a service to another without a call between them: a queue, channel or hub that lives in the service's memory. It stands on the <b>in-process</b> airfield inside the service, never on floor 0: no other service sees it, and its items are lost when the service stops.</p>
+  <p>Its drones fly like events: a work queue keeps a waiting stack, and each item goes to one taker.</p>
+</template>
+
+<template class="page" data-title="Rail — batch jobs" data-kicker="Pattern 8">
   <figure class="pic" data-pic="rail"></figure>
   <p class="cap">A nightly job in jobs writes to billing: the rail yard beside jobs with its platform to billing, a train on the track, billing's station, and the schedule sign reading daily 02:00.</p>
   <p>A <b>rail</b> is a batch job: a cron job, or a job triggered to move data in bulk. Jobs leave from a <b>rail yard</b> beside the machine that runs them, one <b>platform</b> per destination with its job count. Each destination has a <b>station</b>.</p>
   <p>The <b>schedule sign</b> on the yard sums up when they run (<span class="code">3 jobs · daily 02:00</span>); hover it to list every job.</p>
 </template>
 
-<template class="page" data-title="Storage" data-kicker="Pattern 8">
+<template class="page" data-title="Storage" data-kicker="Pattern 9">
   <figure class="pic" data-pic="storage"></figure>
   <p class="cap">orders calls billing and reports along belts. It reads and writes orders-db, and reports only reads it. orders writes files to the receipts bucket, whose box carries the container yard, and keeps a cache only it uses: the chest beside it.</p>
   <p>A database is a warehouse with a lane. A <b>tap</b> drops onto the lane: <span style="color:var(--red);font-weight:700">red</span> writes, <span style="color:var(--slate);font-weight:700">slate</span> reads; a pair does both.</p>
   <p>A cache used by one service is a <b>chest</b> next to it; a cache several services share sits in storage like a database. A bucket is a container yard; it is read and written by taps, like a database.</p>
 </template>
 
-<template class="page" data-title="The outside world" data-kicker="Pattern 9">
+<template class="page" data-title="The outside world" data-kicker="Pattern 10">
   <figure class="pic" data-pic="outside"></figure>
   <p class="cap">orders calls tax-api, a yellow dock on the right edge. payment-provider sends a webhook along a belt into billing's receiving dock. All three services call mail, so mail is the X1 tab on each of them.</p>
   <p>Services outside your repo (a payment provider, a cloud API) are yellow <b>docks</b> on the right edge. A <b>webhook</b> is a belt from the outside dock into your service's receiving dock.</p>
   <p>An outside service that three or more of yours call, and nothing else, is a small <b>tab</b> on each caller instead, so its lines do not cross the floor.</p>
 </template>
 
-<template class="page" data-title="Shared code" data-kicker="Pattern 10">
+<template class="page" data-title="Shared code" data-kicker="Pattern 11">
   <figure class="pic" data-pic="shared"></figure>
   <p class="cap">Left, floor 0: the library common on the shelf above orders. Right, inside orders: common is installed on the left wall, with a belt from the store package that calls it.</p>
   <p>Code with no deployment of its own is a <b>library</b>. On floor 0 libraries stand on the shelf at the top. Inside a factory, each library it uses is an installed unit on the left wall, with belts from the packages that call it.</p>
   <p><b>Code links</b> (floor tools, off by default) draws thin dotted conduits from each service to the code it uses. A dotted line between two machines means one <b>implements</b> the other.</p>
 </template>
 
-<template class="page" data-title="Crossings and guesses" data-kicker="Pattern 11">
+<template class="page" data-title="Crossings and guesses" data-kicker="Pattern 12">
   <figure class="pic" data-pic="crossings"></figure>
   <p class="cap">Four services. Where two belts cross between them, one passes under the other. The belt between payments and reports is inferred: its edge is dashed.</p>
   <p>Where two lines must cross, one <b>passes under</b>: you see a hood on the tile before and after.</p>
   <p>A <b>dashed edge</b> is inferred: the scanner reasoned that the line exists but did not see both ends in the code. Treat it as a guess. A <b>red dashed</b> straight line could not be routed: the connection is real, but no clear path was found for it.</p>
 </template>
 
-<template class="page" data-title="Layers" data-kicker="Pattern 12">
+<template class="page" data-title="Layers" data-kicker="Pattern 13">
   <figure class="pic" data-pic="layers"></figure>
   <p class="cap">Inside orders, eight packages all call audit, which wears used by 8. Its layer, S1·P1, is open, so its eight lines show. The layers button, bottom right, shows its code and a badge.</p>
   <p>Some items are used by many others (8 or more). Their lines would bury the floor, so each gets its own <b>layer</b>, named by the item's code, here <span class="code">S1·P1</span>. The item wears a <b>used by N</b> badge.</p>

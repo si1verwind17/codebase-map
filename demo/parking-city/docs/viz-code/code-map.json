@@ -1,12 +1,12 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.5.0",
-  "rules_version": 1,
+  "scanner_version": "0.6.0",
+  "rules_version": 2,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "5a8d09365ffa1231ac6f722935c56cde83b24c01",
-  "scanned_at": "2026-10-13T05:59:26Z",
+  "commit": "b8dee938fe3ed49ee97fce945887053a10fcd79e",
+  "scanned_at": "2026-10-15T15:23:05Z",
   "languages": [
    "python",
    "scala"
@@ -7991,14 +7991,13 @@
    "from": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
    "to": "billing::city.parking.billing.BillingService#charge/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
      "line": 51
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.ReservationEventsConsumer$#handle/3->billing::city.parking.billing.BillingService#refund/1:",
@@ -8006,14 +8005,13 @@
    "from": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
    "to": "billing::city.parking.billing.BillingService#refund/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
      "line": 52
     }
-   ],
-   "why": "name matches 2 methods"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.ReservationEventsConsumer$#handle/3->billing::city.parking.billing.DeadLetters#park/3:",
@@ -8021,29 +8019,13 @@
    "from": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
    "to": "billing::city.parking.billing.DeadLetters#park/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
      "line": 57
     }
-   ],
-   "why": "matched by method name only"
-  },
-  {
-   "id": "r:calls:billing::city.parking.billing.ReservationEventsConsumer$#handle/3->billing::city.parking.billing.StripeCharger#refund/1:",
-   "kind": "calls",
-   "from": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
-   "to": "billing::city.parking.billing.StripeCharger#refund/1",
-   "key": null,
-   "confidence": "inferred",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
-     "line": 52
-    }
-   ],
-   "why": "name matches 2 methods"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.ReservationEventsConsumer$#run/0->billing::city.parking.billing.ReservationEventsConsumer$#handle/3:",
@@ -8065,14 +8047,13 @@
    "from": "billing::city.parking.billing.SettleEndpoint$#routes/1",
    "to": "billing::city.parking.billing.BillingService#settle/0",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/SettleEndpoint.scala",
      "line": 24
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.StripeCharger$#live/0->common::city.parking.common.Config$#env/1:",
@@ -9041,10 +9022,6 @@
    "evidence": [
     {
      "file": "notifier/app/main.py",
-     "line": 53
-    },
-    {
-     "file": "notifier/app/main.py",
      "line": 55
     }
    ]
@@ -9055,14 +9032,13 @@
    "from": "notifier/app::app.main#handle/3",
    "to": "common_py/common_py::common_py.sms.SmsClient#send/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "notifier/app/main.py",
      "line": 53
     }
-   ],
-   "why": "name matches 2 methods"
+   ]
   },
   {
    "id": "r:calls:notifier/app::app.main#handle/3->notifier/app::app.directory#contact_for/1:",
@@ -9556,14 +9532,13 @@
    "from": "pricing::city.parking.pricing.QuoteEndpoint$#routes/1",
    "to": "pricing::city.parking.pricing.PricingService#quote/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/QuoteEndpoint.scala",
      "line": 29
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.SharedCache$#live/0->common::city.parking.common.Config$#env/1:",
@@ -9775,34 +9750,18 @@
    ]
   },
   {
-   "id": "r:calls:reservations::city.parking.reservations.ReservationEndpoints$#routes/1->reservations::city.parking.reservations.ReservationRepo#find/1:",
-   "kind": "calls",
-   "from": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
-   "to": "reservations::city.parking.reservations.ReservationRepo#find/1",
-   "key": null,
-   "confidence": "inferred",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationEndpoints.scala",
-     "line": 42
-    }
-   ],
-   "why": "name matches 2 methods"
-  },
-  {
    "id": "r:calls:reservations::city.parking.reservations.ReservationEndpoints$#routes/1->reservations::city.parking.reservations.ReservationService#cancel/1:",
    "kind": "calls",
    "from": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
    "to": "reservations::city.parking.reservations.ReservationService#cancel/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationEndpoints.scala",
      "line": 43
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationEndpoints$#routes/1->reservations::city.parking.reservations.ReservationService#create/1:",
@@ -9810,14 +9769,13 @@
    "from": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
    "to": "reservations::city.parking.reservations.ReservationService#create/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationEndpoints.scala",
      "line": 41
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationEndpoints$#routes/1->reservations::city.parking.reservations.ReservationService#find/1:",
@@ -9825,14 +9783,13 @@
    "from": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
    "to": "reservations::city.parking.reservations.ReservationService#find/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationEndpoints.scala",
      "line": 42
     }
-   ],
-   "why": "name matches 2 methods"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#find/1->common::city.parking.common.Jdbc#query/3:",
@@ -10190,21 +10147,6 @@
      "line": 17
     }
    ]
-  },
-  {
-   "id": "r:calls:sensor_gateway/app::app.vendor#vendor_messages/0->common_py/common_py::common_py.db#connect/0:",
-   "kind": "calls",
-   "from": "sensor_gateway/app::app.vendor#vendor_messages/0",
-   "to": "common_py/common_py::common_py.db#connect/0",
-   "key": null,
-   "confidence": "inferred",
-   "evidence": [
-    {
-     "file": "sensor_gateway/app/vendor.py",
-     "line": 20
-    }
-   ],
-   "why": "matched by method name only"
   },
   {
    "kind": "db-read",
@@ -12885,6 +12827,13 @@
   {
    "text": "Platform boxes (Airflow, Flyte, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
    "nodes": [],
+   "source": "agent"
+  },
+  {
+   "text": "sensor_gateway/app/main.py:22 is the outbox queue main fills and passes to OccupancyUplink.run, which main itself calls: that call already joins producer and consumer, so it is no in-process queue hand-off",
+   "nodes": [
+    "svc:sensor-gateway"
+   ],
    "source": "agent"
   },
   {

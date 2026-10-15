@@ -27,8 +27,8 @@ def rels(cmap, kind):
     return [r for r in cmap["relations"] if r["kind"] == kind]
 
 
-def test_the_guide_lists_fifteen_examples():
-    assert NAMES == ["floors", "codes", "belt", "splitters", "pipe", "drones", "queues", "push_pull", "rail",
+def test_the_guide_lists_sixteen_examples():
+    assert NAMES == ["floors", "codes", "belt", "splitters", "pipe", "drones", "queues", "in_process", "push_pull", "rail",
                      "storage", "outside", "shared", "crossings", "layers", "trace"]
 
 

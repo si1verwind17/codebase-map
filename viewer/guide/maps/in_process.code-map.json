@@ -1,0 +1,359 @@
+{
+ "meta": {
+  "schema_version": 3,
+  "scanner_version": "guide",
+  "repo": "in_process",
+  "root": null,
+  "commit": "0000000000000000000000000000000000000001",
+  "scanned_at": "2026-10-08T00:00:00Z",
+  "languages": [
+   "python"
+  ],
+  "domain_context": null
+ },
+ "nodes": [
+  {
+   "id": "3p:mailer",
+   "kind": "external",
+   "name": "mailer"
+  },
+  {
+   "id": "inq:orders:outbox",
+   "kind": "in-process-queue",
+   "parent": "svc:orders",
+   "name": "outbox",
+   "delivery": "queue",
+   "evidence": [
+    {
+     "file": "orders/app.py",
+     "line": 4
+    }
+   ]
+  },
+  {
+   "id": "svc:orders",
+   "kind": "service",
+   "name": "orders",
+   "modules": [
+    "orders"
+   ],
+   "evidence": [
+    {
+     "file": "compose.yaml",
+     "line": 2
+    }
+   ]
+  },
+  {
+   "id": "orders::api/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "api",
+   "lang": "python",
+   "file": "orders/api",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "entry"
+  },
+  {
+   "id": "orders::api.routes",
+   "kind": "file",
+   "parent": "orders::api/",
+   "name": "routes.py",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::api.routes#place_order/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "place_order",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "orders::api.routes#cancel_order/1",
+   "kind": "method",
+   "parent": "orders::api.routes",
+   "name": "cancel_order",
+   "lang": "python",
+   "file": "orders/api/routes.py",
+   "line": 4,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [
+     {
+      "name": "body",
+      "type": "dict"
+     }
+    ],
+    "returns": "dict"
+   }
+  },
+  {
+   "id": "orders::workers/",
+   "kind": "package",
+   "parent": "svc:orders",
+   "name": "workers",
+   "lang": "python",
+   "file": "orders/workers",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {},
+   "role": "outbound"
+  },
+  {
+   "id": "orders::workers.outbox",
+   "kind": "file",
+   "parent": "orders::workers/",
+   "name": "outbox.py",
+   "lang": "python",
+   "file": "orders/workers/outbox.py",
+   "line": 1,
+   "visibility": "public",
+   "metrics": {
+    "loc": 20
+   }
+  },
+  {
+   "id": "orders::workers.outbox#drain/0",
+   "kind": "method",
+   "parent": "orders::workers.outbox",
+   "name": "drain",
+   "lang": "python",
+   "file": "orders/workers/outbox.py",
+   "line": 2,
+   "visibility": "public",
+   "metrics": {
+    "loc": 6
+   },
+   "signature": {
+    "params": [],
+    "returns": "None"
+   }
+  }
+ ],
+ "relations": [
+  {
+   "kind": "ext-call",
+   "from": "orders::workers.outbox#drain/0",
+   "to": "3p:mailer",
+   "key": "POST /send",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/workers/outbox.py",
+     "line": 1
+    }
+   ],
+   "id": "r:ext-call:orders::workers.outbox#drain/0->3p:mailer:POST /send",
+   "data": "forward"
+  },
+  {
+   "kind": "hand-off",
+   "from": "inq:orders:outbox",
+   "to": "orders::workers.outbox#drain/0",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/workers/outbox.py",
+     "line": 1
+    }
+   ],
+   "id": "r:hand-off:inq:orders:outbox->orders::workers.outbox#drain/0:",
+   "data": "forward"
+  },
+  {
+   "kind": "hand-off",
+   "from": "orders::api.routes#cancel_order/1",
+   "to": "inq:orders:outbox",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "id": "r:hand-off:orders::api.routes#cancel_order/1->inq:orders:outbox:",
+   "data": "forward"
+  },
+  {
+   "kind": "hand-off",
+   "from": "orders::api.routes#place_order/1",
+   "to": "inq:orders:outbox",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "orders/api/routes.py",
+     "line": 1
+    }
+   ],
+   "id": "r:hand-off:orders::api.routes#place_order/1->inq:orders:outbox:",
+   "data": "forward"
+  }
+ ],
+ "pins": [],
+ "unpinned": [],
+ "examples": {
+  "types": {},
+  "entries": []
+ },
+ "files": {
+  "orders/api/routes.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::api.routes",
+   "parse_error": false,
+   "routes": [
+    {
+     "method": "POST",
+     "path": "/v1/orders",
+     "handler": "orders::api.routes#place_order/1",
+     "line": 3
+    }
+   ]
+  },
+  "orders/workers/outbox.py": {
+   "lang": "python",
+   "module": "mod:orders",
+   "node": "orders::workers.outbox",
+   "parse_error": false
+  }
+ },
+ "problems": [],
+ "layout": {
+  "version": 1,
+  "containers": {
+   "site": {
+    "strategy": "main-bus",
+    "items": {
+     "svc:orders": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "3p:mailer": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api.routes": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes#cancel_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "orders::api.routes#place_order/1": {
+      "region": "line",
+      "col": 0,
+      "row": 1
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::api/": {
+    "strategy": "layered",
+    "items": {
+     "orders::api.routes": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::workers.outbox": {
+    "strategy": "layered",
+    "items": {
+     "orders::workers.outbox#drain/0": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "orders::workers/": {
+    "strategy": "layered",
+    "items": {
+     "orders::workers.outbox": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   },
+   "svc:orders": {
+    "strategy": "bands",
+    "items": {
+     "inq:orders:outbox": {
+      "region": "airfield",
+      "col": 0,
+      "row": 0
+     },
+     "orders::api/": {
+      "region": "line",
+      "col": 0,
+      "row": 0
+     },
+     "orders::workers/": {
+      "region": "line",
+      "col": 1,
+      "row": 0
+     }
+    },
+    "lanes": [],
+    "groups": [],
+    "utilities": [],
+    "hubs": []
+   }
+  }
+ }
+}

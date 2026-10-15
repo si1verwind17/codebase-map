@@ -2,7 +2,7 @@
 // factory/drones.ts, and one train per lit rail, run to the pure schedule in factory/trains.ts. The scene clears the motion layer and calls `build`
 // whenever the lit lines, the floor or reduced motion change, and `tick` every frame unless motion is reduced.
 import { Container, Graphics, type Text } from "pixi.js";
-import type { Bundle } from "../model/model";
+import { flies, type Bundle } from "../model/model";
 import type { Pt, Route } from "../route/types";
 import { droneSchedule, type Drone, type DroneFloor, type DroneSchedule, type Pulse } from "../factory/drones";
 import type { PxRect } from "../factory/clear";
@@ -150,7 +150,7 @@ export class Motion {
         const forward = !mv.both || mv.cycle % 2 === 0;
         const pos = at(mv.route.points, mv.lengths, forward ? d : mv.total - d);
         if (mv.kind === "stream") g.circle(pos.x, pos.y, 2.2).fill(C.paper);
-        else if (mv.kind === "event") drone(g, pos, false, false);
+        else if (flies(mv.kind)) drone(g, pos, false, false);
         else if (mv.kind === "batch") {
           for (let c = 0; c < 3; c++) { const p = at(mv.route.points, mv.lengths, Math.max(0, (forward ? d : mv.total - d) - c * 12)); g.rect(p.x - 5, p.y - 4, 10, 8).fill(C.amber).stroke(KEYLINE); }
         } else g.rect(pos.x - 3.5, pos.y - 3.5, 7, 7).fill(packetInk(mv.kind, forward === mv.toStore)).stroke(KEYLINE);

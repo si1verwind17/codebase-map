@@ -5,7 +5,7 @@
 // yard. Both, and the yard's sign tile, are reserved before routing: the router treats them as obstacles. A rail leaves
 // the yard through the tile just past a platform (its exit) and ends running into one end of its station, along the
 // destination's wall, as a siding does. Pure: painting and trains read the result.
-import type { Bundle, Model } from "../model/model";
+import { flies, type Bundle, type Model } from "../model/model";
 import type { TileRoute } from "./router";
 import { batch, platformOf, type Batch, type Platform, type Yard } from "./batch";
 import type { TileFloor } from "./layout";
@@ -184,7 +184,7 @@ function doorRails(tf: TileFloor, bundles: Bundle[]): { key: string; door: strin
 function busy(tf: TileFloor, bundles: Bundle[], id: string, machine: string | null): Record<Dir, number> {
   const d = tf.boxes.get(id)!, out: Record<Dir, number> = { n: 0, e: 0, s: 0, w: 0 };
   for (const b of bundles) {
-    if (b.kind === "event" || (b.a !== id && b.b !== id)) continue;
+    if (flies(b.kind) || (b.a !== id && b.b !== id)) continue;
     const other = b.a === id ? b.b : b.a;
     if (other === machine) continue;
     const lane = tf.lanes.find((l) => l.id === other);

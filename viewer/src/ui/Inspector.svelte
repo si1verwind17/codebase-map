@@ -227,7 +227,7 @@
   .kind { font-size: 10px; font-weight: 700; padding: 0 5px; border: 1px solid var(--ink); white-space: nowrap; }
   .k-db-write { background: var(--red); color: var(--paper); border-color: var(--red); }
   .k-stream { background: var(--blue); color: var(--paper); border-color: var(--blue); }
-  .k-event { background: var(--green); color: var(--paper); border-color: var(--green); }
+  .k-event, .k-hand-off { background: var(--green); color: var(--paper); border-color: var(--green); }
   .k-ext-call { background: var(--yellow); }
   .rels p { margin: 2px 0 0; }
   .impl p { margin: 0; }

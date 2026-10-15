@@ -103,7 +103,7 @@ describe("layers", () => {
 
   // digests of every floor's base plan, taken when layers came in (6ccf2f1): the same with the layer pass and without it
   it("demo and fixture: every floor's base plan is the same with the layer pass and without it", () => {
-    expect(baseDigest(demo())).toBe("8492a366783490e6");   // demo re-pinned at rules 3 (a781829): two packages moved logic→storage; the 31b1d9c map still gives the old digest
+    expect(baseDigest(demo())).toBe("1a7aa44dab8ff3d2");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
     expect(baseDigest(new Model(shop as unknown as CodeMap))).toBe("393f9797a2ebd443");
   });
 

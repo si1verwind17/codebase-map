@@ -1,7 +1,7 @@
 // src/factory/plan.ts
 // A floor and its lines together: wide corridors for busy floors, crowded corridors widened to fit their lines,
 // and every corridor widened once more if a line still fails.
-import type { Bundle, Door, Model } from "../model/model";
+import { flies, type Bundle, type Door, type Model } from "../model/model";
 import type { LayerBundle, LayerId } from "../model/layers";
 import { layoutTiles, type LayoutOpts, type TileFloor } from "./layout";
 import { hasWebhooks, landing, reservedRects, webhookDocks, type Landing } from "./pads";
@@ -18,7 +18,7 @@ const MAX_EXTRA = 6;   // a guard: counting belts (not lines), a full corridor g
 export function startGap(bundles: Bundle[]): number {
   const load = new Map<string, number>();
   for (const b of bundles) {
-    if (b.kind === "event") continue;   // drones fly
+    if (flies(b.kind)) continue;   // drones fly
     load.set(b.a, (load.get(b.a) ?? 0) + 1);
     load.set(b.b, (load.get(b.b) ?? 0) + 1);
   }

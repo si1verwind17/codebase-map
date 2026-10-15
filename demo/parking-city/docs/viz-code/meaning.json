@@ -2020,6 +2020,13 @@
    "text": "Platform boxes (Airflow, Flyte, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
    "nodes": [],
    "source": "agent"
+  },
+  {
+   "text": "sensor_gateway/app/main.py:22 is the outbox queue main fills and passes to OccupancyUplink.run, which main itself calls: that call already joins producer and consumer, so it is no in-process queue hand-off",
+   "nodes": [
+    "svc:sensor-gateway"
+   ],
+   "source": "agent"
   }
  ],
  "summaries": {

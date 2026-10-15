@@ -9,6 +9,7 @@ import type { Rails } from "./yards";
 import { FOOT, LANE_H, T, footprintFor, type Box, type Footprint, type Rect } from "./tiles";
 import { chestSize } from "./fit";
 import { floorPrefix, shownName } from "../floor/names";
+import { IN_PROCESS } from "./messaging";
 
 /** Tiles a zone's label needs: its upper-case name at 9.5 px (a generous 7.5 px a letter) plus a margin. */
 export const labelTiles = (name: string): number => Math.ceil((name.length * 7.5 + 12) / T);
@@ -209,7 +210,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
       rows: ys.slice(1).map((y, j) => { const t = reach((b) => b.y === ys[j], (b) => b.y + b.h); return { x: x0, y: t, w: x1 - x0, h: Math.max(0, y - t) }; }),
     };
   };
-  const isQueue = (topic: string) => { const n = model.nodes.get(topic); return n?.kind === "topic" && n.delivery === "queue"; };
+  const isQueue = (topic: string) => { const n = model.nodes.get(topic); return (n?.kind === "topic" || n?.kind === "in-process-queue") && n.delivery === "queue"; };
   /** A queue hub's waiting stack: the tile right of its bottom row (as the mock draws it). */
   const stackTile = (b: Rect): Rect => ({ x: b.x + b.w, y: b.y + b.h - 1, w: 1, h: 1 });
   /** Hub order in an airfield: the scanner's, but each dead-letter hub moved to the slot right after its source. */
@@ -333,6 +334,9 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     }
     work(placedAll);
     if (placedAll.length) y = bottom(placedAll, y) + GY;
+    // the service's in-process queues: hubs in a row on its own airfield (zoned below, once rows are spread)
+    const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield", wx + i * (FOOT.hub[0] + GX), y));
+    if (inq.length) y = bottom(inq, y) + PAD + LABEL + GY;
     const x1 = right([...boxes.values()], wx + 20) + PAD;
     y = laneRows([...doors.filter(isStore).map((d) => ({ id: d.anchor, box: d.id, kind: "datastore" })),
       ...cells("lane").map(([id]) => ({ id, box: id, kind: kindOf(id) }))], wx, y, x1);
@@ -368,6 +372,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
       const edge = right([...boxes.values()], 0) + PAD;
       for (const l of lanes) l.x1 = Math.max(l.x1 + colPer * (colXs.length - 1), edge);   // lanes still run under every machine
     }
+    zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => (isQueue(b.id) ? [stackTile(b)] : []))], true);
     /** A fixed-width column zone from row y0; returns the first row below it. */
     const column = (name: string, list: Box[], x: number, y0: number, y1 = 0): number => {
       if (!list.length) return y0;

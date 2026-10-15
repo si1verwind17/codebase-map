@@ -322,7 +322,7 @@
   .arrow .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; }
   .arrow .line { fill: none; stroke: var(--ink); stroke-width: 1.6; }
   .arrow.dashed .line { stroke-dasharray: 5 4; }
-  .arrow.k-event .line { stroke: var(--green); }
+  .arrow.k-event .line, .arrow.k-hand-off .line { stroke: var(--green); }
   .arrow.k-stream .line { stroke: var(--blue); stroke-width: 2.4; }
   .arrow.k-batch .line { stroke: var(--amber); }
   .arrow.k-db-write .line { stroke: var(--red); }

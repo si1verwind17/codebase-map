@@ -78,6 +78,42 @@ describe("the field guide's examples draw their patterns", () => {
     expect(l.messaging.failures.map((f) => [f.machine, f.dlq])).toEqual([["svc:billing", "topic:events:invoices-dead"]]);
   });
 
+  it("in_process: the service's own airfield holds the queue hub; the site shows no queue and no hand-off", () => {
+    const m = load("in_process");
+    const site = plan(m, SITE);
+    expect([...site.tf.boxes.keys()].some((id) => id.startsWith("inq:"))).toBe(false);
+    expect(site.bundles.filter((b) => b.kinds["hand-off"])).toEqual([]);
+
+    const p = plan(m, "svc:orders");
+    const q = "inq:orders:outbox";
+    expect(p.tf.boxes.get(q)?.foot).toBe("hub");
+    const field = p.tf.zones.find((z) => z.airfield)!;
+    expect(field.name).toBe("in-process");
+    const hub = p.tf.boxes.get(q)!;
+    expect(hub.x >= field.x && hub.x + hub.w <= field.x + field.w && hub.y >= field.y && hub.y + hub.h <= field.y + field.h).toBe(true);
+    const l = p.landing!;
+    expect(l.messaging.airfields.map((a) => [a.broker, a.hubs.map((h) => h.topic)])).toEqual([["in-process", [q]]]);
+    expect(l.stacks.map((s) => s.topic)).toEqual([q]);   // a queue keeps its waiting stack
+    expect(l.messaging.producers.map((x) => x.flight)).toEqual(["enqueue"]);   // both routes' package: one machine
+    expect(l.messaging.consumers.map((x) => x.flight)).toEqual(["take"]);
+    expect(p.routes.filter((r) => r.key.includes(q)).every((r) => r.kind === "drone")).toBe(true);
+
+    const pkg = plan(m, "orders::api/");   // below the service floor the queue is a door, still a hub
+    const door = `door:${q}`;
+    expect(pkg.tf.boxes.has(door)).toBe(true);
+    expect(pkg.landing!.messaging.producers.map((x) => x.item)).toEqual([door]);   // routes.py: one machine
+  });
+
+  it("in_process: a trace from a route reaches the worker through the queue, and the call out after it", () => {
+    const m = load("in_process");
+    const g = new TraceGraph(m);
+    const place = "orders::api.routes#place_order/1";
+    const down = g.next(place, 1).map((e) => [e.kind, e.to]);
+    expect(down).toContainEqual(["hand-off", "inq:orders:outbox"]);
+    expect(g.next("inq:orders:outbox", 1).map((e) => e.to)).toEqual(["orders::workers.outbox#drain/0"]);
+    expect(g.next("orders::workers.outbox#drain/0", 1).map((e) => e.to)).toEqual(["3p:mailer"]);
+  });
+
   it("push_pull: a receiving dock for the push, a pull, and the puller's `3 replicas` tag", () => {
     const l = plan(load("push_pull"), SITE).landing!;
     expect(l.docks.map((d) => [d.machine, d.flight])).toEqual([["svc:billing", "push"]]);

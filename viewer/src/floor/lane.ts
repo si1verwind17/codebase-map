@@ -1,4 +1,5 @@
 // A lane's name sits where no line crosses it, so taps and pipes never run through the letters.
+import { flies } from "../model/model";
 import type { Pt } from "../route/types";
 
 /** x positions where a vertical run crosses, or ends on, the lane band at `y` (± half its height). */
@@ -17,7 +18,7 @@ export function crossings(routes: { points: Pt[] }[], y: number, half: number): 
 /** Travel speed in px/s: belts and pipes keep a steady 60; a drone (event) or a train crosses its path in at
  *  most about 3 s. */
 export function moverSpeed(kind: string, length: number): number {
-  return kind === "event" || kind === "train" ? Math.max(60, length / 3) : 60;
+  return flies(kind) || kind === "train" ? Math.max(60, length / 3) : 60;
 }
 
 /** The floor is cleared only by a click on it: a press released within a few pixels, not a drag. */

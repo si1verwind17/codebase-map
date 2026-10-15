@@ -2,7 +2,7 @@
 // Lines as tiles (spec §4): each bundle becomes a chain of 1×1 pieces found by A* on the floor grid. A line
 // that must cross another passes under it; lines routed first stay on top, so the picture is stable. Lines from one
 // machine leave as one trunk and split off it; lines into one machine merge onto one.
-import type { Bundle } from "../model/model";
+import { flies, type Bundle } from "../model/model";
 import type { Pt, Route } from "../route/types";
 import type { TileFloor, TileLane } from "./layout";
 import { reservedRects, webhookDockId } from "./pads";
@@ -26,7 +26,7 @@ const EDGE = 1;        // a tile on a broker airfield's edge column costs a litt
 
 export function lineKind(b: Bundle, tap: boolean): LineKind {
   if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
-  if (b.kind === "event") return "drone";
+  if (flies(b.kind)) return "drone";
   if (b.kind === "stream") return "pipe";
   if (b.kind === "batch") return "rail";
   return "belt";
@@ -114,7 +114,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
     const A = tf.boxes.get(b.a), B = tf.boxes.get(b.b);
     if (!A || !B) continue;
     const both = b.flow === "both";
-    if (b.kind === "event") {   // drones fly over the floor: no tiles
+    if (flies(b.kind)) {   // drones fly over the floor: no tiles
       const [s, d] = b.flow === "b→a" ? [B, A] : [A, B];
       out.push({ key: b.key, kind: "drone", both, pieces: [], points: [centre(s), centre(d)] });
       continue;

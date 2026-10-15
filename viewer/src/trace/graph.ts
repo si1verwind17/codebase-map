@@ -6,7 +6,7 @@ import type { Model } from "../model/model";
 import type { Evidence, Relation, RelationKind } from "../model/types";
 
 /** The relation kinds a trace follows. */
-export const TRACE_KINDS: readonly RelationKind[] = ["calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call"];
+export const TRACE_KINDS: readonly RelationKind[] = ["calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off"];
 
 export type EdgeKind = RelationKind | "implements";
 

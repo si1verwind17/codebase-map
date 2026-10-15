@@ -23,7 +23,7 @@ export function footprintFor(kind: string, site: boolean): Footprint {
     case "external": return "dock";
     case "library": return site ? "rack" : "installed";
     case "datastore": return "warehouse";
-    case "topic": return "hub";
+    case "topic": case "in-process-queue": return "hub";
     case "door": return "door";
     default: return "package";   // package, class, file, method, table, group: one wide 5×3 block
   }

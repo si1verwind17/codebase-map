@@ -261,6 +261,25 @@ def queues() -> tuple[dict, dict]:
     return c.structure(), meaning
 
 
+def in_process() -> tuple[dict, dict]:
+    """One service's own queue: two routes put work on it, a background worker in another package takes it off and
+    calls out. No call joins them: the hand-offs do (on the service's floor, never on the site)."""
+    c = Code("in_process")
+    api = c.file(c.package(c.module("orders"), "api"), "routes", route=("POST", "/v1/orders"))
+    place = c.method(api, "place_order", (("body", "dict"),), "dict")
+    cancel = c.method(api, "cancel_order", (("body", "dict"),), "dict")
+    drain = c.method(c.file(c.package("orders", "workers"), "outbox", sink="http-out"), "drain")
+    q = "inq:orders:outbox"
+    meaning = {"nodes": [service("orders", 2), {"id": "3p:mailer", "kind": "external", "name": "mailer"},
+                         {"id": q, "kind": "in-process-queue", "parent": "svc:orders", "name": "outbox",
+                          "delivery": "queue", "evidence": ev("orders/app.py", 4)}],
+               "relations": [rel("hand-off", place, q, None, "orders/api/routes.py"),
+                             rel("hand-off", cancel, q, None, "orders/api/routes.py"),
+                             rel("hand-off", q, drain, None, "orders/workers/outbox.py"),
+                             rel("ext-call", drain, "3p:mailer", "POST /send", "orders/workers/outbox.py")]}
+    return c.structure(), meaning
+
+
 def push_pull() -> tuple[dict, dict]:
     """A push subscription (billing's receiving dock, its sign naming the endpoint the push calls: the relation's
     key is that path) and a pull subscription (reports, three replicas)."""
@@ -446,7 +465,7 @@ def trace() -> tuple[dict, dict]:
     return c.structure(), meaning
 
 
-EXAMPLES = {f.__name__: f for f in (floors, codes, belt, splitters, pipe, drones, queues, push_pull, rail, storage,
+EXAMPLES = {f.__name__: f for f in (floors, codes, belt, splitters, pipe, drones, queues, in_process, push_pull, rail, storage,
                                     outside, shared, crossings, layers, trace)}
 
 

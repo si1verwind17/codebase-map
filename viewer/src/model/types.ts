@@ -1,7 +1,7 @@
 // The subset of code-map.json (schema v2) the viewer reads. See ../../format.md.
 
 export type NodeKind =
-  | "service" | "library" | "datastore" | "external" | "topic"
+  | "service" | "library" | "datastore" | "external" | "topic" | "in-process-queue"
   | "package" | "class" | "file" | "method" | "table";
 
 export interface MapNode {
@@ -21,14 +21,14 @@ export interface MapNode {
   defaulted?: boolean;
   twins?: string[];            // on a service: root packages of another service's module it also deploys
   implements?: string[];       // on a class: the class/trait ids it implements (scanner, Scala)
-  delivery?: "fan-out" | "queue";          // on a topic
+  delivery?: "fan-out" | "queue";          // on a topic or an in-process queue
   dead_letter_of?: string;                 // on a topic: the topic whose failures land here
   replicas?: number;                       // on a service: instances running
   store?: "database" | "cache" | "bucket" | "warehouse";   // on a datastore
 }
 
 export type RelationKind =
-  | "request" | "event" | "stream" | "batch" | "db-read" | "db-write" | "ext-call" | "uses-code" | "calls";
+  | "request" | "event" | "stream" | "batch" | "db-read" | "db-write" | "ext-call" | "hand-off" | "uses-code" | "calls";
 
 export interface Evidence { file: string; line?: number }
 

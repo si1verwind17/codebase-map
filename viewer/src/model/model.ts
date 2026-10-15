@@ -3,7 +3,9 @@ import type { CodeMap, Floor, Group, MapNode, Relation, RelationKind } from "./t
 import type { LayerBundle } from "./layers";
 
 export const SITE = "site";
-export const RUNTIME: RelationKind[] = ["request", "event", "stream", "batch", "ext-call", "db-read", "db-write"];
+export const RUNTIME: RelationKind[] = ["request", "event", "stream", "batch", "ext-call", "db-read", "db-write", "hand-off"];
+/** Kinds drones fly: an event through a topic, a hand-off through an in-process queue. */
+export const flies = (kind: string): boolean => kind === "event" || kind === "hand-off";
 
 export class MapError extends Error {}
 
@@ -14,7 +16,7 @@ export interface Bundle {
   relations: Relation[];
   kinds: Partial<Record<RelationKind, number>>;
   inferred: number;
-  /** dominant kind used for drawing: stream > event > batch > request > ext-call > db-write > db-read > calls */
+  /** dominant kind used for drawing: stream > event > hand-off > batch > request > ext-call > db-write > db-read > calls */
   kind: RelationKind;
   /** which way data moves between a and b */
   flow: "a→b" | "b→a" | "both";
@@ -38,7 +40,7 @@ export interface Door {
 }
 
 /** Relation kinds in the order a line is drawn by: a bundle takes the first kind it carries. */
-export const DRAW_ORDER: readonly RelationKind[] = ["stream", "event", "batch", "request", "ext-call", "db-write", "db-read", "calls", "uses-code"];
+export const DRAW_ORDER: readonly RelationKind[] = ["stream", "event", "hand-off", "batch", "request", "ext-call", "db-write", "db-read", "calls", "uses-code"];
 
 export class Model {
   readonly map: CodeMap;
@@ -406,7 +408,7 @@ export class Model {
   /** Short codes: S1, S1·P2, S1·P2·C3·M4 … stable for a given set of ids (sorted). */
   private assignCodes() {
     const prefix: Record<string, string> = {
-      service: "S", library: "L", datastore: "D", external: "X", topic: "T",
+      service: "S", library: "L", datastore: "D", external: "X", topic: "T", "in-process-queue": "Q",
       package: "P", class: "C", file: "F", method: "M", table: "T",
     };
     const kids = new Map<string, MapNode[]>();

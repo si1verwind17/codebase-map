@@ -1,4 +1,4 @@
-// audit-inputs: 06c1385b107d9385b02f73dac7b8079bed8fd587da364ea73a1bf16b6f84fe6a
+// audit-inputs: 85fd5b0727ac8f1f1889c614bb67da2a763d78ae8b8a49fd8ca7f22b2d7c41e5
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -9,8 +9,11 @@ var RUNTIME = [
 	"batch",
 	"ext-call",
 	"db-read",
-	"db-write"
+	"db-write",
+	"hand-off"
 ];
+/** Kinds drones fly: an event through a topic, a hand-off through an in-process queue. */
+var flies = (kind) => kind === "event" || kind === "hand-off";
 var MapError = class extends Error {};
 var DOOR = "door:";
 /** The item a box stands for: a door's anchor (`door:<anchor>`, see `Model.doorId`), else the id itself. */
@@ -19,6 +22,7 @@ var doorAnchor = (id) => id.startsWith(DOOR) ? id.slice(5) : id;
 var DRAW_ORDER = [
 	"stream",
 	"event",
+	"hand-off",
 	"batch",
 	"request",
 	"ext-call",
@@ -414,6 +418,7 @@ var Model = class {
 			datastore: "D",
 			external: "X",
 			topic: "T",
+			"in-process-queue": "Q",
 			package: "P",
 			class: "C",
 			file: "F",
@@ -521,7 +526,8 @@ function footprintFor(kind, site) {
 		case "external": return "dock";
 		case "library": return site ? "rack" : "installed";
 		case "datastore": return "warehouse";
-		case "topic": return "hub";
+		case "topic":
+		case "in-process-queue": return "hub";
 		case "door": return "door";
 		default: return "package";
 	}
@@ -840,6 +846,138 @@ var NAME_MIN_PX = 9 * Math.exp(-.4);
 *  the whole floor, from the smallest name drawn on it (14 px names alone would switch at about 6/14). */
 var codeZoom = (minName) => NAME_MIN_PX / minName;
 //#endregion
+//#region src/factory/messaging.ts
+/** The short label each flight's plate shows (owner decision: short words). */
+var FLIGHT_LABEL = {
+	produce: "produce",
+	enqueue: "enqueue",
+	copy: "copy",
+	take: "take",
+	push: "push",
+	pull: "pull",
+	failure: "on failure"
+};
+/** The airfield an in-process queue's hub stands on, inside its service's floor. */
+var IN_PROCESS = "in-process";
+/** "kafka" from "topic:kafka:orders": the same split the layout's airfields use; an in-process queue's is IN_PROCESS. */
+var brokerOf = (topic) => topic.startsWith("inq:") ? IN_PROCESS : topic.split(":")[1] ?? "";
+var byStr$3 = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+function messaging(model, container, tf, bundles) {
+	const onSite = container === SITE;
+	const hubs = /* @__PURE__ */ new Map();
+	for (const box of [...tf.boxes.values()].sort((p, q) => byStr$3(p.id, q.id))) {
+		const topic = doorAnchor(box.id);
+		const node = model.nodes.get(topic);
+		if (node?.kind !== "topic" && node?.kind !== "in-process-queue") continue;
+		const delivery = node.delivery === "queue" ? "queue" : "fan-out";
+		const src = node.dead_letter_of;
+		hubs.set(box.id, {
+			item: box.id,
+			topic,
+			broker: brokerOf(topic),
+			delivery,
+			dlqOf: src && model.nodes.get(src)?.kind === "topic" ? src : null,
+			waiting: delivery === "queue"
+		});
+	}
+	const lift = (id) => model.liftTo(container, id) ?? (onSite ? void 0 : model.doorId(model.anchorFor(container, id)));
+	const produced = /* @__PURE__ */ new Map();
+	const consumed = /* @__PURE__ */ new Map();
+	const failed = /* @__PURE__ */ new Map();
+	for (const b of bundles) {
+		const hubEnd = hubs.get(b.a) ? b.a : hubs.get(b.b) ? b.b : null;
+		if (!hubEnd) continue;
+		const machine = hubEnd === b.a ? b.b : b.a;
+		if (hubs.has(machine)) continue;
+		const hub = hubs.get(hubEnd);
+		for (const r of b.relations) {
+			if (!flies(r.kind)) continue;
+			if (lift(r.to) === hubEnd) {
+				const into = r.on_failure ? failed : produced;
+				const k = `${machine}|${hubEnd}`;
+				const e = into.get(k) ?? {
+					machine,
+					hub,
+					rels: []
+				};
+				e.rels.push(r);
+				into.set(k, e);
+			} else if (lift(r.from) === hubEnd) {
+				const k = `${machine}|${hubEnd}|${r.group ?? ""}`;
+				const e = consumed.get(k) ?? {
+					machine,
+					hub,
+					group: r.group,
+					rels: []
+				};
+				e.rels.push(r);
+				consumed.set(k, e);
+			}
+		}
+	}
+	const ids = (rels) => rels.map((r) => r.id).sort(byStr$3);
+	const failures = [...failed.values()].map(({ machine, hub, rels }) => ({
+		machine,
+		item: hub.item,
+		dlq: hub.topic,
+		flight: "failure",
+		viaRelations: ids(rels)
+	})).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.dlq, q.dlq));
+	const producers = [...produced.values()].map(({ machine, hub, rels }) => ({
+		machine,
+		item: hub.item,
+		topic: hub.topic,
+		flight: hub.delivery === "queue" ? "enqueue" : "produce",
+		viaRelations: ids(rels)
+	})).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.topic, q.topic));
+	const consumers = [...consumed.values()].map(({ machine, hub, group, rels }) => {
+		rels.sort((p, q) => byStr$3(p.id, q.id));
+		const subscription = rels.find((r) => r.subscription)?.subscription;
+		const reps = rels.map((r) => replicasOf(model, r.to)).filter((n) => n !== void 0);
+		const replicas = reps.length ? Math.max(...reps) : void 0;
+		const dlqs = new Set([...hubs.values()].filter((h) => h.dlqOf === hub.topic).map((h) => h.topic));
+		const onFailureTo = failures.find((f) => f.machine === machine && dlqs.has(f.dlq))?.dlq;
+		const flight = subscription ?? (hub.delivery === "queue" ? "take" : "copy");
+		const tags = [...group ? [`group ${group}`] : [], ...replicas && replicas > 1 ? [`${replicas} replicas`] : []];
+		const c = {
+			machine,
+			item: hub.item,
+			topic: hub.topic,
+			flight,
+			tags,
+			viaRelations: ids(rels)
+		};
+		if (group !== void 0) c.group = group;
+		if (replicas !== void 0) c.replicas = replicas;
+		if (subscription) c.subscription = subscription;
+		if (onFailureTo) c.onFailureTo = onFailureTo;
+		return c;
+	}).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.topic, q.topic) || byStr$3(p.group ?? "", q.group ?? ""));
+	const fields = /* @__PURE__ */ new Map();
+	for (const h of hubs.values()) fields.set(h.broker, [...fields.get(h.broker) ?? [], h]);
+	return {
+		airfields: [...fields.entries()].sort(([p], [q]) => byStr$3(p, q)).map(([broker, list]) => ({
+			broker,
+			hubs: list.sort((p, q) => byStr$3(p.topic, q.topic))
+		})),
+		producers,
+		consumers,
+		failures
+	};
+}
+/** Replicas of the service that runs `id`: the nearest service up its parents. */
+function replicasOf(model, id) {
+	let cur = id;
+	const seen = /* @__PURE__ */ new Set();
+	while (cur && !seen.has(cur)) {
+		seen.add(cur);
+		const n = model.nodes.get(cur);
+		if (!n) return void 0;
+		if (n.kind === "service") return n.replicas;
+		cur = n.parent ?? void 0;
+	}
+}
+//#endregion
 //#region src/factory/layout.ts
 /** Tiles a zone's label needs: its upper-case name at 9.5 px (a generous 7.5 px a letter) plus a margin. */
 var labelTiles = (name) => Math.ceil((name.length * 7.5 + 12) / 24);
@@ -1044,7 +1182,7 @@ function layoutOnce(model, container, doors, opts) {
 	};
 	const isQueue = (topic) => {
 		const n = model.nodes.get(topic);
-		return n?.kind === "topic" && n.delivery === "queue";
+		return (n?.kind === "topic" || n?.kind === "in-process-queue") && n.delivery === "queue";
 	};
 	/** A queue hub's waiting stack: the tile right of its bottom row (as the mock draws it). */
 	const stackTile = (b) => ({
@@ -1202,6 +1340,8 @@ function layoutOnce(model, container, doors, opts) {
 		}
 		work(placedAll);
 		if (placedAll.length) y = bottom(placedAll, y) + GY;
+		const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield", wx + i * (FOOT.hub[0] + GX), y));
+		if (inq.length) y = bottom(inq, y) + PAD + LABEL + GY;
 		const x1 = right([...boxes.values()], wx + 20) + PAD;
 		y = laneRows([...doors.filter(isStore).map((d) => ({
 			id: d.anchor,
@@ -1247,6 +1387,7 @@ function layoutOnce(model, container, doors, opts) {
 			const edge = right([...boxes.values()], 0) + PAD;
 			for (const l of lanes) l.x1 = Math.max(l.x1 + colPer * (colXs.length - 1), edge);
 		}
+		zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => isQueue(b.id) ? [stackTile(b)] : [])], true);
 		/** A fixed-width column zone from row y0; returns the first row below it. */
 		const column = (name, list, x, y0, y1 = 0) => {
 			if (!list.length) return y0;
@@ -1381,136 +1522,6 @@ function queueStacks(tf, topicOf) {
 		});
 	}
 	return out;
-}
-//#endregion
-//#region src/factory/messaging.ts
-/** The short label each flight's plate shows (owner decision: short words). */
-var FLIGHT_LABEL = {
-	produce: "produce",
-	enqueue: "enqueue",
-	copy: "copy",
-	take: "take",
-	push: "push",
-	pull: "pull",
-	failure: "on failure"
-};
-/** "kafka" from "topic:kafka:orders": the same split the layout's airfields use. */
-var brokerOf = (topic) => topic.split(":")[1] ?? "";
-var byStr$3 = (a, b) => a < b ? -1 : a > b ? 1 : 0;
-function messaging(model, container, tf, bundles) {
-	const onSite = container === SITE;
-	const hubs = /* @__PURE__ */ new Map();
-	for (const box of [...tf.boxes.values()].sort((p, q) => byStr$3(p.id, q.id))) {
-		const topic = doorAnchor(box.id);
-		const node = model.nodes.get(topic);
-		if (node?.kind !== "topic") continue;
-		const delivery = node.delivery === "queue" ? "queue" : "fan-out";
-		const src = node.dead_letter_of;
-		hubs.set(box.id, {
-			item: box.id,
-			topic,
-			broker: brokerOf(topic),
-			delivery,
-			dlqOf: src && model.nodes.get(src)?.kind === "topic" ? src : null,
-			waiting: delivery === "queue"
-		});
-	}
-	const lift = (id) => model.liftTo(container, id) ?? (onSite ? void 0 : model.doorId(model.anchorFor(container, id)));
-	const produced = /* @__PURE__ */ new Map();
-	const consumed = /* @__PURE__ */ new Map();
-	const failed = /* @__PURE__ */ new Map();
-	for (const b of bundles) {
-		const hubEnd = hubs.get(b.a) ? b.a : hubs.get(b.b) ? b.b : null;
-		if (!hubEnd) continue;
-		const machine = hubEnd === b.a ? b.b : b.a;
-		if (hubs.has(machine)) continue;
-		const hub = hubs.get(hubEnd);
-		for (const r of b.relations) {
-			if (r.kind !== "event") continue;
-			if (lift(r.to) === hubEnd) {
-				const into = r.on_failure ? failed : produced;
-				const k = `${machine}|${hubEnd}`;
-				const e = into.get(k) ?? {
-					machine,
-					hub,
-					rels: []
-				};
-				e.rels.push(r);
-				into.set(k, e);
-			} else if (lift(r.from) === hubEnd) {
-				const k = `${machine}|${hubEnd}|${r.group ?? ""}`;
-				const e = consumed.get(k) ?? {
-					machine,
-					hub,
-					group: r.group,
-					rels: []
-				};
-				e.rels.push(r);
-				consumed.set(k, e);
-			}
-		}
-	}
-	const ids = (rels) => rels.map((r) => r.id).sort(byStr$3);
-	const failures = [...failed.values()].map(({ machine, hub, rels }) => ({
-		machine,
-		item: hub.item,
-		dlq: hub.topic,
-		flight: "failure",
-		viaRelations: ids(rels)
-	})).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.dlq, q.dlq));
-	const producers = [...produced.values()].map(({ machine, hub, rels }) => ({
-		machine,
-		item: hub.item,
-		topic: hub.topic,
-		flight: hub.delivery === "queue" ? "enqueue" : "produce",
-		viaRelations: ids(rels)
-	})).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.topic, q.topic));
-	const consumers = [...consumed.values()].map(({ machine, hub, group, rels }) => {
-		rels.sort((p, q) => byStr$3(p.id, q.id));
-		const subscription = rels.find((r) => r.subscription)?.subscription;
-		const reps = rels.map((r) => replicasOf(model, r.to)).filter((n) => n !== void 0);
-		const replicas = reps.length ? Math.max(...reps) : void 0;
-		const dlqs = new Set([...hubs.values()].filter((h) => h.dlqOf === hub.topic).map((h) => h.topic));
-		const onFailureTo = failures.find((f) => f.machine === machine && dlqs.has(f.dlq))?.dlq;
-		const flight = subscription ?? (hub.delivery === "queue" ? "take" : "copy");
-		const tags = [...group ? [`group ${group}`] : [], ...replicas && replicas > 1 ? [`${replicas} replicas`] : []];
-		const c = {
-			machine,
-			item: hub.item,
-			topic: hub.topic,
-			flight,
-			tags,
-			viaRelations: ids(rels)
-		};
-		if (group !== void 0) c.group = group;
-		if (replicas !== void 0) c.replicas = replicas;
-		if (subscription) c.subscription = subscription;
-		if (onFailureTo) c.onFailureTo = onFailureTo;
-		return c;
-	}).sort((p, q) => byStr$3(p.machine, q.machine) || byStr$3(p.topic, q.topic) || byStr$3(p.group ?? "", q.group ?? ""));
-	const fields = /* @__PURE__ */ new Map();
-	for (const h of hubs.values()) fields.set(h.broker, [...fields.get(h.broker) ?? [], h]);
-	return {
-		airfields: [...fields.entries()].sort(([p], [q]) => byStr$3(p, q)).map(([broker, list]) => ({
-			broker,
-			hubs: list.sort((p, q) => byStr$3(p.topic, q.topic))
-		})),
-		producers,
-		consumers,
-		failures
-	};
-}
-/** Replicas of the service that runs `id`: the nearest service up its parents. */
-function replicasOf(model, id) {
-	let cur = id;
-	const seen = /* @__PURE__ */ new Set();
-	while (cur && !seen.has(cur)) {
-		seen.add(cur);
-		const n = model.nodes.get(cur);
-		if (!n) return void 0;
-		if (n.kind === "service") return n.replicas;
-		cur = n.parent ?? void 0;
-	}
 }
 //#endregion
 //#region src/factory/batch.ts
@@ -1968,7 +1979,7 @@ function busy(tf, bundles, id, machine) {
 		w: 0
 	};
 	for (const b of bundles) {
-		if (b.kind === "event" || b.a !== id && b.b !== id) continue;
+		if (flies(b.kind) || b.a !== id && b.b !== id) continue;
 		const other = b.a === id ? b.b : b.a;
 		if (other === machine) continue;
 		const lane = tf.lanes.find((l) => l.id === other);
@@ -2839,7 +2850,7 @@ var RIDE = .3;
 var EDGE = 1;
 function lineKind(b, tap) {
 	if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
-	if (b.kind === "event") return "drone";
+	if (flies(b.kind)) return "drone";
 	if (b.kind === "stream") return "pipe";
 	if (b.kind === "batch") return "rail";
 	return "belt";
@@ -2947,7 +2958,7 @@ function routeTiles(tf, bundles, base) {
 		const A = tf.boxes.get(b.a), B = tf.boxes.get(b.b);
 		if (!A || !B) continue;
 		const both = b.flow === "both";
-		if (b.kind === "event") {
+		if (flies(b.kind)) {
 			const [s, d] = b.flow === "b→a" ? [B, A] : [A, B];
 			out.push({
 				key: b.key,
@@ -3553,7 +3564,7 @@ var MAX_EXTRA = 6;
 function startGap(bundles) {
 	const load = /* @__PURE__ */ new Map();
 	for (const b of bundles) {
-		if (b.kind === "event") continue;
+		if (flies(b.kind)) continue;
 		load.set(b.a, (load.get(b.a) ?? 0) + 1);
 		load.set(b.b, (load.get(b.b) ?? 0) + 1);
 	}
@@ -5124,7 +5135,7 @@ function narrowZoneViolations(plan) {
 /** Travel speed in px/s: belts and pipes keep a steady 60; a drone (event) or a train crosses its path in at
 *  most about 3 s. */
 function moverSpeed(kind, length) {
-	return kind === "event" || kind === "train" ? Math.max(60, length / 3) : 60;
+	return flies(kind) || kind === "train" ? Math.max(60, length / 3) : 60;
 }
 //#endregion
 //#region src/floor/fitscale.ts

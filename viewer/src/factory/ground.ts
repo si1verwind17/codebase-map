@@ -4,6 +4,7 @@ import { C, F, FONT } from "../floor/palette";
 import { Clearance, planZoneLabel, ZONE_FONT } from "./clear";
 import type { TileLane, Zone } from "./layout";
 import { LANE_H, T } from "./tiles";
+import { IN_PROCESS } from "./messaging";
 
 /** A floor label that keeps a readable size: scaled up about its anchor until it renders `MIN_PX` tall on screen, up to what
  *  its spot can hold (`maxK`), and hidden when even that is too small. `size` is its font size in world px. */
@@ -34,7 +35,9 @@ export function paintZone(z: Zone, clear: Clearance, labels: ZoomLabel[] = []): 
   const c = new Container();
   const g = new Graphics();
   const x = z.x * T, y = z.y * T, w = z.w * T, h = z.h * T;
-  if (z.airfield) {   // a broker's airfield: dashed green edge
+  if (z.airfield && z.name === IN_PROCESS) {   // a service's own airfield: solid green edge (a broker's is dashed)
+    g.rect(x, y, w, h).fill({ color: C.green, alpha: 0.05 }).stroke({ width: 1.5, color: C.green });
+  } else if (z.airfield) {   // a broker's airfield: dashed green edge
     g.rect(x, y, w, h).fill({ color: C.green, alpha: 0.05 });
     for (let d = 0; d < w; d += 12) g.moveTo(x + d, y).lineTo(x + Math.min(w, d + 6), y).moveTo(x + d, y + h).lineTo(x + Math.min(w, d + 6), y + h);
     for (let d = 0; d < h; d += 12) g.moveTo(x, y + d).lineTo(x, y + Math.min(h, d + 6)).moveTo(x + w, y + d).lineTo(x + w, y + Math.min(h, d + 6));

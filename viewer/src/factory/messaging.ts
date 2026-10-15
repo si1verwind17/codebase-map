@@ -4,7 +4,7 @@
 // draws. Facts come from the map: delivery and dead_letter_of on the topic, group / subscription / on_failure on the
 // event relation, replicas on the consuming service. Absent facts read as a plain fan-out.
 import type { Bundle, Model } from "../model/model";
-import { doorAnchor, SITE } from "../model/model";
+import { doorAnchor, flies, SITE } from "../model/model";
 import type { Relation } from "../model/types";
 import type { TileFloor } from "./layout";
 
@@ -57,19 +57,22 @@ export interface Failure {
 }
 export interface Messaging { airfields: Airfield[]; producers: Producer[]; consumers: Consumer[]; failures: Failure[] }
 
-/** "kafka" from "topic:kafka:orders": the same split the layout's airfields use. */
-export const brokerOf = (topic: string): string => topic.split(":")[1] ?? "";
+/** The airfield an in-process queue's hub stands on, inside its service's floor. */
+export const IN_PROCESS = "in-process";
+/** "kafka" from "topic:kafka:orders": the same split the layout's airfields use; an in-process queue's is IN_PROCESS. */
+export const brokerOf = (topic: string): string => (topic.startsWith("inq:") ? IN_PROCESS : topic.split(":")[1] ?? "");
 
 const byStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export function messaging(model: Model, container: string, tf: TileFloor, bundles: Bundle[]): Messaging {
   const onSite = container === SITE;
-  // hubs: topic boxes on the site, doors to topics inside buildings
+  // hubs: topic boxes on the site, doors to topics inside buildings, in-process queues on their service's floor (and
+  // doors to them below it)
   const hubs = new Map<string, Hub>();
   for (const box of [...tf.boxes.values()].sort((p, q) => byStr(p.id, q.id))) {
     const topic = doorAnchor(box.id);
     const node = model.nodes.get(topic);
-    if (node?.kind !== "topic") continue;
+    if (node?.kind !== "topic" && node?.kind !== "in-process-queue") continue;
     const delivery: Delivery = node.delivery === "queue" ? "queue" : "fan-out";
     const src = node.dead_letter_of;
     hubs.set(box.id, {
@@ -89,7 +92,7 @@ export function messaging(model: Model, container: string, tf: TileFloor, bundle
     if (hubs.has(machine)) continue;   // hub to hub: no machine to fly from
     const hub = hubs.get(hubEnd)!;
     for (const r of b.relations) {
-      if (r.kind !== "event") continue;
+      if (!flies(r.kind)) continue;
       if (lift(r.to) === hubEnd) {
         const into = r.on_failure ? failed : produced;
         const k = `${machine}|${hubEnd}`;

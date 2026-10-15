@@ -307,7 +307,7 @@ describe("floor plan", () => {
   };
   it("a floor with no hub plans exactly as before: fixture and demo", () => {
     expect(noHubDigest(new Model(shop as unknown as CodeMap))).toBe("18 a620026f9ac43394");
-    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 3f4f7d80ae0be8ed");
+    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 0ea4d7fb420af3bf");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
   });
   it.runIf(BIG && existsSync(BIG))("a map with no topics plans every floor exactly as before (the big map)", () => {
     expect(noHubDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 8095edabe5f0f113");
@@ -561,7 +561,7 @@ describe("floor plan", () => {
   };
   it("a floor with no implements pair plans exactly as before: fixture and demo", () => {
     expect(noPairDigest(new Model(shop as unknown as CodeMap))).toBe("24 53826f345d063535");
-    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 68cd0b011d93dbbf");   // demo re-pinned at rules 3 (a781829): two packages moved logic→storage; the 31b1d9c map still gives the old digest
+    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 2315caa2841b3692");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
   });
   it.runIf(BIG && existsSync(BIG))("a floor with no implements pair plans exactly as before (the big map)", () => {
     expect(noPairDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 3d5be224c7fe339d");
@@ -589,7 +589,7 @@ describe("floor plan", () => {
   const noStore = (map: CodeMap): CodeMap => ({ ...map, nodes: map.nodes.map(({ store: _s, ...n }) => n) });
   it("a floor with no rail yard plans exactly as before: fixture (its batch relation stripped) and demo", () => {
     expect(noBatchDigest(new Model(noStore(noBatch(shop as unknown as CodeMap))))).toBe("25 bb5d026dd2644e94");
-    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 4ad7dfe547bc152d");   // demo re-pinned at rules 3 (a781829): two packages moved logic→storage; the 31b1d9c map still gives the old digest
+    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 7fa61c1c9ef4bbd4");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
   });
   it("demo and fixture: every rail yard and station has its place, and every rail runs from its yard to its station", () => {
     const demo = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);

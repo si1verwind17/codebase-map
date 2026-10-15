@@ -9,6 +9,7 @@ describe("tiles", () => {
     expect(footprintFor("library", false)).toBe("installed");
     expect(footprintFor("datastore", false)).toBe("warehouse");
     expect(footprintFor("topic", true)).toBe("hub");
+    expect(footprintFor("in-process-queue", false)).toBe("hub");
     for (const k of ["package", "class", "file", "method", "table", "group"]) expect(footprintFor(k, false)).toBe("package");
     expect(FOOT.service).toEqual([5, 5]);
     expect(FOOT.installed).toEqual([4, 5]);
