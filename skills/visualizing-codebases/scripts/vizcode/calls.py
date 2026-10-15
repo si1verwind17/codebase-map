@@ -288,13 +288,16 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             cands = [m for m in folded if m != abstract.get(caller, caller)]
             if not cands:
                 continue
-            if c.get("args") is not None:   # prefer methods that can take this many arguments; never drop the call
+            trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
+            if c.get("args") is not None:   # prefer methods that can take this many arguments
                 fit = [m for m in cands if _accepts(by_id[m], c["args"])]
+                if not fit and not trusted and not any((receiver or "").lower() in _owner_names(by_id[m], by_id)
+                                                       for m in cands):
+                    continue   # `stream.run(sink)`: an unknown value whose method takes other arguments: a library's
                 cands = fit or cands
             if len(cands) > MAX_CANDIDATES:
                 dropped[rt] = dropped.get(rt, 0) + 1
                 continue
-            trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
             for m in cands:
                 if len(cands) == 1 and (trusted or (receiver or "").lower() in _owner_names(by_id[m], by_id)):
                     conf, why = "confirmed", None

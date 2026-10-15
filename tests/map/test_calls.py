@@ -103,6 +103,18 @@ def test_argument_count_narrows_same_named_methods():
     assert sorted(r["to"] for r in five) == ["a::p.X#save/1", "a::p.Y#save/3"]   # none fits: keep both
 
 
+def test_untrusted_receiver_with_no_fitting_arity_is_not_drawn():
+    nodes = [n for n in _two_classes() if not n["id"].endswith("#save/0")] + [
+        {"id": "a::p.Y#run/0", "kind": "method", "name": "run", "parent": "a::p.Y", "signature": _sig(0)}]
+    def rels_for(callee):
+        facts = {"p/x.py": {"calls": [{"callee": callee, "args": 1, "in": "a::p.X#m/0", "line": 3}]}}
+        return [r["to"] for r in calls.resolve(nodes, [], facts)[0]]
+    assert rels_for("stream.run") == []                  # a library value's `run(sink)`, not the repo's run/0
+    assert rels_for("build(x).run") == []                # a chained result: same
+    assert rels_for("Y.run") == ["a::p.Y#run/0"]         # the receiver names the owner: kept
+    assert rels_for("run") == ["a::p.Y#run/0"]           # a bare name: kept
+
+
 def test_python_and_scala_call_sites_record_their_argument_count():
     from vizcode.adapters import python as py
     W = {"id": "mod:w", "path": "w", "lang": "python", "build": "python-package"}
