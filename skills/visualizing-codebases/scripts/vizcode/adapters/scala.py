@@ -147,6 +147,14 @@ def _import_targets(decl_text: str) -> list[tuple[str, list[str], dict[str, str]
     return out
 
 
+def _arg_count(call) -> int | None:
+    """Arguments at a call site; a Scala 3 colon lambda (`db.transaction: c =>`) is one, whatever its body holds."""
+    args = call.child_by_field_name("arguments")
+    if args is not None and args.type == "colon_argument":
+        return 1
+    return arg_count(call, ("repeated_parameter_type", "ascription_expression"))
+
+
 def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stack.Stack | None = None) -> dict:
     effects = stack.effect_names(st or stack.default(), "scala")
     tree = PARSER.parse(src)
@@ -284,7 +292,7 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
             if fn is not None:
                 res["calls"].append({"callee": text(fn)[:120], "in": enclosing_id(n, scope_ids),
                                      "line": n.start_point[0] + 1,
-                                     "args": arg_count(n, ("repeated_parameter_type", "ascription_expression"))})
+                                     "args": _arg_count(n)})
         elif n.type in ("string", "interpolated_string_expression"):
             if n.type == "string" and n.parent is not None and n.parent.type == "interpolated_string_expression":
                 continue

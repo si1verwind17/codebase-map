@@ -74,9 +74,10 @@ def _copy_paste(index: dict[str, dict[str, list[str]]], by_id: dict[str, dict]) 
 
 
 def _accepts(method: dict, n: int) -> bool:
-    """Can `method` take n arguments? Unknown signatures and *args/**kw take any count."""
+    """Can `method` take n arguments? Unknown signatures, *args/**kw (and the variadics other languages record so) and
+    a Scala repeated parameter (`params: Any*`) take any count."""
     params = (method.get("signature") or {}).get("params")
-    if params is None or any(p["name"].startswith("*") for p in params):
+    if params is None or any(p["name"].startswith("*") or (p.get("type") or "").endswith("*") for p in params):
         return True
     return n <= len(params)
 

@@ -115,6 +115,15 @@ def test_untrusted_receiver_with_no_fitting_arity_is_not_drawn():
     assert rels_for("run") == ["a::p.Y#run/0"]           # a bare name: kept
 
 
+def test_a_scala_repeated_parameter_takes_any_count():
+    nodes = [n for n in _two_classes() if not n["id"].endswith("#save/0")] + [
+        {"id": "a::p.Y#update/2", "kind": "method", "name": "update", "parent": "a::p.Y",
+         "signature": {"params": [{"name": "sql", "type": "String"}, {"name": "params", "type": "Any*"}],
+                       "returns": None}}]
+    facts = {"p/x.scala": {"calls": [{"callee": "db.update", "args": 4, "in": "a::p.X#m/0", "line": 3}]}}
+    assert [r["to"] for r in calls.resolve(nodes, [], facts)[0]] == ["a::p.Y#update/2"]
+
+
 def test_python_and_scala_call_sites_record_their_argument_count():
     from vizcode.adapters import python as py
     W = {"id": "mod:w", "path": "w", "lang": "python", "build": "python-package"}
@@ -125,6 +134,9 @@ def test_python_and_scala_call_sites_record_their_argument_count():
     S = {"id": "mod:s", "path": "s", "lang": "scala", "build": "sbt"}
     res = sc.parse(b"package p\nobject O {\n  def f = g(1, 2)\n}\n", "s/O.scala", S, ids.IdRegistry())
     assert {c["callee"]: c.get("args") for c in res["calls"]}["g"] == 2
+    res = sc.parse(b"package p\nobject O {\n  def f = db.transaction: c =>\n    c.go()\n}\n", "s/O.scala", S,
+                   ids.IdRegistry())
+    assert {c["callee"]: c.get("args") for c in res["calls"]}["db.transaction"] == 1   # a colon lambda is one argument
 
 
 def test_super_dunder_calls_are_neither_drawn_nor_counted_as_dropped():
