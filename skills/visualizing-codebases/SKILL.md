@@ -248,6 +248,12 @@ schedule and tasks, each Flyte workflow's launch plan schedule and every
 - An inbound webhook (a provider calling the service) is a `request` from the
   `external` (e.g. `3p:stripe`) to the service route that receives it,
   citing the route and the provider config if any.
+- A message to an actor or a sharded entity (Akka, Orleans, shardcake) is a
+  `request` from the sending method to the handler the entity hands that
+  message type to, key `<framework> <entity type>`, citing the send, the
+  registration and the dispatch. It may run on another replica of the same
+  service; name matching never joins the two, so without it a trace stops at
+  the send.
 - Kinds: `request`, `event` (always through a `topic` node), `stream`
   (websocket, SSE, gRPC streaming; `bidirectional` when both ways), `batch`
   (scheduled or one-shot bulk jobs), `db-read`, `db-write`, `ext-call`.
@@ -524,8 +530,10 @@ for-comprehension is no hand-off: give its line a `problems` entry instead.
   the audit track it.
 - Find the producers and consumers by following the instance: the value
   passed in, or the type it is injected by (ZLayer, a DI container). Every
-  method that puts on it gets a `hand-off` to the queue; every method that
-  takes from it (the drain loop, the subscriber) gets one from it.
+  method that puts on it gets a `hand-off` to the queue; the method that
+  handles each item it gives out gets one from it: the subscriber, the drain
+  loop, or, when the drain only connects the queue to a sink or handler it is
+  given, that sink.
 - `confirmed` when both ends reach one instance through code you can cite
   (the same injected type, the same constructor argument or value); otherwise
   `inferred` with a `why`.

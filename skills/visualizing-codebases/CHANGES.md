@@ -5,6 +5,7 @@ Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; pru
 
 ## Rules 2 — 2026-10-15
 - In-process queues (SKILL.md § In-process queues): where a trace stops at a put on a queue, channel or hub that a background task drains, add the `in-process-queue` node and its `hand-off` relations; clear each `queue.missing` warning.
+- Actor and entity messages (SKILL.md § Matching interactions): where a trace stops at a send to an actor or sharded entity, add the `request` to the handler it dispatches to.
 
 ## Rules 1 — 2026-10-13
 - Baseline: nothing to re-check.

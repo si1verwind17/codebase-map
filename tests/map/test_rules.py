@@ -154,7 +154,8 @@ def test_rules_two_adds_in_process_queues_to_the_baseline():
     assert RULES_VERSION == 2
     parsed = rules.parse_changes(rules.CHANGES.read_text(encoding="utf-8"))
     assert parsed[1] == ["Baseline: nothing to re-check."]
-    assert len(parsed[2]) == 1 and parsed[2][0].startswith("In-process queues (SKILL.md § In-process queues)")
+    assert len(parsed[2]) == 2 and parsed[2][0].startswith("In-process queues (SKILL.md § In-process queues)")
+    assert parsed[2][1].startswith("Actor and entity messages")
 
 
 def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):
