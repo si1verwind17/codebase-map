@@ -518,7 +518,10 @@ for-comprehension is no hand-off: give its line a `problems` entry instead.
   blocking queues, .NET channels; `stack.yaml` adds more under `queues`),
   with the delivery it implies and the method around it. A wrapper the repo
   defines around one is found by the line inside it: the queue is what the
-  code calls the wrapper's instance.
+  code calls the wrapper's instance. A queue the packs cannot see (the
+  repo's own type over a stream or a callback) gets a `queues` entry in
+  `stack.yaml` for its creation call once you find it, so the next scan and
+  the audit track it.
 - Find the producers and consumers by following the instance: the value
   passed in, or the type it is injected by (ZLayer, a DI container). Every
   method that puts on it gets a `hand-off` to the queue; every method that
