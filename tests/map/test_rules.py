@@ -150,14 +150,16 @@ def test_behind_explains_a_changes_file_that_does_not_match(monkeypatch):
         rules.behind(cmap_at(1), TEXT.split("## Rules 2")[0].replace("Rules 3", "Rules 2"))
 
 
-def test_rules_reset_to_the_baseline():
-    assert RULES_VERSION == 1
-    assert rules.parse_changes(rules.CHANGES.read_text(encoding="utf-8")) == {1: ["Baseline: nothing to re-check."]}
+def test_rules_two_adds_in_process_queues_to_the_baseline():
+    assert RULES_VERSION == 2
+    parsed = rules.parse_changes(rules.CHANGES.read_text(encoding="utf-8"))
+    assert parsed[1] == ["Baseline: nothing to re-check."]
+    assert len(parsed[2]) == 1 and parsed[2][0].startswith("In-process queues (SKILL.md § In-process queues)")
 
 
-def test_a_map_at_rules_one_is_current(shop_repo):
+def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):
     scan_at_rules_one(shop_repo)
     extract.main([str(shop_repo)])
     diff_cli.main([str(shop_repo)])
     stale = json.loads(shop_repo.joinpath(*OUT, "stale.json").read_text())
-    assert stale["mode"] == "none" and "rules" not in stale
+    assert stale["mode"] == "rules" and stale["rules"]["recheck"][0].startswith("Rules 2: In-process queues")

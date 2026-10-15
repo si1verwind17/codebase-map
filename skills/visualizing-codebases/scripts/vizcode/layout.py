@@ -14,7 +14,7 @@ from .roles import HUB_FAN_IN, group_children
 RUNTIME = {"request", "event", "stream", "batch", "ext-call", "db-read", "db-write"}
 CITY_GRID_ABOVE = 20
 SITE = "site"
-HORIZONTAL = ("shelf", "bay", "hubs", "bus")  # regions that spread along a row; the others stack down a column
+HORIZONTAL = ("shelf", "bay", "hubs", "bus", "airfield")  # regions that spread along a row; the others stack down a column
 
 
 # ---------------------------------------------------------------- layered core
@@ -302,6 +302,9 @@ def inner(container: str, children: list[str], cmap: dict, roles: dict[str, str]
         items = {t: {"region": "shelf", "col": i % 4, "row": i // 4} for i, t in enumerate(sorted(children))}
         return {"strategy": "shelves", "items": merge(items, (prev or {}).get("items")), "lanes": [], "groups": [],
                 "utilities": [], "hubs": []}
+    # in-process queues stand on the floor's own airfield, in a row, never grouped
+    queues = sorted(c for c in children if by_id[c]["kind"] == "in-process-queue")
+    children = [c for c in children if c not in queues]
     top_items, groups = group_children(container, children, by_id, method_count, (prev or {}).get("groups"))
     member_of = {m: g["id"] for g in groups for m in g["members"]}
 
@@ -353,6 +356,7 @@ def inner(container: str, children: list[str], cmap: dict, roles: dict[str, str]
         for i in top_items:
             items[i] = {"region": "hubs", "col": 0, "row": 0} if i in hubs else {"region": "line", "col": lay[i][0], "row": lay[i][1]}
     lanes = _lift_busy(items, edges, prev, HUB_FAN_IN)
+    items.update({q: {"region": "airfield", "col": i, "row": 0} for i, q in enumerate(queues)})
     items = merge(_dedupe(items), (prev or {}).get("items") if (prev or {}).get("strategy") == strategy else None)
     return {"strategy": strategy, "items": items, "lanes": lanes, "groups": groups, "utilities": [], "hubs": hubs}
 

@@ -9,6 +9,7 @@
 # interface (`skip_class`: Feign `@FeignClient`, `@HttpExchange`, MicroProfile `@RegisterRestClient`, Micronaut
 # `@Client`) declares calls out, not routes.
 # tables: JPA `@Table(name = ...)` and `@Entity(name = ...)`: a mapping, defined on the class.
+# queues: in-process queue creation sites (`java.util.concurrent` blocking queues, Guava `EventBus`): candidates the agent confirms (SKILL.md § In-process queues).
 java:
   ignore: [java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
            jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json, jakarta.xml.bind,
@@ -112,3 +113,6 @@ java:
        regex: '@(?:javax\.persistence\.)?Table\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
     - {name: jpa-entity-name-javax, when: javax.persistence,
        regex: '@(?:javax\.persistence\.)?Entity\s*\([^()]*?\bname\s*=\s*"(?P<table>[^"]+)"'}
+  queues:
+    - {name: blocking-queue, when: java.util.concurrent, delivery: queue, regex: '\bnew\s+(?:LinkedBlocking|ArrayBlocking|PriorityBlocking|LinkedTransfer|Synchronous|Delay)(?:Queue|Deque)\b'}
+    - {name: guava-eventbus, when: com.google.common.eventbus, delivery: fan-out, regex: '\bnew\s+(?:Async)?EventBus\s*\('}

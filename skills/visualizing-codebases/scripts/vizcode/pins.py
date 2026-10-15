@@ -51,7 +51,7 @@ def errors(meaning: dict) -> list[str]:
     return out
 
 
-TRACE_START_KINDS = ("method", "table", "topic", "external", "datastore",
+TRACE_START_KINDS = ("method", "table", "topic", "in-process-queue", "external", "datastore",
                      "service", "library", "package", "file", "class")
 
 
@@ -61,5 +61,5 @@ def start_errors(cmap: dict) -> list[str]:
     examples.seeds). A start missing from the map is not refused: the audit lists it (`pin.start-missing`)."""
     kinds = {n["id"]: n.get("kind") for n in cmap.get("nodes", [])}
     return [f"pin {p.get('id')}: start {p['start']} is a {kinds[p['start']]}, which the viewer cannot trace from — "
-            "start at a method, table, topic, external, datastore, service, library, package, file or class"
+            "start at a method, table, topic, in-process-queue, external, datastore, service, library, package, file or class"
             for p in cmap.get("pins", []) if p.get("start") in kinds and kinds[p["start"]] not in TRACE_START_KINDS]

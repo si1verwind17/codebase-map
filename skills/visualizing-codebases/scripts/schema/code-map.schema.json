@@ -75,7 +75,7 @@
       "required": ["id", "kind", "name"],
       "properties": {
         "id": {"type": "string", "minLength": 1},
-        "kind": {"enum": ["service", "library", "datastore", "external", "topic", "package", "class", "file", "method", "table"]},
+        "kind": {"enum": ["service", "library", "datastore", "external", "topic", "in-process-queue", "package", "class", "file", "method", "table"]},
         "parent": {"type": ["string", "null"]},
         "name": {"type": "string"},
         "lang": {"type": "string"},
@@ -116,7 +116,7 @@
       "required": ["id", "kind", "from", "to", "confidence", "evidence"],
       "properties": {
         "id": {"type": "string"},
-        "kind": {"enum": ["request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "uses-code", "calls"]},
+        "kind": {"enum": ["request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off", "uses-code", "calls"]},
         "from": {"type": "string"},
         "to": {"type": "string"},
         "key": {"type": ["string", "null"]},

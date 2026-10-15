@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 DATA_DEFAULTS = {"request": "both", "event": "forward", "batch": "forward", "db-write": "forward",
-                 "ext-call": "forward", "db-read": "back"}  # stream: no default, the meaning pass decides
+                 "ext-call": "forward", "db-read": "back", "hand-off": "forward"}  # stream: no default, the meaning pass decides
 DATA_VALUES = ("forward", "back", "both")
 
 

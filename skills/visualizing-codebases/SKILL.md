@@ -115,10 +115,11 @@ inside the repo).
    but the page was not written (the message says why): report it, do not
    touch `meaning.json`.
 5. `assemble.py` prints the audit line last and writes `OUT/audit.md`. Fix
-   each `ext.missing`, `module.empty`, `example.missing` and `pin.few` content warning
+   each `ext.missing`, `queue.missing`, `module.empty`, `example.missing` and `pin.few` content warning
    in `meaning.json` and rerun `assemble.py`. An `ext.missing` key that names no
    outside endpoint (a test helper's, a tool's own setting such as `DOCKER_HOST`)
-   gets a `problems` entry naming the key and why; that clears it. Report `name.container` and
+   gets a `problems` entry naming the key and why; that clears it. So does a
+   `queue.missing` site that is no hand-off (§ In-process queues): name its `file:line`. Report `name.container` and
    `pin.start-missing` warnings and audit errors (`audit.error`); do not fix
    them. Map limits and findings are reported, not fixed.
 6. Open `OUT/index.html` in a browser. (`view.py REPO --out-dir OUT` rewrites
@@ -315,6 +316,7 @@ Sort each line into one group of its language:
 | `effects` | Scala only: `val`s of these types hold behaviour (`IO`, `Resource`, `Stream`). It does not clear an import line: the library also goes in `ignore`, or in `imports` if it talks out | such a `val` becomes a method node |
 | `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`) | nothing; the line leaves the section |
 | `tables` | an ORM or query DSL names tables in code (Quill `query[Order]`, JPA `@Table(name = "orders")`, SQLAlchemy `__tablename__`, Django `db_table`): a regex that finds the name. Its library still goes in `imports` | `tables (patterns)` lines in `summary.md`, to attach (§ Side effects) |
+| `queues` | a library or the repo's own code makes in-process queues, channels or event buses the packs do not know: a regex for the creation call, with its `delivery` | `in-process queues` lines in `summary.md` (§ In-process queues) |
 
 1. Read each example line at the scanned commit before deciding. Write only
    what the repo shows: each pattern is checked against at least one real
@@ -351,7 +353,7 @@ Sort each line into one group of its language:
 - `imports` wins over `ignore`, and when several `imports` prefixes name an
   import the longest decides its kind (`jakarta.ws.rs.client` is `http-out`
   inside `jakarta.ws.rs`, `http-in`). A `stack.yaml` kind replaces a pack's
-  kind for the same prefix, and a `stack.yaml` route or table entry named
+  kind for the same prefix, and a `stack.yaml` route, table or queue entry named
   like a pack entry replaces that entry; `summary.md` lists both.
 - A hand edit between runs makes the next run `full` ("stack.yaml changed
   since the map was made"). Your edits during a run do not: this run's
@@ -481,6 +483,9 @@ scala:
   access: find the methods that use the class); elsewhere `in` the file.
   A Django `db_table` inside `class Meta` reads `defined on Meta`: the
   model is the class around `Meta`.
+- A queue pattern: `name`, `regex` for the creation call, `delivery`
+  (`queue` or `fan-out`), optional `when`:
+  `{name: bus, when: acme.events, delivery: fan-out, regex: '\bnew\s+EventBus\s*\('}`.
 - An effect: a type name, matched as a `val`'s declared type or a call
   `Name.` / `Name(` in its value; `{name: X, match: type}` matches the type
   only.
@@ -496,6 +501,36 @@ which table, not which way: decide `db-read` or `db-write` from the code, as
 for a client library. When an interface has several implementations, follow
 the wiring (ZLayer, dependency injection, constructors) to the one production
 runs. Why: a test double or an unused implementation is not the system.
+
+## In-process queues
+
+A queue, channel or hub inside one process hands work from one method to
+another without a call between them: the producer puts an item on it, a
+background task takes it off. `calls` cannot join the two, so a trace stops at
+the put and looks complete. Add an `in-process-queue` node (`format.md` → In-process
+queues) and `hand-off` relations only where that happens:
+no `calls` path leads from the producer to the consumer. A queue one method
+fills and drains, a buffer inside a stream, a callback, a future or a
+for-comprehension is no hand-off: give its line a `problems` entry instead.
+
+- `summary.md` lists `in-process queues`: each creation site the packs know
+  (ZIO `Queue`/`Hub`, Go channels, Kotlin `Channel`, `asyncio.Queue`, Java
+  blocking queues, .NET channels; `stack.yaml` adds more under `queues`),
+  with the delivery it implies and the method around it. A wrapper the repo
+  defines around one is found by the line inside it: the queue is what the
+  code calls the wrapper's instance.
+- Find the producers and consumers by following the instance: the value
+  passed in, or the type it is injected by (ZLayer, a DI container). Every
+  method that puts on it gets a `hand-off` to the queue; every method that
+  takes from it (the drain loop, the subscriber) gets one from it.
+- `confirmed` when both ends reach one instance through code you can cite
+  (the same injected type, the same constructor argument or value); otherwise
+  `inferred` with a `why`.
+- `delivery` is `queue` when each item goes to one consumer, `fan-out` when
+  every subscriber gets it (a hub, a broadcast channel, an event bus).
+- Never a topic: a queue is lost when the process stops and no other service
+  sees it. The method ends of its hand-offs are in its service; when a
+  library's code puts or takes, credit the service's method that calls it.
 
 ## Package roles
 
@@ -654,7 +689,7 @@ The audit (`audit.py`, run by `assemble.py` and on `none`) never blocks the
 map. Map limits are drawing-check failures the viewer cannot draw well yet:
 report them, never fix them, never put them on the map. Findings are what the
 map shows about the code; the only one is a cycle between services (events
-through a topic do not count). Content warnings `ext.missing`,
+through a topic do not count). Content warnings `ext.missing`, `queue.missing`,
 `module.empty`, `example.missing` and `pin.few` you fix in `meaning.json`;
 `name.container` is a labelling gap in the scanner or viewer,
 `pin.start-missing` a pin whose start is gone (the user decides), and an

@@ -6,6 +6,7 @@
 # argument when it is a name; a chained router `get(a).put(b).delete(c)` gives one route per call, its 2nd to 4th
 # calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
 # actix-web attributes `#[get("/x")]` (the function below) and `web::scope` (a mount).
+# queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (SKILL.md § In-process queues).
 rust:
   ignore: [std, core, alloc]
   imports:
@@ -59,3 +60,7 @@ rust:
       path: literal
       mount: true
       regex: '\bweb::scope\(\s*"(?P<path>[^"]*)"'
+  queues:
+    - {name: tokio-mpsc, when: tokio::sync, delivery: queue, regex: '\bmpsc::(?:unbounded_)?channel\b'}
+    - {name: tokio-broadcast, when: tokio::sync, delivery: fan-out, regex: '\bbroadcast::channel\b'}
+    - {name: std-mpsc, when: std::sync, delivery: queue, regex: '\bmpsc::(?:sync_)?channel\b'}

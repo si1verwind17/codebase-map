@@ -24,6 +24,7 @@ commit, 40 hex), `scanned_at`, `rules_version` (optional integer: the meaning ru
 | `external` | 0 | — | you |
 | `topic` | 0 | — | you |
 | `table` | 1 | datastore | you |
+| `in-process-queue` | 1 | service | you |
 | `package` | 1 | service or library | scanner |
 | `class` | 2 | package, class, or file (Python classes live in their module file) | scanner |
 | `file` | 2 | package | scanner |
@@ -40,16 +41,26 @@ body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::cit
 trait method), `twins` on a service that also deploys another service's
 module (root package ids; its floor shows them as `twin:<id>` items), `role` on packages (`entry`, `logic`, `outbound`,
 `storage`, `model`; `role_why` when overridden), `tags`, `summary`,
-`delivery` on topics (`fan-out` or `queue`; absent means `fan-out`), `dead_letter_of` on a topic (the
+`delivery` on topics (`fan-out` or `queue`; absent means `fan-out`) and on in-process queues (required there), `dead_letter_of` on a topic (the
 topic whose failures land there), `replicas` on services (integer ≥ 1),
 `store` on datastores (`database`, `cache`, `bucket` or `warehouse`;
 `assemble.py` defaults it from the engine, so set it only when that is
 wrong), `evidence` (required on services: the line that deploys it — compose,
 Dockerfile, build, orchestrator registration, or the documented run command;
-also required on a topic that sets `delivery` or `dead_letter_of` and on a
+also required on an in-process queue (the line that creates it), on a topic that sets `delivery` or `dead_letter_of` and on a
 datastore whose `store` differs from the engine default: the line that shows
 it; optional elsewhere), `stale` (set by `diff.py` on a node whose evidence
 file changed; `assemble.py` refuses the map until each flag is resolved).
+
+### In-process queues
+
+An `in-process-queue` is a queue, channel or hub that lives in one running service's memory: a ZIO `Queue` or `Hub`,
+a Go channel, a Kotlin `Channel`, an `asyncio.Queue`, a Java `BlockingQueue`, a .NET `Channel`, an event bus. It is
+lost when the process stops and no other service sees it, so it is never a topic and never on the site floor.
+Id: `inq:<service name>:<name>`, the name being what the code calls it (the value, or the type it is injected
+by): `inq:billing:receipts`. `parent` is the service that runs it, also when a library creates it (`evidence` then
+points at the library line). `delivery` is `queue` (each item goes to one consumer) or `fan-out` (every subscriber
+gets it: a hub, a broadcast channel, an event bus).
 
 ### Fields and type links
 
@@ -128,7 +139,7 @@ declarations within its owner, never lines.
 | Field | Meaning |
 |---|---|
 | `id` | optional in `meaning.json`; `assemble.py` fills `r:<kind>:<from>-><to>:<key>`. |
-| `kind` | `request`, `event`, `stream`, `batch`, `db-read`, `db-write`, `ext-call`; `uses-code` and `calls` (method to method, resolved by name; ambiguous ones `inferred`) come from the scanner |
+| `kind` | `request`, `event`, `stream`, `batch`, `db-read`, `db-write`, `ext-call`, `hand-off` (a method to an in-process queue it puts items on, or the queue to the method that takes them; both ends in the queue's service); `uses-code` and `calls` (method to method, resolved by name; ambiguous ones `inferred`) come from the scanner |
 | `data` | which way data moves: `forward`, `back` or `both`; defaulted per kind, required on `stream` |
 | `from`, `to` | the finest node known: method, else class, else service |
 | `key` | protocol key: `POST /v1/orders/create`, `table public.orders`, topic name, `grpc <package>.<Service>/<Rpc>` (`grpc parking.occupancy.v1.OccupancyFeed/Stream`; `grpc <Service>/<Rpc>` when the .proto has no package) |
@@ -155,7 +166,7 @@ unpinned: [<pin id>]
 Pinned traces: the traces the viewer lists to start from (it computes each
 trace from the relations; SKILL.md § Pinned traces). `id`: the slug of
 the title (`a-z`, `0-9`, single `-`; a repeat gets `-2`, `-3`), unique. `start`: a
-node id of any kind the viewer traces from: method, table, topic, external,
+node id of any kind the viewer traces from: method, table, topic, in-process-queue, external,
 datastore, service, library, package, file or class (a container starts from
 the entry points inside it, else from its boundary methods — methods inside it
 at one end of a relation whose other end is outside it — else from itself;
@@ -544,8 +555,9 @@ built-in packs (`scripts/vizcode/packs/<lang>.yaml`, same format): per
 language (`python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
 `javascript`, `go`, `rust`, `ruby`, `php`) the groups `imports`
 (`{prefix, kind}`), `routes`, `effects` (Scala type names; Scala only),
-`ignore` (prefixes) and `tables` (`name`, `regex` with a `table` group,
-optional `when`). A route entry is one of:
+`ignore` (prefixes), `tables` (`name`, `regex` with a `table` group,
+optional `when`) and `queues` (`name`, `regex`, `delivery` `queue` or `fan-out`, optional `when`: in-process queue
+creation sites). A route entry is one of:
 
 - `form: regex` (the default): `name`, `regex` (with a `path` group, optional
   `method`, `methods` and `handler` groups), `path` reader `literal` (the
@@ -561,13 +573,13 @@ optional `when`). A route entry is one of:
   `absolute` (path starts that drop the class prefix) and `skip_class` (class
   annotations marking an HTTP client: such a class gives no routes).
 
-A `stack.yaml` route or table entry named like a pack entry of its language
+A `stack.yaml` route, table or queue entry named like a pack entry of its language
 replaces it; any other repeated name is an error. It is data only;
 `extract.py` reads it and rejects invalid content with exit 2. Rules, the
 full format and when to write it: SKILL.md § Stack. `structure.json` holds
 the `stack` block (`digest`, `unrecognised`, `servers_without_routes`,
 `patterns`, `overrides`) that `summary.md`'s Stack section prints. Each
-`patterns` entry: `group` (`routes` or `tables`), `lang`, `name`, `source`
+`patterns` entry: `group` (`routes`, `tables` or `queues`), `lang`, `name`, `source`
 (`pack`, `stack.yaml` or `built in`), `matches`, `files`, `first_file`, and
 when they apply `form: annotated`, `mount: true`, and `duplicates` (the
 pattern whose facts this one's matches repeated: every match was already
@@ -581,6 +593,10 @@ present on files with a mount) are `[{path, target, line, framework,
 source}]`, `target` the matched name or null. Two patterns giving the same
 route (method, path, handler) or table (table, line, in) give one fact,
 named after the pattern listed first (packs before `stack.yaml`).
+
+A file a queue pattern matched carries a `queues` fact (the key is absent when nothing matched): `[{line, in,
+delivery, pattern, source}]`, `in` the innermost method around the match, else the file; `summary.md` lists them
+per module as `in-process queues`. Two patterns matching at one (line, in) give one fact.
 
 A file a table pattern matched carries a `tables` fact in `structure.json`
 (the key is absent when nothing matched): `[{table, line, in, kind, pattern,
@@ -663,7 +679,9 @@ did not reach are listed by floor code under "Not checked" and do not fail.
   worst 5 floors, then `… N more`: highest congestion, highest spread, least
   room between the fit zoom and the names/codes switch zoom.
 - **Content warnings:** `ext.missing` (a config key that looks like an
-  outside endpoint names nothing on the map), `module.empty` (a service or
+  outside endpoint names nothing on the map), `queue.missing` (an
+  `in-process queues` creation site in `summary.md` that no in-process-queue
+  cites in `evidence` and no `problems` entry names as `file:line`), `module.empty` (a service or
   library with no file or package under it) and `example.missing` (an entry
   point with no example, or with a key that has none; one line each; a
   root route `GET /` under a mount stays a key of its own beside the

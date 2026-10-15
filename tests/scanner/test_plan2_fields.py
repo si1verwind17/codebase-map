@@ -58,7 +58,7 @@ def test_every_field_passes(shop_repo):
 def test_delivery_only_on_topic(shop_repo):
     cmap = base(shop_repo)
     node(cmap, "svc:shop")["delivery"] = "queue"
-    assert "node svc:shop: delivery belongs on a topic node" in errors(cmap)
+    assert "node svc:shop: delivery belongs on a topic or in-process-queue node" in errors(cmap)
 
 
 def test_replicas_only_on_service(shop_repo):

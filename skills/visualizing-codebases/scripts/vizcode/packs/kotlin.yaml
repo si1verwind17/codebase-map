@@ -7,6 +7,7 @@
 # have the same names; a client interface, `skip_class`, gives none); Ktor's routing DSL (regex: `get("/x") {`;
 # `route("/v1") {` is a mount, a nested prefix the agent composes). tables: JPA (as in the Java pack) and Exposed
 # `object X : Table("x")` (no argument: the object's name), defined on the object.
+# queues: in-process queue creation sites (coroutine `Channel`, `MutableSharedFlow`, `java.util.concurrent` blocking queues): candidates the agent confirms (SKILL.md § In-process queues).
 kotlin:
   ignore: [kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,
            jakarta.enterprise, jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json,
@@ -131,3 +132,7 @@ kotlin:
     # `object Users : Table()`: Exposed names the table after the object, less a trailing `Table`
     - {name: exposed-unnamed, when: org.jetbrains.exposed,
        regex: '\b(?:object|class)\s+(?P<table>\w+?)(?:Table)?\s*:\s*(?:[\w.]+\.)?(?:Table|IntIdTable|LongIdTable|UUIDTable|UIntIdTable|ULongIdTable|IdTable<[^>]*>)\s*\(\s*\)'}
+  queues:
+    - {name: coroutine-channel, when: kotlinx.coroutines.channels, delivery: queue, regex: '\bChannel\s*(?:<[^>]*>)?\s*\('}
+    - {name: shared-flow, when: kotlinx.coroutines.flow, delivery: fan-out, regex: '\bMutableSharedFlow\s*(?:<[^>]*>)?\s*\('}
+    - {name: blocking-queue, when: java.util.concurrent, delivery: queue, regex: '\b(?:LinkedBlocking|ArrayBlocking|PriorityBlocking|LinkedTransfer|Synchronous|Delay)(?:Queue|Deque)\s*(?:<[^>]*>)?\s*\('}

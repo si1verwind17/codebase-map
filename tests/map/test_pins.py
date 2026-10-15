@@ -66,10 +66,10 @@ def test_unpinned_holds_ids():
 
 
 def test_a_pin_may_start_at_any_node_kind_the_viewer_traces_and_no_other():
-    kinds = ["method", "table", "topic", "external", "datastore", "service", "library", "package", "file", "class"]
+    kinds = ["method", "table", "topic", "in-process-queue", "external", "datastore", "service", "library", "package", "file", "class"]
     cmap = {"nodes": [{"id": f"n:{k}", "kind": k} for k in kinds] + [{"id": "n:widget", "kind": "widget"}],
             "pins": [pin(id=f"p-{k}", start=f"n:{k}") for k in kinds]
             + [pin(id="w", start="n:widget"), pin(id="gone", start="n:gone")]}
     assert pins.start_errors(cmap) == [
         "pin w: start n:widget is a widget, which the viewer cannot trace from — start at a method, table, topic, "
-        "external, datastore, service, library, package, file or class"]
+        "in-process-queue, external, datastore, service, library, package, file or class"]

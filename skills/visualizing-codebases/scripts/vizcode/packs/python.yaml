@@ -7,6 +7,7 @@
 # tables: SQLAlchemy (also through Flask-SQLAlchemy or SQLModel) `__tablename__ = "x"` and Django `db_table = "x"` (in the model's Meta), defined on the class.
 # The standard library is ignored in code (sys.stdlib_module_names), not listed here.
 # ignore: libraries the code rules above read (Airflow, Flyte), so they are not listed as unrecognised.
+# queues: in-process queue creation sites (`asyncio.Queue` and `queue.Queue` (and their Priority/Lifo/Simple forms)): candidates the agent confirms (SKILL.md § In-process queues).
 python:
   ignore: [airflow, flytekit]
   imports:
@@ -47,3 +48,6 @@ python:
     - {name: flask-sqlalchemy, when: flask_sqlalchemy, regex: '\b__tablename__\s*=\s*["''](?P<table>[^"'']+)["'']'}
     - {name: sqlmodel, when: sqlmodel, regex: '\b__tablename__\s*=\s*["''](?P<table>[^"'']+)["'']'}
     - {name: django, when: django, regex: '\bdb_table\s*=\s*["''](?P<table>[^"'']+)["'']'}
+  queues:
+    - {name: asyncio-queue, when: asyncio, delivery: queue, regex: '\b(?:asyncio\.)?(?:Priority|Lifo)?Queue\s*\('}
+    - {name: thread-queue, when: queue, delivery: queue, regex: '\b(?:queue\.)?(?:Simple|Priority|Lifo)?Queue\s*\('}

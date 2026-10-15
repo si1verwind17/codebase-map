@@ -17,9 +17,10 @@ STALE_HINT = "stale — re-resolve it: keep it (delete the flag), change it, or 
 PARENT_KINDS = {
     "service": {None}, "library": {None}, "datastore": {None}, "external": {None}, "topic": {None},
     "package": {"service", "library"}, "class": {"package", "class", "file"}, "file": {"package"},
-    "method": {"class", "file"}, "table": {"datastore"},
+    "method": {"class", "file"}, "table": {"datastore"}, "in-process-queue": {"service"},
 }
-NODE_FIELD_KIND = {"delivery": "topic", "dead_letter_of": "topic", "replicas": "service", "store": "datastore"}
+NODE_FIELD_KIND = {"delivery": ("topic", "in-process-queue"), "dead_letter_of": ("topic",), "replicas": ("service",),
+                   "store": ("datastore",)}
 RELATION_FIELD_KIND = {"subscription": "event", "group": "event", "on_failure": "event",
                        "schedule": "batch", "job": "batch"}
 
@@ -54,6 +55,11 @@ def check(cmap: dict) -> list[str]:
         if n["kind"] == "service" and not n.get("evidence"):   # a deployable is always declared somewhere
             errors.append(f"node {n['id']}: service needs evidence (the line that deploys it: compose, "
                           "Dockerfile, build, orchestrator registration, or the documented run command)")
+        if n["kind"] == "in-process-queue":
+            for field, what in (("delivery", "queue (each item to one consumer) or fan-out (to every subscriber)"),
+                                ("evidence", "the line that creates it")):
+                if field not in n:
+                    errors.append(f"node {n['id']}: in-process-queue needs {field}: {what}")
     for n in cmap["nodes"]:
         if n.get("stale"):
             errors.append(f"node {n['id']}: {STALE_HINT}")
@@ -65,9 +71,10 @@ def check(cmap: dict) -> list[str]:
         if needs and not n.get("evidence"):
             errors.append(f"node {n['id']}: {', '.join(needs)} needs evidence (cite the line that shows it: "
                           "the broker or subscription config, the compose or k8s replicas line, or the client setup)")
-        for field, kind in NODE_FIELD_KIND.items():
-            if field in n and n["kind"] != kind:
-                errors.append(f"node {n['id']}: {field} belongs on a {kind} node, not a {n['kind']} — delete it")
+        for field, kinds in NODE_FIELD_KIND.items():
+            if field in n and n["kind"] not in kinds:
+                errors.append(f"node {n['id']}: {field} belongs on a {' or '.join(kinds)} node, not a {n['kind']} "
+                              "— delete it")
         dl = n.get("dead_letter_of")
         if dl is not None and n["kind"] == "topic":
             if dl == n["id"]:
@@ -108,6 +115,8 @@ def check(cmap: dict) -> list[str]:
             errors.append(f"relation {r['id']}: inferred without why")
         if r["kind"] == "event" and "topic" not in {nodes.get(r["from"], {}).get("kind"), nodes.get(r["to"], {}).get("kind")}:
             errors.append(f"relation {r['id']}: event must start or end at a topic node")
+        if r["kind"] == "hand-off":
+            errors += _hand_off_errors(r, nodes, root)
     for r in cmap["relations"]:
         for field, kind in RELATION_FIELD_KIND.items():
             if field in r and r["kind"] != kind:
@@ -130,6 +139,23 @@ def check(cmap: dict) -> list[str]:
     errors += pins.start_errors(cmap)
     errors += _check_layout(cmap, nodes)
     return errors
+
+
+def _hand_off_errors(r: dict, nodes: dict[str, dict], root) -> list[str]:
+    """A hand-off joins one in-process queue to a method or class of the service that holds the queue."""
+    ends = [nodes.get(r[e], {}) for e in ("from", "to")]
+    queues = [n for n in ends if n.get("kind") == "in-process-queue"]
+    if len(queues) != 1:
+        return [f"relation {r['id']}: hand-off must start or end at an in-process-queue node, and only one end"]
+    other = ends[1] if queues[0] is ends[0] else ends[0]
+    if other and other.get("kind") not in ("method", "class"):
+        return [f"relation {r['id']}: hand-off joins a queue to a method (or class), not a {other.get('kind')}"]
+    owner = queues[0].get("parent")
+    if other and root(other["id"]).get("id") != owner:
+        return [f"relation {r['id']}: {other['id']} is not in {owner}, which holds the queue — an in-process queue "
+                "never crosses services; when the produce or consume code sits in a library, credit the "
+                f"{owner} method that calls it"]
+    return []
 
 
 def _check_layout(cmap: dict, nodes: dict[str, dict]) -> list[str]:
@@ -197,10 +223,30 @@ ROLE_WORDS = {"api", "service", "svc", "callback", "base", "endpoint", "server",
               "https", "grpc", "internal", "public", "rest", "webhook", "host", "url", "uri"}
 WORD = re.compile(r"[a-z0-9]+")
 ENV_LINE = re.compile(r"^- \*\*env keys:\*\* (.*)$", re.M)   # as structure.summary_md writes it
+QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
+QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
 
 
 def _last_segment(name: str) -> str:
     return re.split(r"[./:#$]", name.rstrip("$/"))[-1]
+
+
+def _queues_missing(cmap: dict, summary_md: str) -> list[dict]:
+    """A queue creation site the scanner found is accounted for when an in-process-queue cites its line in
+    `evidence`, or a `problems` entry names `file:line` (why it is none: one method fills and drains it)."""
+    cited = {(e.get("file"), e.get("line")) for n in cmap.get("nodes", []) if n.get("kind") == "in-process-queue"
+             for e in n.get("evidence", [])}
+    said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
+    out = []
+    for m in QUEUE_LINE.finditer(summary_md):
+        for site in (s.strip() for s in m.group(1).split(";")):
+            if (hit := QUEUE_SITE.match(site)) and (hit[1], int(hit[2])) not in cited \
+                    and not re.search(rf"{re.escape(hit[1])}:{hit[2]}(?!\d)", said):
+                out.append({"id": "queue.missing", "node": None,
+                            "detail": f"in-process queue created at {hit[1]}:{hit[2]} is in no in-process-queue "
+                                      "node's evidence: add the node and its hand-offs where a trace stops at it, "
+                                      "or say in problems why it is none"})
+    return out
 
 
 def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
@@ -230,6 +276,7 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
                         and stem not in owners and not (words and any(set(words) <= ow for ow in owner_words)):
                     out.append({"id": "ext.missing", "node": None,
                                 "detail": f"config key {key} looks like an outside endpoint but nothing in the map names {key}"})
+        out += _queues_missing(cmap, summary_md)
     for n in nodes.values():
         p = nodes.get(n.get("parent"))
         if p and n["kind"] == "package" and p["kind"] in ("service", "library"):

@@ -9,6 +9,7 @@
 # Both are blocks or strings, not methods: the empty `handler` group makes the handler the method around the
 # match or the file, never a `def` below it. tables: ActiveRecord `self.table_name = "x"`, without `when` (a Rails
 # model requires nothing): the regex needs `self.table_name =` at the start of a line and a string literal.
+# queues: in-process queue creation sites (`Queue.new`/`SizedQueue.new` (core, so no `when`)): candidates the agent confirms (SKILL.md § In-process queues).
 ruby:
   ignore: [json, net/http, set, time, date, securerandom, logger, fileutils, yaml, erb, uri, open3, digest,
            base64, csv, optparse]
@@ -43,3 +44,5 @@ ruby:
       regex: '^[ \t]*(?P<method>get|post|put|patch|delete|head|options)\s*\(?\s*["''](?P<path>/[^"'']*)["'']\s*\)?\s*(?:do\b|\{)(?P<handler>)'
   tables:
     - {name: active-record-table-name, regex: '^[ \t]*self\.table_name\s*=\s*["''](?P<table>[^"'']+)["'']'}
+  queues:
+    - {name: thread-queue, delivery: queue, regex: '\b(?:Thread::)?(?:Sized)?Queue\.new\b'}

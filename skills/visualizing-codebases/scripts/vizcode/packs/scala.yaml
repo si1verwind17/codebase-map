@@ -8,6 +8,7 @@
 # Quill `querySchema[Order]("shop.orders", ...)`: the table is the string.
 # Rules kept in code because a pattern cannot express them: tapir (path trees across vals, server logic,
 # clients), gRPC and proto services.
+# queues: in-process queue creation sites (ZIO `Queue`/`Hub`, cats-effect `Queue`, fs2 `Topic`, Akka/Pekko `Source.queue`): candidates the agent confirms (SKILL.md § In-process queues).
 scala:
   ignore: [scala, java, javax, zio]   # zio: the effect library; its kinds (zio.kafka, zio.redis, ...) are imports
   effects: [ZIO, Task, UIO, URIO, IO, RIO, ZLayer, ULayer, URLayer, RLayer, TaskLayer, Layer, ZStream, UStream, Stream, ZSink, ZPipeline]
@@ -40,3 +41,10 @@ scala:
   tables:
     - {name: quill, when: io.getquill, regex: '\bquery\[(?P<table>[\w.]+)\](?!\s*\()'}
     - {name: quill-schema, when: io.getquill, regex: '\bquerySchema\[[\w.]+\]\s*\(\s*"(?P<table>[^"]+)"'}
+  queues:
+    - {name: zio-queue, when: zio, delivery: queue, regex: '\bQueue\.(?:bounded|unbounded|dropping|sliding)\b'}
+    - {name: zio-hub, when: zio, delivery: fan-out, regex: '\bHub\.(?:bounded|unbounded|dropping|sliding)\b'}
+    - {name: cats-queue, when: cats.effect.std, delivery: queue, regex: '\bQueue\.(?:bounded|unbounded|dropping|circularBuffer|synchronous)\b'}
+    - {name: fs2-topic, when: fs2.concurrent, delivery: fan-out, regex: '\bTopic\[\w+\s*,'}
+    - {name: akka-source-queue, when: akka.stream, delivery: queue, regex: '\bSource\.queue\b'}
+    - {name: pekko-source-queue, when: org.apache.pekko.stream, delivery: queue, regex: '\bSource\.queue\b'}

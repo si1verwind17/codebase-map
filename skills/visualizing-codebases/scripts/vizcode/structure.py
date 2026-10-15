@@ -341,6 +341,13 @@ def _pattern_tables(st: stack.Stack, lang: str, data: bytes, r: dict, module: di
     return out
 
 
+def _pattern_queues(st: stack.Stack, lang: str, data: bytes, r: dict, module: dict) -> list[dict]:
+    """In-process queue creation sites from the queue patterns of the packs and stack.yaml, one per (line, in)."""
+    found = stack.find_queues(st, lang, decode(data), stack.import_names(r["imports"], lang), _spans(r, "method"),
+                              _file_id(r, module, lang))
+    return _dedupe(st.queues, lang, found, "queues", "pattern", ("line", "in"), r)
+
+
 def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | None = None) -> dict:
     t0 = time.time()
     repo = repo.resolve()
@@ -382,6 +389,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["routes"] += _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]])
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), stack.import_names(r["imports"], lang))
                 r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]])
+                r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]])
                 if lang in SPECS:
                     lines[f] = decode(data).count("\n") + 1
             except Exception as err:
@@ -485,6 +493,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             file_facts[f]["mounts"] = r["mounts"]
         if r["tables"]:   # the key appears only where a table pattern matched
             file_facts[f]["tables"] = r["tables"]
+        if r.get("queues"):   # likewise for in-process queue creation sites
+            file_facts[f]["queues"] = r["queues"]
 
     file_node = {n["file"]: n["id"] for n in nodes if n["kind"] == "file"}
     first_node = {}
@@ -494,6 +504,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     return {
         "stack": stack.report(st, {f: {"lang": LANGS[Path(f).suffix][0], "imports": results[f]["imports"],
                                        "routes": file_facts[f]["routes"], "tables": file_facts[f].get("tables", []),
+                                       "queues": file_facts[f].get("queues", []),
                                        "mounts": file_facts[f].get("mounts", []), "module": file_mod[f],
                                        "deduped": results[f].get("deduped", []),
                                        "src": texts.get(f, ""), "package": results[f]["package"]} for f in results},
@@ -558,7 +569,8 @@ def _stack_lines(rep: dict) -> list[str]:
                   f"{'imports' if x['files'] == 1 else 'import'} it; no route pattern matched in them" for x in servers]
         lines.append("")
     for group, label, one0, many0 in (("routes", "Route patterns:", "route", "routes"),
-                                    ("tables", "Table patterns:", "table", "tables")):
+                                    ("tables", "Table patterns:", "table", "tables"),
+                                    ("queues", "Queue patterns:", "queue", "queues")):
         if mine := [p for p in pats if p["group"] == group]:
             lines.append(label)
             for p in mine:
@@ -604,7 +616,7 @@ def summary_md(s: dict) -> str:
         files = [f for f, i in s["files"].items() if i["module"] == m["id"]]
         lines.append(f"## {m['id']} ({m['lang']}, {m['build']}, {len(files)} files)")
         routes_, clients, sinks, reads, writes, urls, envs = [], [], set(), set(), set(), set(), set()
-        tables = []
+        tables, queues = [], []
         grpc_ends: dict[tuple[str, str], list[str]] = {}
         dags, wfs, refs, mounts = [], [], [], []
         for f in files:
@@ -613,6 +625,8 @@ def summary_md(s: dict) -> str:
             mounts += [f"{x['path']}" + (f" → {x['target']}" if x["target"] else "") + f" ({f}:{x['line']})"
                        for x in ff.get("mounts", [])]
             tables += [(t["table"], f, t["line"], t["in"], t["kind"]) for t in ff.get("tables", [])]
+            queues += [f"{q['delivery']} at {f}:{q['line']} in {names.get(q['in']) or q['in']}"
+                       for q in ff.get("queues", [])]
             sinks |= {x["kind"] + ":" + x["lib"] for x in ff["sinks"]}
             for q in ff["sql"]:
                 reads |= set(q["reads"])
@@ -642,6 +656,7 @@ def summary_md(s: dict) -> str:
                             ("flyte workflows", wfs), ("reference tasks", refs), ("sinks", sorted(sinks)),
                             ("sql reads", sorted(reads)), ("sql writes", sorted(writes)),
                             ("tables (patterns)", [_table_line(t, names) for t in sorted(tables)]),
+                            ("in-process queues", queues),
                             ("url literals", sorted(urls)), ("env keys", sorted(envs))):
             if vals:
                 lines.append(f"- **{label}:** " + "; ".join(vals))

@@ -12,7 +12,7 @@ from .direction import apply_defaults
 from .layout import layout
 from .roles import ROLES, package_roles
 
-SEMANTIC_KINDS = {"service", "library", "datastore", "table", "external", "topic"}
+SEMANTIC_KINDS = {"service", "library", "datastore", "table", "external", "topic", "in-process-queue"}
 GITIGNORE = ["structure.json", "summary.md", "meaning.json", "meaning.previous.json", "stale.json",
              "code-map.invalid.json",
              "index.html", "export-comment.md", "audit.md"]

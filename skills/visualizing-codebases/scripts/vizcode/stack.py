@@ -13,7 +13,7 @@ from .adapters.langs import ALL, SPECS
 
 LANGS = ("python", "scala", *dict.fromkeys(spec.lang for spec in ALL))
 KINDS = ("sql-db", "doc-db", "cache", "http-in", "http-out", "http", "ws", "event", "grpc", "cloud-sdk", "spark")
-GROUPS = ("imports", "routes", "effects", "ignore", "tables")
+GROUPS = ("imports", "routes", "effects", "ignore", "tables", "queues")
 READERS = ("literal", "segments")
 HEADER = ("# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.\n"
           "# Libraries and route styles the scanner does not know built in. Commit it; edit it by hand if a fact is wrong.\n")
@@ -71,6 +71,16 @@ class TablePattern:
 
 
 @dataclass(frozen=True)
+class QueuePattern:
+    lang: str
+    name: str
+    regex: re.Pattern
+    when: str | None
+    delivery: str          # queue | fan-out
+    source: str
+
+
+@dataclass(frozen=True)
 class Effect:
     name: str
     match: str
@@ -84,6 +94,7 @@ class Stack:
     effects: dict[str, list[Effect]] = field(default_factory=dict)
     patterns: list[RoutePattern | AnnotatedPattern] = field(default_factory=list)
     tables: list[TablePattern] = field(default_factory=list)
+    queues: list[QueuePattern] = field(default_factory=list)
     digest: str | None = None
     overrides: list[dict] = field(default_factory=list)
 
@@ -322,6 +333,29 @@ def _add_tables(st: Stack, fname: str, lang: str, entries: list, source: str) ->
                TablePattern(lang, name, regex, _trim(e.get("when"), lang), source))
 
 
+def _add_queues(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    for i, e in enumerate(entries):
+        where = f"{lang}.queues[{i}]"
+        name = e.get("name") if isinstance(e, dict) and isinstance(e.get("name"), str) else None
+        if not isinstance(e, dict):
+            raise _fail(fname, where, None, "must be a mapping")
+        if extra := sorted(set(e) - {"name", "regex", "when", "delivery"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        for key in ("name", "regex"):
+            if not isinstance(e.get(key), str) or not e[key]:
+                raise _fail(fname, where, name, f"missing {key}")
+        if e.get("delivery") not in ("queue", "fan-out"):
+            raise _fail(fname, where, name, "delivery must be queue or fan-out")
+        if e.get("when") is not None and not isinstance(e["when"], str):
+            raise _fail(fname, where, name, "when must be an import prefix")
+        try:
+            regex = re.compile(e["regex"], re.M)
+        except re.error as err:
+            raise _fail(fname, where, name, f"regex does not compile: {err}") from None
+        _place(st, st.queues, "queues", fname, where, name,
+               QueuePattern(lang, name, regex, _trim(e.get("when"), lang), e["delivery"], source))
+
+
 def _read(st: Stack, fname: str, doc, source: str) -> None:
     if doc is None:
         return
@@ -351,6 +385,8 @@ def _read(st: Stack, fname: str, doc, source: str) -> None:
                 _add_effects(st, fname, lang, entries)
             elif group == "tables":
                 _add_tables(st, fname, lang, entries, source)
+            elif group == "queues":
+                _add_queues(st, fname, lang, entries, source)
             else:
                 _add_routes(st, fname, lang, entries, source)
 
@@ -572,6 +608,22 @@ def find_tables(st: Stack, lang: str, src: str, imports: list[str], spans: list[
                 where, kind = file_id, "access"
             out.append({"table": table, "line": line, "in": where, "kind": kind, "pattern": pat.name,
                         "source": pat.source})
+    return out
+
+
+def find_queues(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
+                file_id: str) -> list[dict]:
+    """In-process queue creation sites from every queue pattern of the language that applies to the file. `in` is
+    the innermost method around the match, else the file."""
+    out = []
+    for pat in st.queues:
+        if pat.lang != lang or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
+            continue
+        for m in pat.regex.finditer(src):
+            line = src.count("\n", 0, m.start()) + 1
+            method = [s for s in spans if s[0] <= line <= s[1]]
+            out.append({"line": line, "in": max(method, key=lambda s: s[0])[2] if method else file_id,
+                        "delivery": pat.delivery, "pattern": pat.name, "source": pat.source})
     return out
 
 
@@ -976,7 +1028,7 @@ def _patterns(st: Stack, files: dict[str, dict], langs: set[str]) -> list[dict]:
     for name, lang in BUILT_IN.items():
         if hits := hits_of("routes", lang, name):
             out.append(entry("routes", lang, name, "built in", hits, hits[0][0]))
-    for group, pats in (("routes", st.patterns), ("tables", st.tables)):
+    for group, pats in (("routes", st.patterns), ("tables", st.tables), ("queues", st.queues)):
         for pat in pats:
             if pat.lang not in langs:
                 continue

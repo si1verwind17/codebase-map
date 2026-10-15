@@ -7,7 +7,7 @@ from .fingerprint import entry_fingerprint, type_fingerprint
 
 LABEL = "example values, not computed"
 ENTRY_KINDS = ("request", "event", "stream", "batch")          # a relation of these kinds ending at a method
-TRACE_KINDS = ("calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call")   # spec §3.3
+TRACE_KINDS = ("calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off")   # spec §3.3
 HOPS = 2
 CONTAINER_KINDS = ("service", "library", "package", "file", "class")
 STALE_HINT = "stale — rewrite its value against the code, or delete it when its {gone} is gone; then delete the flag"
