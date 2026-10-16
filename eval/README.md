@@ -35,6 +35,7 @@ One file each in [`scenarios/`](scenarios/): its fixture, prompt and checks.
 | [Scenario 4](scenarios/4-rescan-viewer-pins.md) | a rescan with a changed type and pins from the viewer (skill arm only) |
 | [Scenario 5](scenarios/5-known-packs.md) | packs that know the stack (skill arm only) |
 | [Scenario 6](scenarios/6-airflow-etl.md) | an Airflow ETL repo (skill arm only) |
+| [Scenario 7](scenarios/7-in-process-queue.md) | an in-process queue between a route and a background worker (skill arm only) |
 
 ## Editing this skill
 
@@ -45,6 +46,7 @@ A meaning-rule change that can alter facts on existing maps → add a section to
 - Pack entries replaced by name in `stack.yaml`: no scenario yet.
 - `ext.missing` cleared by a `problems` entry, and example keys under a mount: the rule is in SKILL.md; no scenario
   exercises it on purpose yet.
+- Actor and sharded-entity messages as `request`s (SKILL.md § Matching interactions): no scenario yet.
 
 ## Latest results
 
@@ -59,3 +61,4 @@ by an independent judge on Opus.
 | 4 | 33e60cd | 5/5 | stale examples rewritten with the new field; the user's `pin:` converted the agent's identical pin |
 | 5 | 33e60cd | 15/15 (3 repos) | Rails `resources`, Laravel without a `use`, Spring with a Feign client; an example per key |
 | 6 | 33e60cd | 10/10 | Airflow DAGs under the scheduler, the hand-run backfill apart, the generic copy's tables, the trigger |
+| 7 | 5008e58 | 6/6 | the queue joined `place` to `cook` (the method that handles each ticket); `stock.py`'s local queue left as a problem |
