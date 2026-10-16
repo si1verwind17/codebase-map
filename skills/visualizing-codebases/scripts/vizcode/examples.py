@@ -236,6 +236,16 @@ def stamped(examples: dict | None, nodes: dict[str, dict]) -> dict:
     return {"types": types, "entries": entries}
 
 
+def _field_diff(cls: dict | None, value) -> dict:
+    """What a stale type example's value misses against its class now: `value_lacks` (fields the value has no key
+    for, such as a field added since) and `value_extra` (keys that are no longer fields); empty lists left out."""
+    if not _class_with_fields(cls) or not isinstance(value, dict):
+        return {}
+    names = [f["name"] for f in cls["fields"]]
+    diff = {"value_lacks": [f for f in names if f not in value], "value_extra": [k for k in value if k not in names]}
+    return {k: v for k, v in diff.items() if v}
+
+
 def flag_stale(examples: dict | None, nodes: dict[str, dict]) -> tuple[dict, list[dict]]:
     """The previous map's examples against a new structure's `nodes`: each whose class or handler is gone (or the class
     lost its fields), or whose stored fingerprint differs from the one recomputed now, gets `stale: true`. Returns
@@ -248,7 +258,7 @@ def flag_stale(examples: dict | None, nodes: dict[str, dict]) -> tuple[dict, lis
         fresh = _class_with_fields(n) and type_fingerprint(n) == e.get("fingerprint") and not e.get("stale")
         types[cid] = e if fresh else {**e, "stale": True}
         if not fresh:
-            flagged.append({"type": cid})
+            flagged.append({"type": cid, **_field_diff(n, e.get("value"))})
     entries = []
     for e in ex.get("entries", []):
         n = nodes.get(e.get("node"))

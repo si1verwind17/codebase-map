@@ -130,10 +130,19 @@ def test_flag_stale_by_fingerprint_and_by_gone_nodes():
     nodes(new)[ORDER]["fields"][1]["type"] = "int"                 # Order.total changed type
     new["nodes"] = [n for n in new["nodes"] if n["id"] not in (LINE, CONSUME)]   # Line and consume are gone
     got, flagged = examples.flag_stale(ex, nodes(new))
-    assert flagged == [{"type": ORDER}, {"type": LINE}, {"entry": CREATE, "key": "POST /orders"},
-                       {"entry": CONSUME, "key": "orders"}]
+    assert flagged == [{"type": ORDER, "value_lacks": ["id", "total"]}, {"type": LINE},
+                       {"entry": CREATE, "key": "POST /orders"}, {"entry": CONSUME, "key": "orders"}]
     assert got["types"][ORDER]["stale"] is True and got["entries"][0]["stale"] is True
     assert "stale" not in ex["types"][ORDER]   # the input is not changed
+
+
+def test_a_stale_type_names_the_fields_its_value_lacks_and_the_keys_no_longer_fields():
+    m = cmap()
+    ex = examples.stamped({"types": {ORDER: {"value": {"id": "o-1", "total": 9.5}}}, "entries": []}, nodes(m))
+    new = copy.deepcopy(m)
+    nodes(new)[ORDER]["fields"] = [{"name": "id", "type": "str"}, {"name": "renewals", "type": "int"}]
+    _, flagged = examples.flag_stale(ex, nodes(new))
+    assert flagged == [{"type": ORDER, "value_lacks": ["renewals"], "value_extra": ["total"]}]
 
 
 def test_an_unflagged_example_stays_the_same_object_shape():

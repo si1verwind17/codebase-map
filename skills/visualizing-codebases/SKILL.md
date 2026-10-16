@@ -83,8 +83,11 @@ inside the repo).
      change carry `"stale": true` (`stale.json` lists them with the changed
      files). Re-resolve each flagged fact against the new code: keep it
      (delete the flag), change it (edit, delete the flag), or drop it. A
-     flagged example is rewritten, or deleted when its class or handler is
-     gone (§ Examples). Look at added source files for new facts. Leave
+     flagged example is never just kept: its class's fields or its handler's
+     signature changed, so rewrite its value from the current ones
+     (`stale.json` names the fields a type's value lacks, `value_lacks`, and
+     the keys that are no longer fields, `value_extra`), or delete it when its
+     class or handler is gone (§ Examples). Look at added source files for new facts. Leave
      unflagged facts alone.
      `assemble.py` refuses the map while any flag remains.
    - `full` → do the whole meaning pass; `stale.json` says why. If
