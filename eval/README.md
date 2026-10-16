@@ -55,10 +55,10 @@ by an independent judge on Opus.
 
 | Scenario | Skill@ | Result | Notes |
 |---|---|---|---|
-| 1 | 33e60cd | 8/8 (2 repos) | Flask and http4s worked out from the code; SKILL.md's worked `stack.yaml` uses other stacks, so nothing was copied |
-| 2 | 33e60cd | 10/10 (2 repos) | Fiber and Hono routes, mounts and sinks; the Reported check graded from `stack.yaml` |
-| 3 | 33e60cd | 5/5 | 3 pins, an example per entry point and data type, fingerprints left to `assemble.py` |
-| 4 | 33e60cd | 5/5 | stale examples rewritten with the new field; the user's `pin:` converted the agent's identical pin |
-| 5 | 33e60cd | 15/15 (3 repos) | Rails `resources`, Laravel without a `use`, Spring with a Feign client; an example per key |
-| 6 | 33e60cd | 10/10 | Airflow DAGs under the scheduler, the hand-run backfill apart, the generic copy's tables, the trigger |
+| 1 | 5008e58 | 8/8 (2 repos) | Flask and http4s worked out from the code; each route pattern matched only route lines |
+| 2 | 5008e58 | 12/12 (2 repos) | Fiber and Hono routes, mounts and sinks; the Reported check graded from `stack.yaml` |
+| 3 | 5008e58 | 4/5 | 3 pins, an example per entry point and data type, fingerprints left to `assemble.py`; the reply's "4 relations" counted only the runtime ones of 8 |
+| 4 | 24fc1e0 | 5/5 | `renewals` written into the stale examples once `stale.json` named it (`value_lacks`); two runs before that change cleared the flags unchanged (3/5) |
+| 5 | 5008e58 | 15/15 (3 repos) | Rails `resources`, Laravel without a `use`, Spring with a Feign client; library's `PUT /members/{member_no}` got no relation (check 4 covers shop and orders) |
+| 6 | 5008e58 | 6/10, 9/10 (2 runs) | run to run variance: `main`'s skill scored 8/10 on the same fixture; misses: `common` not a library (so no `via`), the trigger, the wildcard key; both runs cite the backfill's README line one line early |
 | 7 | 5008e58 | 6/6 | the queue joined `place` to `cook` (the method that handles each ticket); `stock.py`'s local queue left as a problem |
