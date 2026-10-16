@@ -63,6 +63,12 @@ Later, run it again, or ask:
 The map lands in `docs/viz-code/`. Open `docs/viz-code/index.html`, and commit `code-map.json`, `stack.yaml` and
 `README.md` from that folder; the rest are working files, already gitignored.
 
+**Found something it gets wrong?** Run the skill with `send-feedback`
+(`/codebase-map:visualizing-codebases send-feedback`), or ask your agent to send feedback on the code map. It drafts
+an issue for this repository with your code's names left out, shows you the exact text, and opens GitHub's form; you
+read it and submit it yourself. Or [open an issue](https://github.com/si1verwind17/codebase-map/issues/new/choose)
+directly.
+
 **Languages:** Scala, Python, Java, Kotlin, TypeScript, JavaScript, Go, C#, Rust, Ruby and PHP. A generic reader
 maps classes, methods, calls and imports in any of them, whatever the framework. Common frameworks' routes and
 libraries are known out of the box (Spring, NestJS, Express, FastAPI, Rails, Laravel, ASP.NET, Axum and more); for

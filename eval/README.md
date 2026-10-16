@@ -36,6 +36,7 @@ One file each in [`scenarios/`](scenarios/): its fixture, prompt and checks.
 | [Scenario 5](scenarios/5-known-packs.md) | packs that know the stack (skill arm only) |
 | [Scenario 6](scenarios/6-airflow-etl.md) | an Airflow ETL repo (skill arm only) |
 | [Scenario 7](scenarios/7-in-process-queue.md) | an in-process queue between a route and a background worker (skill arm only) |
+| [Scenario 8](scenarios/8-send-feedback.md) | send feedback: the notice, no names in the issue, a yes to the exact text (skill arm only; one headless session per user turn) |
 
 ## Editing this skill
 
@@ -62,3 +63,4 @@ by an independent judge on Opus.
 | 5 | 5008e58 | 15/15 (3 repos) | Rails `resources`, Laravel without a `use`, Spring with a Feign client; library's `PUT /members/{member_no}` got no relation (check 4 covers shop and orders) |
 | 6 | 5008e58 | 6/10, 9/10 (2 runs) | run to run variance: `main`'s skill scored 8/10 on the same fixture; misses: `common` not a library (so no `via`), the trigger, the wildcard key; both runs cite the backfill's README line one line early |
 | 7 | 5008e58 | 6/6 | the queue joined `place` to `cook` (the method that handles each ticket); `stock.py`'s local queue left as a problem |
+| 8 | 521feb7 | 5/5 | graded with check 3 as now written (strictly, 4/5: turn 4 asked again naming the digest of the text shown in full at turn 2). Earlier runs on the branch: 4/5 retyped and summarised previews, then 4/5 described a register call instead of the decorator; the procedure now asks for the code to be read and the preview pasted whole. Each run said the scan had no map yet, and one offered to finish the run first |

@@ -26,6 +26,8 @@ Kotlin, TypeScript, JavaScript, Go, C#, Rust, Ruby and PHP.
 Framework knowledge is data: built-in packs plus the `OUT/stack.yaml` you
 write for each repo (§ Stack).
 Field-by-field format, ids and a complete example: `format.md`.
+Asked to send feedback on the skill (`send-feedback`, or in plain words):
+follow `feedback.md` instead of a run.
 
 ## Setup
 
@@ -140,6 +142,13 @@ inside the repo).
    `meaning.json`, `meaning.previous.json`, `stale.json`, `index.html`,
    `audit.md`) are working files, already gitignored.
    `CHANGES.md` is the skill's, not the user's: never edit it.
+   When the run left something the skill could not handle — an audit
+   error, a map limit, a content warning you could not clear, a Stack line
+   left unresolved, a note "not supported yet", a script that failed — end
+   the report with one paragraph: the skill's maintainers would like to
+   hear about it to improve the skill; the user can send it with
+   `send-feedback`; nothing goes without their review and yes. Do not start
+   it yourself.
 
 Read `summary.md`, not `structure.json` (it can be megabytes). Look up ids with
 `$PY SKILL_DIR/scripts/find.py OUT/structure.json TEXT [--kind method]`.
