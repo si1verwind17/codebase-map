@@ -10,6 +10,7 @@ import { floorLayers, listEntry } from "../../src/model/layers";
 import type { CodeMap } from "../../src/model/types";
 import { planFloor } from "../../src/factory/plan";
 import { codeLinkCount } from "../../src/factory/conduits";
+import { doorWords } from "../../src/factory/boxname";
 import { toGeometry } from "../../src/factory/layout";
 import { trainPaths } from "../../src/factory/rail-place";
 import { fitScale } from "../../src/floor/fitscale";
@@ -649,6 +650,68 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.waitForFunction(() => /feature-store/.test(document.querySelector(".insp h2")?.textContent ?? ""), null, { timeout: 5_000 });
       await expect(page.locator(".insp .sub").first().textContent()).resolves.toMatch(/batch rail · 1 job/);
       await expect(page.locator(".insp .rels li").count()).resolves.toBe(1);
+    } finally {
+      await browser.close();
+    }
+    expect(errors).toEqual([]);
+  }, 90_000);
+
+  it("factory view: a door's double-click goes in to the door back on the far side, and that door leads back", async () => {
+    const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
+    const model = new Model(JSON.parse(map) as CodeMap);
+    const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
+    const file = join(mkdtempSync(join(tmpdir(), "viz-")), "index.html");
+    writeFileSync(file, html);
+    const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
+    const errors: string[] = [];
+    const FEATURES = "features::features.workflows", FORECAST = "svc:demand-forecast";
+    // the centre of door `door` on floor `c` at Fit (the scene's fit(): the floor centred at fitScale)
+    const doorAt = async (page: import("playwright-core").Page, c: string, door: string) => {
+      const { bundles, doors } = model.bundles(c);
+      const tf = planFloor(model, c, doors, bundles).tf, { w, h } = toGeometry(tf).bounds, r = tf.boxes.get(door)!;
+      const box = (await page.locator("canvas").boundingBox())!;
+      const s = Math.max(0.12, Math.min(1.4, fitScale(w, h, box.width, box.height, c === "site")));
+      return { x: box.x + (box.width - w * s) / 2 + (r.x + r.w / 2) * 24 * s, y: box.y + (box.height - h * s) / 2 + 14 * s + (r.y + r.h / 2) * 24 * s };
+    };
+    const onFloor = (page: import("playwright-core").Page, name: string) =>
+      page.waitForFunction((n) => (document.querySelector(".floors button[aria-current=page]")?.textContent ?? "").includes(n)
+        && [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), name, { timeout: 30_000 });
+    const fit = async (page: import("playwright-core").Page) => {
+      await page.getByRole("button", { name: "Fit" }).click();
+      await page.waitForFunction(() => document.querySelector("canvas")?.dataset.camera === "idle", null, { timeout: 5_000 });
+    };
+    try {
+      expect(model.doorLanding(FEATURES, FORECAST)).toEqual({ floor: FORECAST, door: "door:svc:feature-store" });
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto("file://" + file);
+      await page.waitForSelector("canvas");
+      // features' workflows.py: its door to demand-forecast carries the reference task forecast runs there
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get("features::features.workflows#compute_zone_features/1")!);
+      await page.locator(".rail .list button").first().click();
+      await onFloor(page, "workflows.py");
+      await fit(page);
+      const out = await doorAt(page, FEATURES, "door:svc:demand-forecast");
+      await page.mouse.dblclick(out.x, out.y);
+      // not F0: in to demand-forecast's own floor, where the stand-in rail meets the door back to feature-store
+      await onFloor(page, "demand-forecast");
+      await page.waitForFunction(() => /feature-store/.test(document.querySelector(".insp h2")?.textContent ?? ""), null, { timeout: 5_000 });
+      await fit(page);
+      const back = await doorAt(page, FORECAST, "door:svc:feature-store");
+      await page.mouse.dblclick(back.x, back.y);
+      await onFloor(page, "workflows.py");
+      await page.waitForFunction(() => /demand-forecast/.test(document.querySelector(".insp h2")?.textContent ?? ""), null, { timeout: 5_000 });
+      // a door deeper in is named after the building it opens: reservations' quote calls pricing's QuoteEndpoint
+      const quote = "reservations::city.parking.reservations.PricingClient.Live", PRICING = "svc:pricing";
+      const words = doorWords(model, quote, PRICING), lands = model.doorLanding(quote, PRICING)!;
+      expect(words).toBe(`${model.codes.get(lands.floor)} QuoteEndpoint`);
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(quote + "#quote/2")!);
+      await page.locator(".rail .list button").first().click();
+      await onFloor(page, "Live");
+      await fit(page);
+      const to = await doorAt(page, quote, "door:" + PRICING);
+      await page.mouse.dblclick(to.x, to.y);
+      await onFloor(page, "QuoteEndpoint");
     } finally {
       await browser.close();
     }

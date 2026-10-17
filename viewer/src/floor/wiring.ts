@@ -21,7 +21,8 @@ function hoverRing(st: SceneState, m: Machine, v: Container) {
 export function wireDoor(st: SceneState, model: Model, m: Machine, v: Container, hl: Graphics, restyle: () => void) {
   const d = st.doors.get(m.id)!;
   const hint = new Container();
-  const ht = new Text({ resolution: 2, text: `Double-click to go to ${model.codes.get(d.anchor) ?? ""} ${model.label(d.anchor)}`, style: label(11.5, "600", C.paper) });
+  const shows = model.doorShows(st.container, d.anchor), named = (id: string) => `${model.codes.get(id) ?? ""} ${model.label(id)}`;
+  const ht = new Text({ resolution: 2, text: `Double-click to go to ${named(shows)}${shows === d.anchor ? "" : ` in ${named(d.anchor)}`}`, style: label(11.5, "600", C.paper) });
   const hx = d.side === "out" ? m.x + m.w - ht.width - 12 : m.x;
   hint.addChild(new Graphics().rect(hx, m.y - 26, ht.width + 12, 20).fill(C.ink), ht);
   ht.position.set(hx + 6, m.y - 23);

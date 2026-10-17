@@ -71,6 +71,23 @@ describe("Model", () => {
     expect(m.anchorFor("worker::worker.main", "shop::io.demo.shop.repo.PgOrderRepo#save/2")).toBe("svc:shop");
   });
 
+  it("leads a door to the door back on the far side, on the deepest floor that shows it", () => {
+    const m = new Model(map);
+    // worker.main's door to worker.util/ lands where the call ends, at helpers' door back to worker/
+    expect(m.doorLanding("worker::worker.main", "worker::worker.util/")).toEqual({ floor: "worker::worker.util.helpers", door: "door:worker::worker/" });
+    // and that door leads back: the same pair of doors, each the other's way in
+    expect(m.doorLanding("worker::worker.util.helpers", "worker::worker/")).toEqual({ floor: "worker::worker.main", door: "door:worker::worker.util/" });
+    // a door to a library goes into the library, to the floor of the code called
+    expect(m.doorLanding("svc:worker", "lib:common")).toEqual({ floor: "pylib::pylib.client", door: "door:svc:worker" });
+    // no floor of its own (a topic), or none inside that draws the line back (worker's requests start at the service
+    // itself): the door stops at the anchor, as before
+    expect(m.doorLanding("worker::worker.main", "topic:kafka:orders")).toBeUndefined();
+    expect(m.doorLanding("svc:shop", "svc:worker")).toBeUndefined();
+    // a door is named after the building it opens, else its anchor
+    expect(m.doorShows("worker::worker.main", "worker::worker.util/")).toBe("worker::worker.util.helpers");
+    expect(m.doorShows("worker::worker.main", "topic:kafka:orders")).toBe("topic:kafka:orders");
+  });
+
   it("keeps a database's own id and name inside buildings (no door, same warehouse as on the site)", () => {
     const m = new Model(map);
     const { doors, bundles } = m.bundles("shop::io.demo.shop.repo.PgOrderRepo");

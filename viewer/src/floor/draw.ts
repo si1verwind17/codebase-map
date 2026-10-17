@@ -38,15 +38,15 @@ export function drawDoor(st: SceneState, model: Model, m: Machine, restyle: () =
   g.moveTo(ax, m.y + m.h / 2).lineTo(ax + 10, m.y + m.h / 2).stroke({ width: 2.5, color: C.ink });
   v.addChild(g);
   const head = new Text({ resolution: 2, text: d.side === "out" ? "TO" : "FROM", style: label(9.5, "700", C.slate) });
-  const words = doorWords(model, d.anchor, model.path(st.container).map((c) => model.label(c)));
+  const words = doorWords(model, st.container, d.anchor);
   const fit = fitDoorName(words, m.w);   // boxname.ts: the audit reads the same fit
   const name = new Text({ resolution: 2, text: fit.lines.join("\n"), style: new TextStyle({ fontFamily: FONT, fontSize: fit.size, fontWeight: "600", fill: C.ink, lineHeight: fit.size + 2.5 }) });
   const x0 = doorText(m, d.side).x;
   head.position.set(x0, m.y + 5);
   name.position.set(x0, m.y + 19);
   v.addChild(head, name);
-  // zoomed far out the door shows its anchor's code, not the unreadable name
-  const big = bigCode(model.codes.get(d.anchor) ?? "", m.x, m.y, m.w, m.h);
+  // zoomed far out the door shows the code of the building it opens, not the unreadable name
+  const big = bigCode(model.codes.get(model.doorShows(st.container, d.anchor)) ?? "", m.x, m.y, m.w, m.h);
   v.addChild(big);
   st.codeParts.push({ names: [name], big, smalls: [{ objs: [head], size: 9.5 }] });
   st.minName = Math.min(st.minName, fit.size);

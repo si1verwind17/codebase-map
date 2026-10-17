@@ -66,8 +66,8 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   for (const f of st.flights) addFlight(st, f);   // under every belt, as drone routes are
   // a tile two or more lines share lists them on hover; ends are named as their boxes are (short code and name)
   const end = (id: string) => {
-    const anchor = st.doors.get(id)?.anchor;
-    return { code: model.codes.get(anchor ?? id) ?? "", name: anchor ? model.label(anchor) : shortName(st, model, id) };
+    const anchor = st.doors.get(id)?.anchor, shows = anchor && model.doorShows(st.container, anchor);
+    return { code: model.codes.get(shows || id) ?? "", name: shows ? model.label(shows) : shortName(st, model, id) };
   };
   paintLines(st, routes, bundleOf, trunkHover(st, routes, bundleOf, end), st.layers.lines, st.lineViews, tf.cols);
   // each extra layer's lines (spec §15), painted as the base's are, in its own container above them: hidden until shown

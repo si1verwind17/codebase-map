@@ -96,8 +96,11 @@ zoom level the reviewer chooses.
   each foldable.
 - **Navigation:** a floor switcher (F0 site … Fn) shows where the reader is
   and opens the selected building; double-click and zoom both enter and leave
-  floors symmetrically. Lines leaving a floor end at doors on its frame;
-  databases appear inside buildings as the same named warehouse and bus lane
+  floors symmetrically. Lines leaving a floor end at doors on its frame; a
+  door's double-click travels out to the floor both sides share, then in to
+  the deepest floor that still shows the door back, and selects that door
+  (a door with no such floor stops at the building it names). A door is
+  named after the building its double-click opens; databases appear inside buildings as the same named warehouse and bus lane
   as on the site floor.
 - **Comments:** attached to a node id; kept in browser storage while working;
   exported as `export-comment.md` in the map's output folder

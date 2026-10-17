@@ -1,4 +1,4 @@
-// audit-inputs: 85fd5b0727ac8f1f1889c614bb67da2a763d78ae8b8a49fd8ca7f22b2d7c41e5
+// audit-inputs: 0aad08084b38d9eb5d88cd0fcc990e569d92ffae091cf88826c04d47e49cc9c5
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -39,6 +39,7 @@ var Model = class {
 	memberOf = /* @__PURE__ */ new Map();
 	twinHome = /* @__PURE__ */ new Map();
 	implementers = /* @__PURE__ */ new Map();
+	landings = /* @__PURE__ */ new Map();
 	constructor(map) {
 		if (!map || typeof map !== "object" || !map.meta) throw new MapError("This file is not a code map.");
 		const v = map.meta.schema_version;
@@ -311,6 +312,39 @@ var Model = class {
 	anchorFor(container, other) {
 		const shared = this.commonFloor(container, this.floorOf(other) ?? "site");
 		return this.liftTo(shared, other) ?? other;
+	}
+	/** Where the door to `anchor` on `container`'s floor leads: the door back on the far side, on the deepest floor inside
+	*  `anchor` that still shows it, on the way down to the far ends of the relations through the door (an end that is
+	*  `anchor` itself, a job its service runs, is drawn on `anchor`'s own floor). Undefined when `anchor` has no floor
+	*  showing a door back: the door then leads to `anchor` on the floor both share. */
+	doorLanding(container, anchor) {
+		const k = `${container}|${anchor}`;
+		if (!this.landings.has(k)) this.landings.set(k, this.landing(container, anchor));
+		return this.landings.get(k);
+	}
+	/** What the door to `anchor` on `container`'s floor is named after: the building its double-click opens (the floor
+	*  doorLanding finds), else `anchor`. */
+	doorShows(container, anchor) {
+		return this.doorLanding(container, anchor)?.floor ?? anchor;
+	}
+	landing(container, anchor) {
+		if (!this.floor(anchor)) return void 0;
+		let far;
+		for (const o of this.bundles(container).outward) {
+			if (this.anchorFor(container, o.other) !== anchor) continue;
+			const f = this.floorOf(o.other) ?? "site";
+			const home = this.path(f).includes(anchor) ? f : anchor;
+			far = far === void 0 ? home : this.commonFloor(far, home);
+		}
+		if (far === void 0) return void 0;
+		const down = this.path(far);
+		for (let i = down.length - 1; i >= down.indexOf(anchor); i--) {
+			const door = this.doorId(this.anchorFor(down[i], container));
+			if (this.bundles(down[i]).doors.some((d) => d.id === door)) return {
+				floor: down[i],
+				door
+			};
+		}
 	}
 	/** Which services write and read a table, as short codes (S1 S4), for the warehouse shelves. */
 	tableAccess(table) {
@@ -4040,8 +4074,12 @@ var NAME_FITS = {
 	name: fitName,
 	chest: chestFit
 };
-/** A door's words: its anchor's code, then the anchor's name relative to the floors above (`above`, their labels). */
-var doorWords = (model, anchor, above) => `${model.codes.get(anchor) ?? ""} ${doorName(model.label(anchor), above)}`;
+/** The words of the door to `anchor` on `container`'s floor: the code of the building it opens (Model.doorShows), then
+*  that building's name relative to the floors above. */
+function doorWords(model, container, anchor) {
+	const shows = model.doorShows(container, anchor);
+	return `${model.codes.get(shows) ?? ""} ${doorName(model.label(shows), model.path(container).map((c) => model.label(c)))}`;
+}
 /** A 7-tile door's name (`drawDoor`): wrapped by its width `w` px less 34, 2 lines down to 10 px. */
 var fitDoorName = (words, w, fits = NAME_FITS) => fits.name(words, w - 34, 2, [
 	12.5,
@@ -4058,14 +4096,14 @@ function nameContext(model, container, boxes, doors) {
 	return {
 		doorOf: new Map(doors.map((d) => [d.id, d])),
 		prefix: floorPrefix(model, [...boxes].filter((b) => b.kind !== "door").map((b) => b.id)),
-		above: model.path(container).map((c) => model.label(c))
+		container
 	};
 }
 /** The name a box shows and its fit, as factory-draw.ts draws it: a door-footprint box its door's words (`drawDoor`); a
 *  door box on another footprint its anchor's label; a machine its shown name (`paintBox`). */
 function boxNameFit(model, ctx, b, fits = NAME_FITS) {
 	if (b.foot === "door") return {
-		...fitDoorName(doorWords(model, ctx.doorOf.get(b.id).anchor, ctx.above), b.w * 24, fits),
+		...fitDoorName(doorWords(model, ctx.container, ctx.doorOf.get(b.id).anchor), b.w * 24, fits),
 		door: true
 	};
 	const door = b.kind === "door" ? ctx.doorOf.get(b.id) : void 0;

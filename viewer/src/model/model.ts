@@ -50,6 +50,7 @@ export class Model {
   private memberOf = new Map<string, string>();
   private twinHome = new Map<string, string>();   // "twin:<pkg>" -> the service floor that shows it
   private implementers = new Map<string, string[]>();   // trait/class id -> ids of the classes that implement it
+  private landings = new Map<string, { floor: string; door: string } | undefined>();   // "<container>|<anchor>" -> doorLanding
 
   constructor(map: CodeMap) {
     if (!map || typeof map !== "object" || !map.meta) throw new MapError("This file is not a code map.");
@@ -306,6 +307,40 @@ export class Model {
   anchorFor(container: string, other: string): string {
     const shared = this.commonFloor(container, this.floorOf(other) ?? SITE);
     return this.liftTo(shared, other) ?? other;
+  }
+
+  /** Where the door to `anchor` on `container`'s floor leads: the door back on the far side, on the deepest floor inside
+   *  `anchor` that still shows it, on the way down to the far ends of the relations through the door (an end that is
+   *  `anchor` itself, a job its service runs, is drawn on `anchor`'s own floor). Undefined when `anchor` has no floor
+   *  showing a door back: the door then leads to `anchor` on the floor both share. */
+  doorLanding(container: string, anchor: string): { floor: string; door: string } | undefined {
+    const k = `${container}|${anchor}`;
+    if (!this.landings.has(k)) this.landings.set(k, this.landing(container, anchor));
+    return this.landings.get(k);
+  }
+
+  /** What the door to `anchor` on `container`'s floor is named after: the building its double-click opens (the floor
+   *  doorLanding finds), else `anchor`. */
+  doorShows(container: string, anchor: string): string {
+    return this.doorLanding(container, anchor)?.floor ?? anchor;
+  }
+
+  private landing(container: string, anchor: string): { floor: string; door: string } | undefined {
+    if (!this.floor(anchor)) return undefined;
+    let far: string | undefined;
+    for (const o of this.bundles(container).outward) {
+      if (this.anchorFor(container, o.other) !== anchor) continue;
+      const f = this.floorOf(o.other) ?? SITE;
+      const home = this.path(f).includes(anchor) ? f : anchor;
+      far = far === undefined ? home : this.commonFloor(far, home);
+    }
+    if (far === undefined) return undefined;
+    const down = this.path(far);
+    for (let i = down.length - 1; i >= down.indexOf(anchor); i--) {
+      const door = this.doorId(this.anchorFor(down[i], container));
+      if (this.bundles(down[i]).doors.some((d) => d.id === door)) return { floor: down[i], door };
+    }
+    return undefined;
   }
 
   /** Which services write and read a table, as short codes (S1 S4), for the warehouse shelves. */

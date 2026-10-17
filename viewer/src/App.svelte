@@ -392,7 +392,8 @@
     }
   }
 
-  /** A door leads somewhere else: rise to the shared floor and carry a part from here to there. */
+  /** A door leads somewhere else: rise to the shared floor, carry a part from here to there, then go in floor by floor to
+   *  the door back on the far side (Model.doorLanding), where the line comes in; with no such floor, stop at `anchor`. */
   function viaDoor(anchor: string) {
     if (!model || !scene) return;
     staged(async () => {
@@ -400,14 +401,20 @@
       const a = model!.liftTo(shared, container) ?? container;
       const b = model!.liftTo(shared, anchor);
       if (!b || a === b) { revealAfter = anchor; return; }
+      const land = model!.doorLanding(container, anchor);
       await riseTo(shared);
       await pause(300);
       scene!.select({ type: "node", id: a });
       await scene!.travelTo(a, b);
+      if (land) {
+        const down = model!.path(land.floor);
+        for (let i = model!.path(container).length; i < down.length; i++) { await pause(250); await diveTo(down[i]); }
+      }
       if (trace) { pick(null); return; }   // with the trace pane open a door moves the reader only: the trace stays the subject
-      target = { type: "node", id: b };
+      const end = land?.door ?? b;
+      target = { type: "node", id: end };
       scene!.select(target);
-      scene!.light(scene!.bundleKeysOf(b));
+      scene!.light(scene!.bundleKeysOf(end));
     });
   }
 
