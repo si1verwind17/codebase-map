@@ -95,6 +95,7 @@ export function labelRects(model: Model, container: string, plan: AuditPlan, bun
     const p = planZoneLabel({ ...z, name: z.name.toUpperCase() }, clear);
     out.push({ what: `zone '${z.name}' label`, boxes: [labelBox(p, 1), labelBox(p, p.maxK)] });
   }
+  for (const r of layerTileRects(plan.layers)) clear.add(r);   // as factory-draw.ts: labels keep off every layer's lines
   if (tf.landing) {
     const prefix = floorPrefix(model, [...tf.boxes.values()].filter((b) => b.kind !== "door").map((b) => b.id));
     const band = (id: string) => { const b = tf.boxes.get(id); return b ? freeBand(b, shownName(model, id, prefix)) : undefined; };

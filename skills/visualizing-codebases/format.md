@@ -32,8 +32,8 @@ commit, 40 hex), `scanned_at`, `rules_version` (optional integer: the meaning ru
 
 Fields: `id`, `kind`, `parent`, `name`, plus `lang`, `file`, `line`,
 `visibility` (`public`/`private`), `metrics`, `signature`
-(`{params: [{name, type, refs}], returns, returns_refs}`; `refs` and `returns_refs` only where a type names a repo
-class) on methods, `fields` on a class that declares fields (both: § Fields and type links), `modules` on services and
+(`{params: [{name, type, refs, optional}], returns, returns_refs}`; `refs` and `returns_refs` only where a type names a
+repo class; `optional: true` on a parameter a call may leave out, recorded for Python and Scala) on methods, `fields` on a class that declares fields (both: § Fields and type links), `modules` on services and
 libraries (`defaulted: true` marks a library `assemble.py` created for an
 unclaimed module), `implements` on a class (scanner, Scala: the class or trait ids it extends or, for an anonymous
 body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::city.parking.billing.InvoiceRepo"]`;
@@ -140,7 +140,7 @@ declarations within its owner, never lines.
 |---|---|
 | `id` | optional in `meaning.json`; `assemble.py` fills `r:<kind>:<from>-><to>:<key>`. |
 | `kind` | `request`, `event`, `stream`, `batch`, `db-read`, `db-write`, `ext-call`, `hand-off` (a method to an in-process queue it puts items on, or the queue to the method that takes them; both ends in the queue's service); `uses-code` and `calls` (method to method, resolved by name; ambiguous ones `inferred`) come from the scanner |
-| `data` | which way data moves: `forward`, `back` or `both`; defaulted per kind, required on `stream` |
+| `data` | which way data moves: `forward`, `back` or `both`; defaulted per kind (db-read `back`, the rest `forward`), required on `stream`; a call's reply does not count, so a `request` or `ext-call` stays `forward` |
 | `from`, `to` | the finest node known: method, else class, else service |
 | `key` | protocol key: `POST /v1/orders/create`, `table public.orders`, topic name, `grpc <package>.<Service>/<Rpc>` (`grpc parking.occupancy.v1.OccupancyFeed/Stream`; `grpc <Service>/<Rpc>` when the .proto has no package) |
 | `confidence` | `confirmed` or `inferred` (needs `why`) |
@@ -248,8 +248,9 @@ Each floor: `strategy`, `items` (`{id: {region, col, row}}`), `lanes`,
 
 - **Axes.** `line` and `bus` share one column axis (data flows left to right;
   the datastore warehouses sit after the last line column). `shelf`, `bay` and
-  `hubs` each have their own column axis and one row. `grid` uses both axes
-  as plots. Rows in `line` count down from the top of the line; rows in
+  `hubs` each have their own column axis and one row (the viewer wraps a row
+  more than twice as wide as the Fit canvas, and a service's airfield to its
+  work area's width). `grid` uses both axes as plots. Rows in `line` count down from the top of the line; rows in
   `bus` are lane rows.
 - **Regions.** `line`: the production line (sources at column 0, sinks last;
   on a `bands` floor entry packages in column 0, outbound last). `bus`: on
@@ -668,8 +669,9 @@ warnings, Findings, Measured (no threshold yet), Not checked.
 | `text.over-line` | 7, 8, 45 | a zone name, a `used by N` badge or a messaging label overlaps a line tile (the base's and each layer's) or a machine box; a messaging plate is not checked against its own flight, and lane labels are not checked |
 | `zone.narrow` | 26 | a zone is narrower than its label |
 | `pads.corridor` | 32 | a drone pad takes a corridor tile |
-| `travel.long` | 25 | a drone flight or rail train takes over 3 s (guards against a future speed change) |
+| `travel.long` | 25 | a rail train takes over 3 s, or a drone flight over 5 s (guards against a future speed change) |
 | `lost.relation` | 40 | a relation that belongs on the floor is in neither the base nor a layer |
+| `floor.wide` | 46 | a floor is more than twice as wide, for its height, as the 1440×900 Fit canvas, and its names do not read at Fit (a row that should wrap) |
 
 A floor whose plan throws is one `plan.crashed` limit. Floors the 45 s budget
 did not reach are listed by floor code under "Not checked" and do not fail.
@@ -681,7 +683,8 @@ did not reach are listed by floor code under "Not checked" and do not fail.
 - **Content warnings:** `ext.missing` (a config key that looks like an
   outside endpoint names nothing on the map), `queue.missing` (an
   `in-process queues` creation site in `summary.md` that no in-process-queue
-  cites in `evidence` and no `problems` entry names as `file:line`), `module.empty` (a service or
+  cites in `evidence` and no `problems` entry names as `file:line`), `data.two-way-call` (a `request` or `ext-call`
+  with `data: both`: a call's reply is not data moving back), `module.empty` (a service or
   library with no file or package under it) and `example.missing` (an entry
   point with no example, or with a key that has none; one line each; a
   root route `GET /` under a mount stays a key of its own beside the

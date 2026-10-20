@@ -1,12 +1,12 @@
 // The map audit's shared shapes: check ids, the audit-row each belongs to, and what a check reports.
 export type CheckId = "lines.failed" | "lines.plugged" | "lines.trunks" | "lines.under" | "lines.mid-side"
   | "lines.plate-wall" | "text.cut" | "text.over-line" | "zone.narrow" | "pads.corridor" | "travel.long"
-  | "lost.relation" | "plan.crashed";
+  | "lost.relation" | "floor.wide" | "plan.crashed";
 
 /** The row of the owner's audit each check comes from. */
 export const ROW: Record<CheckId, string> = { "lines.failed": "9", "lines.plugged": "9", "lines.trunks": "9",
   "lines.under": "2", "lines.mid-side": "13", "lines.plate-wall": "30", "text.cut": "5", "text.over-line": "7, 8, 45",
-  "zone.narrow": "26", "pads.corridor": "32", "travel.long": "25", "lost.relation": "40", "plan.crashed": "—" };
+  "zone.narrow": "26", "pads.corridor": "32", "travel.long": "25", "lost.relation": "40", "floor.wide": "46", "plan.crashed": "—" };
 
 /** One broken rule: what is wrong, and where on the floor (tile coordinates) when it has a spot. */
 export interface Violation { detail: string; at?: { x: number; y: number } }

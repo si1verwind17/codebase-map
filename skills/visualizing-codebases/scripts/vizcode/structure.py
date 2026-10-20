@@ -348,6 +348,100 @@ def _pattern_queues(st: stack.Stack, lang: str, data: bytes, r: dict, module: di
     return _dedupe(st.queues, lang, found, "queues", "pattern", ("line", "in"), r)
 
 
+
+def _packages_named(r: dict, head: str) -> set[str] | None:
+    """The packages a file's `head` (an object it names) may come from: what imports it by name, else the file's
+    own package and its wildcard imports. None (any package) for a fully qualified name (`acme.api.X`)."""
+    if head[:1].islower():
+        return None
+    named, wild = set(), {r["package"]}
+    for imp in r["imports"]:
+        t, names = imp["target"], imp.get("names") or []
+        if t.endswith("." + head) and not names:
+            named.add(t[:-len(head) - 1])
+        elif head in names or head in (imp.get("renames") or {}):
+            named.add(t)
+        elif not names and not t.rsplit(".", 1)[-1][:1].isupper():
+            wild.add(t)
+    return named or wild
+
+
+def _tapir(results: dict[str, dict], file_mod: dict[str, str]) -> None:
+    """Tapir endpoints: resolve val chains per module and find the endpoints built in method and val bodies, then
+    place each where it is served. Bound to server logic (`X.endpoint.zServerLogic`, in any module): a route in the
+    binding's body. Defined in a file that interprets endpoints as requests: a client. When the repo binds no
+    endpoint at all, every other one is a route where it is defined, as before; when it does, an unbound endpoint is
+    a client if a file using an sttp client names it, and otherwise a contract described here and drawn nowhere."""
+    found = []
+    for mid in sorted({file_mod[f] for f in results if f.endswith(".scala")}):
+        vals = {}
+        for f, r in results.items():
+            if file_mod[f] == mid:
+                vals.update(r["tapir"]["vals"])
+        resolved = routes.resolve_tapir(vals)
+        for f, r in results.items():
+            if file_mod[f] != mid:
+                continue
+            known = {**resolved, routes.ROOT: []} if r["tapir"].get("root") else resolved
+            if not known:
+                continue
+            for i, (fid, line, body) in enumerate(r["tapir"]["bodies"]):
+                for method, path in routes.tapir_uses(body, known):
+                    found.append({"file": f, "fid": fid, "line": line, "method": method, "path": path,
+                                  "qual": r["tapir"].get("named", {}).get(i), "client": r["tapir"].get("client")})
+    binds: dict[tuple[str, str, int], str] = {}   # (file, endpoint as written, line) -> innermost binding body
+    for f, r in results.items():
+        for fid, written, line in r["tapir"].get("binds", []) if f.endswith(".scala") else []:
+            binds[(f, written, line)] = fid
+    binders = {(f, fid) for (f, _, _), fid in binds.items()}
+    mentions = [(f, m) for f, r in results.items() if f.endswith(".scala") for m in r["tapir"].get("mentions", [])]
+
+    def names(e: dict, f: str, written: str) -> bool:
+        """Does `written`, in file f, name endpoint e? A bare name only in e's own file; a dotted one by its tail,
+        from a package file f can see it in."""
+        if "." not in written:
+            return f == e["file"] and e["qual"].rsplit(".", 1)[-1] == written
+        if not (e["qual"] == written or e["qual"].endswith("." + written)):
+            return False
+        pkgs = _packages_named(results[f], written.split(".", 1)[0])
+        return pkgs is None or results[e["file"]]["package"] in pkgs
+
+    def bound(e: dict) -> list[tuple[str, str, int]]:
+        if (e["file"], e["fid"]) in binders:   # built in the body that binds it (or rebound to it in its file)
+            return [(e["file"], e["fid"], e["line"])]
+        if e["qual"] is None:
+            return []
+        hits = [(f, fid, line) for (f, written, line), fid in binds.items() if names(e, f, written)]
+        same = [h for h in hits if file_mod[h[0]] == file_mod[e["file"]]]
+        return same or hits
+
+    def called(e: dict) -> bool:
+        """Named (`Orders.endpoint`, `Orders.endpoint.call(..)`) in a file that uses an sttp client."""
+        if e["qual"] is None:
+            return False
+        parts = e["qual"].split(".")
+        tails = [".".join(parts[k:]) for k in range(len(parts) - 1)]
+        return any(names(e, f, t) for f, m in mentions for t in tails if m == t or m.startswith(t + "."))
+
+    served = {id(e): bound(e) for e in found if not e["client"]}
+    any_bound = any(served.values())
+    for e in found:
+        r = results[e["file"]]
+        client = {"method": e["method"], "path": e["path"], "in": e["fid"], "line": e["line"],
+                  "framework": "tapir-client"}
+        if e["client"]:   # interpreted as a request: an outbound method + path, matched against routes
+            r.setdefault("clients", []).append(client)
+        elif served[id(e)]:
+            for f, fid, line in served[id(e)]:
+                results[f]["routes"].append({"method": e["method"], "path": e["path"], "handler": fid,
+                                             "line": line, "framework": "tapir"})
+        elif not any_bound:
+            r["routes"].append({"method": e["method"], "path": e["path"], "handler": e["fid"],
+                                "line": e["line"], "framework": "tapir"})
+        elif called(e):
+            r.setdefault("clients", []).append(client)
+
+
 def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | None = None) -> dict:
     t0 = time.time()
     repo = repo.resolve()
@@ -422,28 +516,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         nodes.extend(r["nodes"])
     nodes = sorted(packages.values(), key=lambda n: n["id"]) + nodes
 
-    # tapir: resolve endpoint val chains per module, then find uses in method and val bodies
-    for mid in {file_mod[f] for f in results if f.endswith(".scala")}:
-        vals = {}
-        for f, r in results.items():
-            if file_mod[f] == mid:
-                vals.update(r["tapir"]["vals"])
-        resolved = routes.resolve_tapir(vals)
-        for f, r in results.items():
-            if file_mod[f] != mid:
-                continue
-            known = {**resolved, routes.ROOT: []} if r["tapir"].get("root") else resolved
-            if not known:
-                continue
-            client = r["tapir"].get("client")
-            for fid, line, body in r["tapir"]["bodies"]:
-                for method, path in routes.tapir_uses(body, known):
-                    if client:   # interpreted as a request: an outbound method + path, matched against routes
-                        r.setdefault("clients", []).append({"method": method, "path": path, "in": fid,
-                                                            "line": line, "framework": "tapir-client"})
-                    else:
-                        r["routes"].append({"method": method, "path": path, "handler": fid,
-                                            "line": line, "framework": "tapir"})
+    _tapir(results, file_mod)
 
     _attach(nodes, results)
     _implements(nodes, results, file_mod)

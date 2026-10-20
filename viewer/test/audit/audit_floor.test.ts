@@ -42,7 +42,7 @@ describe("floor checks return violations", () => {
 
   // Only trains and drones are timed (row 25: drones crawling along long flight paths). Belts, pipes and taps run at a
   // steady 60 px/s by design (lane.ts `moverSpeed`), so their trip grows with the line and is not checked.
-  for (const { name, p } of floors) it(`${name} floor: no train or drone takes over 3 s`, () => {
+  for (const { name, p } of floors) it(`${name} floor: no train takes over 3 s, no drone over 5 s`, () => {
     expect(travelViolations(p)).toEqual([]);
   });
 
@@ -53,9 +53,9 @@ describe("floor checks return violations", () => {
     expect(travelViolations({ ...p, routes: p.routes.map((r) => (r === belt ? long : r)) })).toEqual([]);
   });
 
-  // The viewer's trains and drones cross any path in at most 3 s (`moverSpeed` scales with the length), so a lengthened
-  // rail or flight fails only at a speed that does not scale: the tests pass one (a steady 60 px/s), as text.ts's tests
-  // pass other fitting functions.
+  // The viewer's trains cross their rail in at most 3 s, and a floor's drones its longest flight in 5 s (`moverSpeed`
+  // scales with that length), so a lengthened rail or flight fails only at a speed that does not scale: the tests pass
+  // one (a steady 60 px/s), as text.ts's tests pass other fitting functions.
   const steady = () => 60;
   it("travelViolations: a rail lengthened past 3 s is reported at a steady speed, at its first piece; the viewer's train speed keeps it within 3 s", () => {
     const p = shopSite.p, rail = p.routes.find((r) => r.kind === "rail")!;

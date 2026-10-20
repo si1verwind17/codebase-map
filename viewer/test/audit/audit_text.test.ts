@@ -20,15 +20,8 @@ const floors = [SITE, DAGS].map((c) => ({ c, ...plan(demo, c) }));
 describe("text and zone checks return violations", () => {
   for (const { c, b, p } of floors) it(`the demo's ${c} floor passes every check`, () => {
     expect(cutViolations(demo, c, p)).toEqual([]);
-    // (the site's production line zone has no clear spot in its bottom rows: its name falls back to the corner, over the
-    // stripe webhook's belt -- a real finding, pinned below)
-    expect(overLineViolations(demo, c, p, b.bundles).filter((v) => !v.detail.startsWith("zone 'production line'"))).toEqual([]);
+    expect(overLineViolations(demo, c, p, b.bundles)).toEqual([]);
     expect(narrowZoneViolations(p)).toEqual([]);
-  });
-
-  it("a real finding: the site's production line name sits over the stripe webhook's belt (no clear spot, corner fallback)", () => {
-    const { b, p } = floors[0];
-    expect(overLineViolations(demo, SITE, p, b.bundles)).toEqual([{ detail: "zone 'production line' label over a belt", at: { x: 14, y: 35 } }]);
   });
 
   it("the checks see real labels: messaging labels on the site, a `used by N` badge on dags", () => {

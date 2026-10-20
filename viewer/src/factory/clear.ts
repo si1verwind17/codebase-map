@@ -37,9 +37,12 @@ function routeRects(r: TileRoute, top = false): PxRect[] {
   const out: PxRect[] = [];
   for (const p of r.pieces) if (!top || !p.under) out.push({ x0: p.x * T, y0: p.y * T, x1: (p.x + 1) * T, y1: (p.y + 1) * T });
   if (r.pieces.length) return out;
-  for (let i = 1; i < r.points.length; i++) {
-    const a = r.points[i - 1], b = r.points[i];
-    out.push({ x0: Math.min(a.x, b.x) - LINE_HALF, y0: Math.min(a.y, b.y) - LINE_HALF, x1: Math.max(a.x, b.x) + LINE_HALF, y1: Math.max(a.y, b.y) + LINE_HALF });
+  for (let i = 1; i < r.points.length; i++) {   // squares along each segment: a diagonal's bounding box would block far too much
+    const a = r.points[i - 1], b = r.points[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / LINE_HALF));
+    for (let k = 0; k <= n; k++) {
+      const x = a.x + ((b.x - a.x) * k) / n, y = a.y + ((b.y - a.y) * k) / n;
+      out.push({ x0: x - LINE_HALF, y0: y - LINE_HALF, x1: x + LINE_HALF, y1: y + LINE_HALF });
+    }
   }
   return out;
 }
@@ -82,7 +85,8 @@ export function planZoneLabel(z: Zone, clear: Clearance): ZoneLabelPlan {
     return b.x0 >= inner.x0 && b.x1 <= inner.x1 && b.y0 >= inner.y0 && b.y1 <= inner.y1 && clear.free(b);
   };
   let best: ZoneLabelPlan | undefined;
-  for (let j = 0; j < 3; j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
+  // the bottom three rows first; with no clear spot there, every row above, lowest first
+  for (let j = 0; j < z.h && (j < 3 || !best); j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
     const p: ZoneLabelPlan = { ax: tx * T + 6, ay: (z.y + z.h) * T - 5 - j * T, w, h, maxK: 1, clear: true };
     if (!ok(p, 1)) continue;
     let lo = 1, hi = MAX_K;

@@ -18,7 +18,7 @@ def test_data_defaults_and_orientation():
 def test_assembled_relations_carry_data_direction(shop_repo):
     cmap = assemble(structure.build(shop_repo, "docs/viz-code"), copy.deepcopy(MEANING))
     rels = {r["id"]: r for r in cmap["relations"]}
-    assert rels[POST]["data"] == "both" and rels[WRITE]["data"] == "forward"
+    assert rels[POST]["data"] == "forward" and rels[WRITE]["data"] == "forward"   # a request: from the caller
     assert mapcheck.check(cmap) == []
 
 

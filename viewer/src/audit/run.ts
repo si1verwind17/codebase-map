@@ -7,7 +7,7 @@ import { planFloor, type FloorPlan } from "../factory/plan";
 import type { TileRoute } from "../factory/router";
 import { failedViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
 import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
-import { lostViolations, measure, padCorridorViolations, travelViolations, type FloorMeasures } from "./floor";
+import { lostViolations, measure, padCorridorViolations, travelViolations, wideViolations, type FloorMeasures } from "./floor";
 import { ROW, type CheckId, type CheckResult, type Violation } from "./types";
 
 /** `skipped` holds container ids; `skippedCodes` the same floors by their code, for the reader. */
@@ -26,7 +26,7 @@ const perRoute = (plan: FloorPlan, check: (r: TileRoute) => Violation[]) =>
   perView(plan, (routes) => routes.filter((r) => r.pieces.length).flatMap(check));
 
 /** Every check over one floor's plan, in the order of the check table (spec §3). */
-function checks(model: Model, c: string, plan: FloorPlan): [CheckId, () => Violation[]][] {
+function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorMeasures): [CheckId, () => Violation[]][] {
   const { tf } = plan, { bundles } = model.bundles(c);
   return [
     ["lines.failed", () => perView(plan, failedViolations)],
@@ -44,6 +44,7 @@ function checks(model: Model, c: string, plan: FloorPlan): [CheckId, () => Viola
     ["pads.corridor", () => padCorridorViolations(plan)],
     ["travel.long", () => travelViolations(plan)],
     ["lost.relation", () => lostViolations(model, c, plan)],
+    ["floor.wide", () => wideViolations(measured(), plan)],
   ];
 }
 
@@ -76,12 +77,14 @@ export function auditMap(map: CodeMap, budgetMs = 45_000, now: () => number = Da
       out.results.push(result("plan.crashed", [{ detail: `${code}: ${firstLine(e)}` }]));
       continue;
     }
-    for (const [check, run] of checks(model, c, plan)) {
+    let numbers: FloorMeasures | undefined;
+    const measured = () => (numbers ??= measure(plan, model, c));
+    for (const [check, run] of checks(model, c, plan, measured)) {
       let vs: Violation[];
       try { vs = run(); } catch (e) { vs = [{ detail: `the check crashed: ${firstLine(e)}` }]; }
       out.results.push(result(check, vs));
     }
-    try { out.measured[code] = measure(plan, model, c); } catch { /* a floor that cannot be measured has no numbers */ }
+    try { out.measured[code] = measured(); } catch { /* a floor that cannot be measured has no numbers */ }
   }
   return out;
 }

@@ -1,5 +1,6 @@
 // The line checks of the map audit: plug-in ends, the trunk rules, underground runs, mid-side ends, junction plates
 // off the walls, failed routes. Each is pure and returns its violations ([] when the rule holds). No Pixi here.
+import { reservedRects } from "../factory/pads";
 import type { TileFloor } from "../factory/layout";
 import type { TileRoute } from "../factory/router";
 import { LANE_H, OPP, STEP, inside, joinEdge, type Dir, type Piece, type Rect } from "../factory/tiles";
@@ -218,10 +219,15 @@ export function midSideViolations(tf: TileFloor, routes: TileRoute[]): Violation
     }
   }
   const out: Violation[] = [];
+  const reserved = reservedRects(tf);
   for (const e of ends) {
     if (!e.turns || e.n < 3 || !(e.i === 0 || e.i === e.n - 1)) continue;
     const mids = [Math.floor((e.n - 1) / 2), Math.ceil((e.n - 1) / 2)];
-    const taken = ends.some((o) => o.box === e.box && o.side === e.side && mids.includes(o.i));
+    const b = tf.boxes.get(e.box)!, vertical = e.side === "n" || e.side === "s";
+    // the tile just outside the side at index i: a dock or stack standing there holds the middle as a line end would
+    const beside = (i: number) => vertical ? { x: b.x + i, y: e.side === "n" ? b.y - 1 : b.y + b.h } : { x: e.side === "w" ? b.x - 1 : b.x + b.w, y: b.y + i };
+    const held = mids.some((i) => { const t = beside(i); return reserved.some((r) => t.x >= r.x && t.x < r.x + r.w && t.y >= r.y && t.y < r.y + r.h); });
+    const taken = held || ends.some((o) => o.box === e.box && o.side === e.side && mids.includes(o.i));
     if (!taken) out.push({ detail: `${e.key} ends in the ${e.i === 0 ? "first" : "last"} tile of ${e.box}'s ${e.side} side and turns while its middle tile is free`, at: { x: e.x, y: e.y } });
   }
   return out;

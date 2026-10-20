@@ -23,10 +23,7 @@ const read = (u: URL | string) => JSON.parse(readFileSync(u, "utf8")) as CodeMap
  *  map's list is local, like the map: `$VIZ_BIG_MAP.known.json`, a JSON array of the same entries (none when
  *  the file is missing). */
 const KNOWN: Record<string, { check: string; code: string; detail: string }[]> = {
-  demo: [
-    { check: "text.over-line", code: "site", detail: "zone 'production line' label over a belt" },
-    { check: "lines.mid-side", code: "S9·P1·F6", detail: "door:occupancy/app::app.overstay|occupancy/app::app.repo#overstayed/2 ends in the first tile of occupancy/app::app.repo#overstayed/2's s side and turns while its middle tile is free" },
-  ],
+  demo: [],
 };
 
 // no `.known.json` next to the large map: no known limits, and the test still runs
@@ -71,12 +68,9 @@ describe("auditMap on the known maps", () => {
     const site = r.results.filter((x) => x.floor === SITE);
     expect(site.map((x) => x.check)).toEqual(["lines.failed", "lines.plugged", "lines.trunks", "lines.under",
       "lines.mid-side", "lines.plate-wall", "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long",
-      "lost.relation"]);
-    const bad = site.find((x) => x.check === "text.over-line")!;
-    expect(bad).toMatchObject({ code: "site", row: "7, 8, 45", ok: false });
+      "lost.relation", "floor.wide"]);
+    expect(site.find((x) => x.check === "text.over-line")).toMatchObject({ code: "site", row: "7, 8, 45", ok: true });
     for (const x of r.results) if (x.at) expect(Object.keys(x.at).sort()).toEqual(["x", "y"]);
-    const mid = r.results.find((x) => x.check === "lines.mid-side" && !x.ok)!;   // (every failure carries a copied {x, y})
-    expect(Object.keys(mid.at!).sort()).toEqual(["x", "y"]);
     expect(Object.keys(r.measured)).toContain("site");
     expect(Object.keys(r.measured.site).sort()).toEqual(["congestion", "fitZoom", "spacing", "switchZoom"]);
   });
@@ -117,13 +111,13 @@ describe("auditMap's budget and crashes", () => {
     expect(worker[0]).toMatchObject({ check: "plan.crashed", ok: false, row: "—" });
     expect(worker[0].detail).not.toContain("\n");
     expect(worker[0].detail.length).toBeGreaterThan(0);
-    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(12);
-    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 12 results
+    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(13);
+    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 13 results
     expect(r.skipped).toEqual([]);
     expect(r.checked).toHaveLength(Object.keys(map.layout.containers).length - r.skipped.length);
     const after = r.checked.slice(r.checked.indexOf("svc:worker") + 1).filter((c) => Object.keys(map.layout.containers[c].items ?? {}).length);
     expect(after.length).toBeGreaterThan(0);
-    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(12);
+    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(13);
   });
 
   it("an empty floor is checked with no results", () => {

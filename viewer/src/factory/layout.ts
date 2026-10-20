@@ -58,6 +58,9 @@ const GY0 = 4;    // and between rows
 const PAD = 1;    // a zone's edge stands one tile off its machines
 const DOOR_GAP = 3;  // tiles between doors in a column, at the least
 const LABEL = 1;  // and keeps one more row at its bottom for its name
+const AIR_MIN = 4;
+const ROWS = new Set(["shelf", "bay", "hubs"]);   // regions laid in one row, wrapped when it grows too long
+const ROW_TILES = 60;   // the 1440 px Fit canvas at full size: a row shorter than it never wraps  // hubs a service's airfield row holds at the least, however narrow its work area
 
 export function layoutTiles(model: Model, container: string, doors: Door[] = [], opts: LayoutOpts = {}): TileFloor {
   return settleChests(soleCaches(model, container).keys(), (laned) => layoutOnce(model, container, doors, laned.size ? { ...opts, laned } : opts), opts.laned);
@@ -137,6 +140,17 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
       const runs = Array.from({ length: Math.ceil(n / per) }, (_, c) => Math.min(per, n - c * per));
       const ids = besideOrder(ordered.map(([id]) => id), runs) ?? ordered.map(([id]) => id);
       return ids.map((id, i) => put(id, kindOf(id), region, x0 + Math.floor(i / per) * pw, y0 + (i % per) * ph));
+    }
+    // a row region (shelf, bay, hubs) in one row wider than the Fit canvas at full size and more than twice its shape:
+    // rows, left to right, as near 1.6:1 as they come (a library's long shelf made a floor too wide to read at Fit)
+    if (ROWS.has(region) && rows.length === 1 && cols.length * pw > ROW_TILES && cols.length * pw > 2 * 1.6 * ph) {
+      const n = list.length, ordered = [...list].sort(([, p], [, q]) => p.col - q.col);
+      let per = n, bestD = Infinity;
+      for (let r = 1; r <= n; r++) {
+        const c = Math.ceil(n / r), d = Math.abs((c * pw) / (r * ph) - 1.6);
+        if (d < bestD - 1e-9) { per = c; bestD = d; }
+      }
+      return ordered.map(([id], i) => put(id, kindOf(id), region, x0 + (i % per) * pw, y0 + Math.floor(i / per) * ph));
     }
     // reading order as the re-wrap's: the scanner's (col, row), column by column, top to bottom
     const ordered = [...list].sort(([, p], [, q]) => p.col - q.col || p.row - q.row);
@@ -334,8 +348,11 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     }
     work(placedAll);
     if (placedAll.length) y = bottom(placedAll, y) + GY;
-    // the service's in-process queues: hubs in a row on its own airfield (zoned below, once rows are spread)
-    const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield", wx + i * (FOOT.hub[0] + GX), y));
+    // the service's in-process queues: hubs in rows on its own airfield (zoned below, once rows are spread), each row
+    // as wide as the work area above it (at least AIR_MIN hubs): many queues make the airfield deeper, not the floor wider
+    const perRow = Math.max(AIR_MIN, Math.floor((right(placedAll, wx) - wx + GX) / (FOOT.hub[0] + GX)));
+    const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield",
+      wx + (i % perRow) * (FOOT.hub[0] + GX), y + Math.floor(i / perRow) * (FOOT.hub[1] + GY)));
     if (inq.length) y = bottom(inq, y) + PAD + LABEL + GY;
     const x1 = right([...boxes.values()], wx + 20) + PAD;
     y = laneRows([...doors.filter(isStore).map((d) => ({ id: d.anchor, box: d.id, kind: "datastore" })),

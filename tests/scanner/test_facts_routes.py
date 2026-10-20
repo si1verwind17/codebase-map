@@ -48,6 +48,21 @@ def test_tapir_chain_resolution():
     assert routes.tapir_uses("m.get(1)", resolved) == []
 
 
+def test_tapir_chain_after_an_indented_line_and_through_a_method_prefix():
+    vals = dict([
+        routes.tapir_val(["Base"], "base", "endpoint"),
+        routes.tapir_val(["Base", "V1"], "v1", 'base.in("v1")'),
+        routes.tapir_val(["Base", "V1"], "check", 'v1.in("check")'),
+        routes.tapir_val(["Base", "V1"], "apply", "check", key="Base.V1"),   # `object V1 { def apply() = check }`
+    ])
+    resolved = routes.resolve_tapir(vals)
+    assert resolved["Base.V1"] == ["v1", "check"]
+    body = '{\n    import a.b.C\n    given Schema[In] = Schema.derived\n    Base.V1().post.in(jsonBody[In]).out(jsonBody[Out])\n  }'
+    assert routes.tapir_uses(body, resolved) == [("POST", "/v1/check")]
+    assert routes.tapir_uses("x\n    Base.V1.check.get", resolved) == [("GET", "/v1/check")]   # words stay apart
+    assert routes.tapir_uses("Base.V1.apply().post.in(jsonBody[In])", resolved) == [("POST", "/v1/check")]
+
+
 def test_ziohttp():
     src = 'val r = Routes(\n  Method.GET / "v1" / "users" / string("id") -> handler(x),\n  Method.POST / Root / "v1/users" -> h)\n'
     got = stack.find_routes(stack.load(None), "scala", src, ["zio.http"], [], "f")

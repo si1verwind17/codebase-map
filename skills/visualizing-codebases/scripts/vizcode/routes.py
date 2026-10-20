@@ -99,9 +99,10 @@ def _path_segs(arg: str) -> list[str] | None:
     return out
 
 
-def tapir_val(scope: list[str], name: str, value_text: str) -> tuple[str, dict] | None:
-    """A `val name = base.in("a" / "b")` endpoint prefix, keyed by its qualified name. A val that already
-    picks an HTTP method is an endpoint, not a prefix: it is read as a body by tapir_uses."""
+def tapir_val(scope: list[str], name: str, value_text: str, key: str | None = None) -> tuple[str, dict] | None:
+    """A `val name = base.in("a" / "b")` endpoint prefix, keyed by its qualified name (or `key`: an object's own
+    name for its `def apply() = prefix`). A val that already picks an HTTP method is an endpoint, not a prefix: it
+    is read as a body by tapir_uses."""
     v = re.sub(r"\s+", "", value_text)
     m = TAPIR_DOTTED.match(v)
     if not m or m.group(0).rsplit(".", 1)[-1] in HTTP_METHODS:
@@ -115,7 +116,7 @@ def tapir_val(scope: list[str], name: str, value_text: str) -> tuple[str, dict] 
         if got is None:
             return None
         segs += got
-    return ".".join(scope + [name]), {"base": m.group(0), "segs": segs, "scope": scope}
+    return key or ".".join(scope + [name]), {"base": m.group(0), "segs": segs, "scope": scope}
 
 
 def resolve_tapir(vals: dict[str, dict]) -> dict[str, list[str]]:
@@ -163,8 +164,9 @@ def tapir_uses(body_text: str, resolved: dict[str, list[str]]) -> list[tuple[str
     """(METHOD, /path) for each endpoint chain on a known prefix in a body: `<prefix>.get.in(..)`,
     `<prefix>.in(..).get.out(..)`, or a whole body that is one finished endpoint with no method (tapir's
     default, GET). Pass `endpoint: []` in `resolved` when the file imports tapir."""
-    text = re.sub(r"(?<=\W)\s+|\s+(?=\W)", "", body_text.strip())
-    text = re.sub(r"\s+", " ", text)          # what is left separates two words: keep one space
+    text = re.sub(r"\s+", " ", body_text.strip())   # one space first, so two words never join
+    text = re.sub(r" (?=\W)|(?<=\W) ", "", text)
+    text = re.sub(r"(?<=\w)\(\)", "", re.sub(r"\.apply\(\)", "", text))   # `Base.V1()`: a prefix a method returns
     out = []
     for m in TAPIR_USE_START.finditer(text):
         hit = _known(m.group(0), resolved)

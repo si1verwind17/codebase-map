@@ -1,4 +1,4 @@
-// audit-inputs: 0aad08084b38d9eb5d88cd0fcc990e569d92ffae091cf88826c04d47e49cc9c5
+// audit-inputs: 74cdae2eabbe1cfe47d428d67ddaeedde08b80d40a7023ef9317529002aa8521
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -507,7 +507,7 @@ function flowOf$1(b, lift) {
 	let fwd = 0, back = 0;
 	for (const r of b.relations) {
 		const from = lift(r.from), to = lift(r.to);
-		const d = r.data ?? (r.kind === "calls" ? "forward" : "both");
+		const d = r.data ?? (r.kind === "db-read" ? "back" : r.kind === "stream" ? "both" : "forward");
 		if (d === "both") {
 			fwd++;
 			back++;
@@ -1021,6 +1021,13 @@ var GY0 = 4;
 var PAD = 1;
 var DOOR_GAP = 3;
 var LABEL = 1;
+var AIR_MIN = 4;
+var ROWS = /* @__PURE__ */ new Set([
+	"shelf",
+	"bay",
+	"hubs"
+]);
+var ROW_TILES = 60;
 function layoutTiles(model, container, doors = [], opts = {}) {
 	return settleChests(soleCaches(model, container).keys(), (laned) => layoutOnce(model, container, doors, laned.size ? {
 		...opts,
@@ -1106,6 +1113,18 @@ function layoutOnce(model, container, doors, opts) {
 			const per = Math.ceil(n / best);
 			const runs = Array.from({ length: Math.ceil(n / per) }, (_, c) => Math.min(per, n - c * per));
 			return (besideOrder(ordered.map(([id]) => id), runs) ?? ordered.map(([id]) => id)).map((id, i) => put(id, kindOf(id), region, x0 + Math.floor(i / per) * pw, y0 + i % per * ph));
+		}
+		if (ROWS.has(region) && rows.length === 1 && cols.length * pw > ROW_TILES && cols.length * pw > 3.2 * ph) {
+			const n = list.length, ordered = [...list].sort(([, p], [, q]) => p.col - q.col);
+			let per = n, bestD = Infinity;
+			for (let r = 1; r <= n; r++) {
+				const c = Math.ceil(n / r), d = Math.abs(c * pw / (r * ph) - 1.6);
+				if (d < bestD - 1e-9) {
+					per = c;
+					bestD = d;
+				}
+			}
+			return ordered.map(([id], i) => put(id, kindOf(id), region, x0 + i % per * pw, y0 + Math.floor(i / per) * ph));
 		}
 		const ordered = [...list].sort(([, p], [, q]) => p.col - q.col || p.row - q.row);
 		const slots = ordered.map(([, c]) => [cols.indexOf(c.col), rows.indexOf(c.row)]);
@@ -1374,7 +1393,8 @@ function layoutOnce(model, container, doors, opts) {
 		}
 		work(placedAll);
 		if (placedAll.length) y = bottom(placedAll, y) + GY;
-		const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield", wx + i * (FOOT.hub[0] + GX), y));
+		const perRow = Math.max(AIR_MIN, Math.floor((right(placedAll, wx) - wx + GX) / (FOOT.hub[0] + GX)));
+		const inq = cells("airfield").map(([id], i) => put(id, kindOf(id), "airfield", wx + i % perRow * (FOOT.hub[0] + GX), y + Math.floor(i / perRow) * (FOOT.hub[1] + GY)));
 		if (inq.length) y = bottom(inq, y) + PAD + LABEL + GY;
 		const x1 = right([...boxes.values()], wx + 20) + PAD;
 		y = laneRows([...doors.filter(isStore).map((d) => ({
@@ -2880,8 +2900,14 @@ var BOX = -2;
 var LANE = -3;
 var BASE = 1073741823;
 var CORNER = 3;
+var OFF = 1.25;
 var RIDE = .3;
 var EDGE = 1;
+var BADGE = 2;
+var BADGE_ROOM = {
+	w: 7,
+	h: 2
+};
 function lineKind(b, tap) {
 	if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
 	if (flies(b.kind)) return "drone";
@@ -2942,7 +2968,12 @@ function routeTiles(tf, bundles, base) {
 	}
 	const edge = new Uint8Array(cols * rows);
 	for (const z of tf.zones) if (z.airfield) {
-		for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = 1;
+		for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = EDGE;
+	}
+	for (const z of tf.zones) for (let x = z.x; x < z.x + z.w; x++) if (ok(x, z.y + z.h - 1)) edge[at(x, z.y + z.h - 1)] = EDGE;
+	for (const b of tf.boxes.values()) if (b.region === "hubs") {
+		const y0 = b.y + Math.floor(b.h / 2) - BADGE_ROOM.h;
+		for (let y = y0; y < y0 + BADGE_ROOM.h; y++) for (let x = b.x + b.w; x < b.x + b.w + BADGE_ROOM.w; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], BADGE);
 	}
 	const MANY = -9;
 	const nb = new Int32Array(cols * rows * 2).fill(-1);
@@ -3366,7 +3397,7 @@ function routeTiles(tf, bundles, base) {
 		} else for (let di = 0; di < 4; di++) for (const [x, y, off] of side(src, DIRS[di])) {
 			if (!ok(x, y)) continue;
 			const v = eff(at(x, y));
-			if (v === FREE || me && mode === "src" && v >= 0 && shares(v, at(x, y), di)) relax(key(x, y, di), v === FREE && cornerTile(src, DIRS[di], off) ? CORNER : 0, -1, x, y);
+			if (v === FREE || me && mode === "src" && v >= 0 && shares(v, at(x, y), di)) relax(key(x, y, di), v === FREE ? endCost(src, DIRS[di], off) : 0, -1, x, y);
 		}
 		const rider = me !== null, dstMode = mode === "dst";
 		while (heap.size) {
@@ -3385,7 +3416,7 @@ function routeTiles(tf, bundles, base) {
 			const leaves = !(riding && !dstMode) || canLeave(here);
 			const lock = lead !== null && lead.get(here) === di ? di : -1;
 			if (into && (only < 0 || into === DIRS[only]) && leaves) {
-				const off = hv === FREE && cornerTile(dst, into, offMid(dst, x, y, into)) ? CORNER : 0;
+				const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into)) : 0;
 				if (off === 0) return build(k, into);
 				if (!goaled[k]) {
 					goaled[k] = 1;
@@ -3403,7 +3434,7 @@ function routeTiles(tf, bundles, base) {
 				if (v === FREE) {
 					if (!(riding && dstMode) && leaves) {
 						const a = nb[2 * nt], b = nb[2 * nt + 1];
-						const cost = gk + 1 + ((a >= 0 && a !== m0 && a !== m1 && a !== m2 || b >= 0 && b !== m0 && b !== m1 && b !== m2 || b === MANY ? HUG : 0) + (edge[nt] ? EDGE : 0)) + (ni === di ? 0 : TURN);
+						const cost = gk + 1 + ((a >= 0 && a !== m0 && a !== m1 && a !== m2 || b >= 0 && b !== m0 && b !== m1 && b !== m2 || b === MANY ? HUG : 0) + edge[nt]) + (ni === di ? 0 : TURN);
 						relax(nt * 4 + ni, cost, k, nx, ny);
 					}
 				} else if (v !== BOX) {
@@ -3482,6 +3513,10 @@ function offMid(b, x, y, d) {
 function cornerTile(b, d, off) {
 	const n = d === "n" || d === "s" ? b.w : b.h;
 	return n >= 3 && off === (n - 1) / 2;
+}
+/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. */
+function endCost(b, d, off) {
+	return Math.max(off * OFF, cornerTile(b, d, off) ? CORNER : 0);
 }
 /** Tiles just outside one side of a box, with each tile's distance from the middle of that side. */
 function side(b, d) {
@@ -4028,10 +4063,22 @@ function midSideViolations(tf, routes) {
 		}
 	}
 	const out = [];
+	const reserved = reservedRects(tf);
 	for (const e of ends) {
 		if (!e.turns || e.n < 3 || !(e.i === 0 || e.i === e.n - 1)) continue;
 		const mids = [Math.floor((e.n - 1) / 2), Math.ceil((e.n - 1) / 2)];
-		if (!ends.some((o) => o.box === e.box && o.side === e.side && mids.includes(o.i))) out.push({
+		const b = tf.boxes.get(e.box), vertical = e.side === "n" || e.side === "s";
+		const beside = (i) => vertical ? {
+			x: b.x + i,
+			y: e.side === "n" ? b.y - 1 : b.y + b.h
+		} : {
+			x: e.side === "w" ? b.x - 1 : b.x + b.w,
+			y: b.y + i
+		};
+		if (!(mids.some((i) => {
+			const t = beside(i);
+			return reserved.some((r) => t.x >= r.x && t.x < r.x + r.w && t.y >= r.y && t.y < r.y + r.h);
+		}) || ends.some((o) => o.box === e.box && o.side === e.side && mids.includes(o.i)))) out.push({
 			detail: `${e.key} ends in the ${e.i === 0 ? "first" : "last"} tile of ${e.box}'s ${e.side} side and turns while its middle tile is free`,
 			at: {
 				x: e.x,
@@ -4197,13 +4244,16 @@ function routeRects(r, top = false) {
 	});
 	if (r.pieces.length) return out;
 	for (let i = 1; i < r.points.length; i++) {
-		const a = r.points[i - 1], b = r.points[i];
-		out.push({
-			x0: Math.min(a.x, b.x) - LINE_HALF,
-			y0: Math.min(a.y, b.y) - LINE_HALF,
-			x1: Math.max(a.x, b.x) + LINE_HALF,
-			y1: Math.max(a.y, b.y) + LINE_HALF
-		});
+		const a = r.points[i - 1], b = r.points[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / LINE_HALF));
+		for (let k = 0; k <= n; k++) {
+			const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
+			out.push({
+				x0: x - LINE_HALF,
+				y0: y - LINE_HALF,
+				x1: x + LINE_HALF,
+				y1: y + LINE_HALF
+			});
+		}
 	}
 	return out;
 }
@@ -4265,7 +4315,7 @@ function planZoneLabel(z, clear) {
 		return b.x0 >= inner.x0 && b.x1 <= inner.x1 && b.y0 >= inner.y0 && b.y1 <= inner.y1 && clear.free(b);
 	};
 	let best;
-	for (let j = 0; j < 3; j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
+	for (let j = 0; j < z.h && (j < 3 || !best); j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
 		const p = {
 			ax: tx * 24 + 6,
 			ay: (z.y + z.h) * 24 - 5 - j * 24,
@@ -5055,6 +5105,7 @@ function labelRects(model, container, plan, bundles) {
 			boxes: [labelBox(p, 1), labelBox(p, p.maxK)]
 		});
 	}
+	for (const r of layerTileRects(plan.layers)) clear.add(r);
 	if (tf.landing) {
 		const prefix = floorPrefix(model, [...tf.boxes.values()].filter((b) => b.kind !== "door").map((b) => b.id));
 		const band = (id) => {
@@ -5168,12 +5219,11 @@ function narrowZoneViolations(plan) {
 	}
 	return out;
 }
-//#endregion
-//#region src/floor/lane.ts
-/** Travel speed in px/s: belts and pipes keep a steady 60; a drone (event) or a train crosses its path in at
-*  most about 3 s. */
+/** Travel speed in px/s: belts and pipes keep a steady 60; a train crosses its rail (`length`) in at most TRAIN_SECS.
+*  A drone (event) passes its floor's longest flight as `length`, so every drone on a floor flies at one speed, a
+*  short hop takes less time than a long one, and the longest crosses in at most FLIGHT_SECS. */
 function moverSpeed(kind, length) {
-	return flies(kind) || kind === "train" ? Math.max(60, length / 3) : 60;
+	return flies(kind) ? Math.max(60, length / 5) : kind === "train" ? Math.max(60, length / 3) : 60;
 }
 //#endregion
 //#region src/floor/fitscale.ts
@@ -5193,6 +5243,12 @@ function fitZoom(w, h, screenW, screenH, site, bottomInset = 0) {
 }
 //#endregion
 //#region src/audit/floor.ts
+/** The longest a moving item may take over one line, seconds (audit row 25): a train over its rail, a drone over its
+*  flight (drones fly slower, so a floor's flights stay readable). */
+var TRIP_MAX = {
+	train: 3,
+	event: 5
+};
 /** The floor area Fit is measured for (audit row 24). */
 var FIT_AREA = {
 	w: 1440,
@@ -5218,14 +5274,14 @@ function padCorridorViolations(plan) {
 }
 /** The movers whose trip the audit times: a train on a rail and a drone on a drone route (an event). Belts, pipes and
 *  taps are not timed: their items run at a steady 60 px/s by design (lane.ts `moverSpeed`), so their trip grows with
-*  the line; row 25 was about drones crawling along long flight paths, and drones and trains scale their speed to
-*  cross in about 3 s. */
+*  the line; row 25 was about drones crawling along long flight paths. A train scales its speed to its rail; every
+*  drone on a floor flies at the speed its longest flight sets, so that flight crosses in about FLIGHT_SECS. */
 var TIMED = {
 	rail: "train",
 	drone: "event"
 };
 var secs = (s) => s.toFixed(1);
-/** Every train or drone whose trip takes over TRIP_MAX s end to end at the movers' speed (`speed`, the viewer's
+/** Every train or drone whose trip takes over its TRIP_MAX s end to end at the movers' speed (`speed`, the viewer's
 *  lane.ts `moverSpeed`; a test may pass another to prove the check sees a slow mover): a rail's length is its piece
 *  count times the tile, in the base and in each layer view; a flight's is its path's length (as drones.ts measures
 *  it). A route with no pieces (a drone route, a failed line) carries nothing along tiles. */
@@ -5236,7 +5292,7 @@ function travelViolations(plan, speed = moverSpeed) {
 		const kind = TIMED[r.kind];
 		if (!kind || !r.pieces.length) continue;
 		const t = trip(kind, r.pieces.length * 24);
-		if (t > 3.000001) out.push({
+		if (t > TRIP_MAX[kind] + 1e-6) out.push({
 			detail: `${r.kind} ${r.key} takes ${secs(t)} s (${r.pieces.length} tiles)${view}`,
 			at: {
 				x: r.pieces[0].x,
@@ -5244,11 +5300,18 @@ function travelViolations(plan, speed = moverSpeed) {
 			}
 		});
 	}
-	for (const f of flightPaths(plan.tf)) {
+	const flights = flightPaths(plan.tf).map((f) => {
 		let len = 0;
 		for (let i = 1; i < f.points.length; i++) len += Math.hypot(f.points[i].x - f.points[i - 1].x, f.points[i].y - f.points[i - 1].y);
-		const t = trip("event", len);
-		if (t > 3.000001) out.push({
+		return {
+			f,
+			len
+		};
+	});
+	const longest = Math.max(0, ...flights.map((x) => x.len));
+	for (const { f, len } of flights) {
+		const t = len / speed("event", longest);
+		if (t > TRIP_MAX.event + 1e-6) out.push({
 			detail: `${f.flight} flight ${f.key} takes ${secs(t)} s (${Math.round(len)} px)`,
 			at: {
 				x: Math.floor(f.points[0].x / 24),
@@ -5279,6 +5342,14 @@ function lostViolations(model, container, plan) {
 function minNameSize(model, container, plan) {
 	const ctx = nameContext(model, container, plan.tf.boxes.values(), model.bundles(container).doors);
 	return Math.min(14, ...[...plan.tf.boxes.values()].map((b) => boxNameFit(model, ctx, b).size));
+}
+/** A floor more than WIDE times as wide (for its height) as the Fit canvas whose names do not read at Fit: Fit is held
+*  back by its width, so a row of it should wrap (row 46: an airfield's hubs in one long row). Small wide floors read
+*  at Fit and pass. */
+function wideViolations(m, plan) {
+	const { cols, rows } = plan.tf, aspect = cols / rows;
+	if (aspect <= 2 * (FIT_AREA.w / FIT_AREA.h) || m.fitZoom >= m.switchZoom) return [];
+	return [{ detail: `${cols}×${rows} tiles, ${aspect.toFixed(1)}:1: at Fit (${m.fitZoom.toFixed(2)}) names need ${m.switchZoom.toFixed(2)}` }];
 }
 /** The floor's measured numbers (no threshold yet):
 *  - `congestion`: above-ground line tiles of the base (each tile once) divided by the tiles outside every box;
@@ -5324,6 +5395,7 @@ var ROW = {
 	"pads.corridor": "32",
 	"travel.long": "25",
 	"lost.relation": "40",
+	"floor.wide": "46",
 	"plan.crashed": "—"
 };
 //#endregion
@@ -5338,7 +5410,7 @@ var perView = (plan, check) => views(plan).flatMap(([view, routes]) => check(rou
 })));
 var perRoute = (plan, check) => perView(plan, (routes) => routes.filter((r) => r.pieces.length).flatMap(check));
 /** Every check over one floor's plan, in the order of the check table (spec §3). */
-function checks(model, c, plan) {
+function checks(model, c, plan, measured) {
 	const { tf } = plan, { bundles } = model.bundles(c);
 	return [
 		["lines.failed", () => perView(plan, failedViolations)],
@@ -5355,7 +5427,8 @@ function checks(model, c, plan) {
 		["zone.narrow", () => narrowZoneViolations(plan)],
 		["pads.corridor", () => padCorridorViolations(plan)],
 		["travel.long", () => travelViolations(plan)],
-		["lost.relation", () => lostViolations(model, c, plan)]
+		["lost.relation", () => lostViolations(model, c, plan)],
+		["floor.wide", () => wideViolations(measured(), plan)]
 	];
 }
 /** Audits every floor of `map` within `budgetMs` (read off `now`): floors not reached go to `skipped`. Each floor gets
@@ -5415,7 +5488,9 @@ function auditMap(map, budgetMs = 45e3, now = Date.now) {
 			out.results.push(result("plan.crashed", [{ detail: `${code}: ${firstLine(e)}` }]));
 			continue;
 		}
-		for (const [check, run] of checks(model, c, plan)) {
+		let numbers;
+		const measured = () => numbers ??= measure(plan, model, c);
+		for (const [check, run] of checks(model, c, plan, measured)) {
 			let vs;
 			try {
 				vs = run();
@@ -5425,7 +5500,7 @@ function auditMap(map, budgetMs = 45e3, now = Date.now) {
 			out.results.push(result(check, vs));
 		}
 		try {
-			out.measured[code] = measure(plan, model, c);
+			out.measured[code] = measured();
 		} catch {}
 	}
 	return out;

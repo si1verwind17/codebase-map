@@ -103,6 +103,26 @@ def test_argument_count_narrows_same_named_methods():
     assert sorted(r["to"] for r in five) == ["a::p.X#save/1", "a::p.Y#save/3"]   # none fits: keep both
 
 
+def test_a_call_passing_fewer_than_the_required_arguments_skips_the_method():
+    """Python and Scala mark the parameters a call may leave out; other languages keep the upper bound alone."""
+    def m(mid, lang, params):
+        return {"id": mid, "kind": "method", "name": "save", "parent": mid.split("#")[0], "lang": lang,
+                "signature": {"params": params, "returns": None}}
+    req = {"name": "a", "type": None}
+    opt = {"name": "b", "type": None, "optional": True}
+    nodes = [n for n in _two_classes() if not n["id"].endswith("#save/0")] + [
+        m("a::p.X#save/1", "scala", [req]),
+        m("a::p.Y#save/3", "scala", [req, req, req]),
+        m("a::p.Y#save/2", "scala", [req, opt])]
+    facts = {"p/x.scala": {"calls": [{"callee": "save", "args": 1, "in": "a::p.X#m/0", "line": 3}]}}
+    assert sorted(r["to"] for r in calls.resolve(nodes, [], facts)[0]) == ["a::p.X#save/1", "a::p.Y#save/2"]
+    for n in nodes:
+        if n.get("lang"):
+            n["lang"] = "kotlin"   # defaults not recorded: every method of up to its parameter count fits
+    assert sorted(r["to"] for r in calls.resolve(nodes, [], facts)[0]) == [
+        "a::p.X#save/1", "a::p.Y#save/2", "a::p.Y#save/3"]
+
+
 def test_untrusted_receiver_with_no_fitting_arity_is_not_drawn():
     nodes = [n for n in _two_classes() if not n["id"].endswith("#save/0")] + [
         {"id": "a::p.Y#run/0", "kind": "method", "name": "run", "parent": "a::p.Y", "signature": _sig(0)}]
@@ -113,6 +133,21 @@ def test_untrusted_receiver_with_no_fitting_arity_is_not_drawn():
     assert rels_for("build(x).run") == []                # a chained result: same
     assert rels_for("Y.run") == ["a::p.Y#run/0"]         # the receiver names the owner: kept
     assert rels_for("run") == ["a::p.Y#run/0"]           # a bare name: kept
+
+
+def test_a_chained_result_matching_many_methods_is_not_counted_as_a_loss():
+    nodes = [n for n in _two_classes() if "#save/" not in n["id"]]
+    for c in "ABCD":
+        nodes += [{"id": f"a::p.{c}", "kind": "class", "name": c, "parent": "a::p/"},
+                  {"id": f"a::p.{c}#handle/1", "kind": "method", "name": "handle", "parent": f"a::p.{c}"}]
+    def problems_for(callee):
+        facts = {"p/x.py": {"calls": [{"callee": callee, "args": 1, "in": "a::p.X#m/0", "line": 3}]}}
+        rels, problems = calls.resolve(nodes, [], facts)
+        assert rels == []
+        return [p["text"] for p in problems]
+    assert problems_for("builder.route(x).handle") == []      # a library value's method: nothing was lost
+    assert problems_for("()when.handle") == []                # a cut head: the same
+    assert problems_for("handler.handle") == ["1 call site(s) in svc:a match more than 3 methods by name; not drawn"]
 
 
 def test_a_scala_repeated_parameter_takes_any_count():
@@ -137,6 +172,22 @@ def test_python_and_scala_call_sites_record_their_argument_count():
     res = sc.parse(b"package p\nobject O {\n  def f = db.transaction: c =>\n    c.go()\n}\n", "s/O.scala", S,
                    ids.IdRegistry())
     assert {c["callee"]: c.get("args") for c in res["calls"]}["db.transaction"] == 1   # a colon lambda is one argument
+
+
+def test_python_and_scala_mark_the_parameters_a_call_may_leave_out():
+    from vizcode.adapters import python as py, scala as sc
+    W = {"id": "mod:w", "path": "w", "lang": "python", "build": "python-package"}
+    res = py.parse(b"def f(a, b=1, *, c, d: int = 2):\n    pass\n", "w/a.py", W, ids.IdRegistry())
+    sig = next(n for n in res["nodes"] if n["name"] == "f")["signature"]["params"]
+    assert {p["name"]: p.get("optional", False) for p in sig} == {"a": False, "b": True, "c": False, "d": True}
+    S = {"id": "mod:s", "path": "s", "lang": "scala", "build": "sbt"}
+    src = (b"package p\nobject O {\n  def f[A](a: Int, b: Int = 1)(c: Int)(using d: D) = a\n  def g(implicit e: E) = 1\n"
+           b"  def h[A](body: Int => A): A = ???\n}\n")
+    res = sc.parse(src, "s/O.scala", S, ids.IdRegistry())
+    by = {n["name"]: n["signature"]["params"] for n in res["nodes"] if n["kind"] == "method"}
+    assert {p["name"]: p.get("optional", False) for p in by["f"]} == {"a": False, "b": True, "c": True, "d": True}
+    assert [p.get("optional", False) for p in by["g"]] == [True]
+    assert [p.get("optional", False) for p in by["h"]] == [False]   # type parameters are no parameter list
 
 
 def test_super_dunder_calls_are_neither_drawn_nor_counted_as_dropped():
@@ -564,13 +615,89 @@ def test_trait_and_impls_fold_into_one_candidate(make_repo):
     assert not any("match more than" in x["text"] for x in problems)
 
 
+SIGNERS = {
+    "sign/src/main/scala/acme/sign/SecretKey.scala": """package acme.sign
+
+trait SecretKey:
+  def sign(text: String): Task[String]
+
+trait LocalKey extends SecretKey
+trait VaultKey extends SecretKey
+
+trait Chain[K <: SecretKey]:
+  def get(ref: String): Task[K]
+
+object LocalKey:
+  def make(seed: String): Task[LocalKey] = ZIO.succeed(new LocalKey:
+    def sign(text: String): Task[String] = ZIO.succeed(text))
+
+object VaultKey:
+  def make(path: String): Task[VaultKey] = ZIO.succeed(new VaultKey:
+    def sign(text: String): Task[String] = ZIO.succeed(path))
+""",
+    "sign/src/main/scala/acme/sign/Signer.scala": """package acme.sign
+
+trait Signer:
+  def apply(ref: String, text: String): Task[String]
+
+object LocalSigner:
+  val live: URLayer[Chain[LocalKey], Signer] = ZLayer {
+    ZIO.serviceWith[Chain[LocalKey]] { chain =>
+      new Signer:
+        def apply(ref: String, text: String): Task[String] =
+          chain.get(ref).flatMap(key => key.sign(text))
+    }
+  }
+
+object VaultSigner:
+  val live: URLayer[Chain[VaultKey], Signer] = ZLayer {
+    ZIO.serviceWith[Chain[VaultKey]] { chain =>
+      new Signer:
+        def apply(ref: String, text: String): Task[String] =
+          chain.get(ref).flatMap(key => key.sign(text))
+    }
+  }
+
+object AuditedSigner:
+  val live: URLayer[Signer, Signer] = ZLayer {
+    ZIO.serviceWith[Signer] { inner =>
+      new Signer:
+        def apply(ref: String, text: String): Task[String] = inner.apply(ref, text)
+    }
+  }
+
+object AnySigner:
+  def sign(key: SecretKey, text: String): Task[String] = key.sign(text)
+  def signAll(keys: List[SecretKey], text: String): Task[String] = ZIO.foreach(keys)(k => k.sign(text)).map(_.head)
+""",
+}
+
+
+def test_the_callers_declared_types_pick_the_implementation_it_holds(make_repo):
+    """Two implementations of one interface: a caller whose layer is typed with one of them reaches that one only."""
+    files = list(SIGNERS)
+    _, sites, _ = _resolve_scala(make_repo, SIGNERS, files, 'lazy val sign = project in file("sign")\n')
+    p = "sign::acme.sign."
+    local, vault = ([r for r in sites[("Signer.scala", n)] if r["to"].endswith("#sign/1")] for n in (11, 20))
+    assert [r["to"] for r in local] == [p + "LocalKey.$impl1#sign/1"]
+    assert [r["to"] for r in vault] == [p + "VaultKey.$impl1#sign/1"]
+    assert local[0]["confidence"] == "inferred" and local[0]["why"] == "narrowed by the caller's declared types"
+    # a caller whose types name only the shared interface: nothing to narrow by, every candidate stays
+    # a layer that builds a Signer around another: Signer is what it is, so its type narrows nothing
+    assert all(r.get("why") != "narrowed by the caller's declared types" for r in sites.get(("Signer.scala", 28), []))
+    assert len(sites[("Signer.scala", 33)]) == 1 and sites[("Signer.scala", 33)][0]["to"] == p + "SecretKey#sign/1"
+    assert len(sites[("Signer.scala", 34)]) == 3
+
+
 def test_scala_zio_accessor_call_drawn_again(make_repo):
     r = "billing/src/main/scala/com/example/billing/"
     files = [r + "repo/InvoiceRepo.scala", r + "service/invoice/InvoiceService.scala"]
     _, sites, problems = _resolve_scala(make_repo, ZIO_BILLING, files, 'lazy val billing = project in file("billing")\n')
     p = "billing::com.example.billing."
-    assert sorted(x["to"] for x in sites[("InvoiceRepo.scala", 22)]) == \
-        [p + "repo.InvoiceRepo#get/1", p + "service.invoice.InvoiceService#get/1"]
+    # `ZIO.serviceWithZIO[InvoiceRepo](_.get(id))` in a def typed `URIO[InvoiceRepo, ..]`: the repo's get, not the
+    # service's same-named one
+    assert [(x["to"], x["why"]) for x in sites[("InvoiceRepo.scala", 22)]] == \
+        [(p + "repo.InvoiceRepo#get/1", "narrowed by the caller's declared types")]
     assert not any("match more than" in x["text"] for x in problems)
 
 

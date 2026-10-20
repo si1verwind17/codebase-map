@@ -1,6 +1,6 @@
-// The floor checks of the map audit: drone pads on corridor tiles, trips over 3 s, relations lost from the floor; and
-// the numbers it only measures (congestion, spacing, the Fit zoom against the names/codes switch). Each is pure. No Pixi
-// here: the speeds, the Fit zoom and the switch come from the functions the viewer uses (lane.ts `moverSpeed`,
+// The floor checks of the map audit: drone pads on corridor tiles, trips over their time (trains 3 s, drones 5 s),
+// relations lost from the floor; and the numbers it only measures (congestion, spacing, the Fit zoom against the
+// names/codes switch). Each is pure. No Pixi here: the speeds, the Fit zoom and the switch come from the functions the viewer uses (lane.ts `moverSpeed`,
 // fitscale.ts `fitZoom`, fit.ts `codeZoom`), never from a copy.
 import { SITE, type Model } from "../model/model";
 import type { FloorPlan } from "../factory/plan";
@@ -9,12 +9,13 @@ import { T, type Box } from "../factory/tiles";
 import { codeZoom } from "../factory/fit";
 import { boxNameFit, nameContext } from "../factory/boxname";
 import { coveredKeys, flightPaths } from "../factory/flights";
-import { moverSpeed } from "../floor/lane";
+import { FLIGHT_SECS, moverSpeed, TRAIN_SECS } from "../floor/lane";
 import { fitZoom } from "../floor/fitscale";
 import type { Violation } from "./types";
 
-/** The longest a moving item may take over one line, seconds (audit row 25). */
-export const TRIP_MAX = 3;
+/** The longest a moving item may take over one line, seconds (audit row 25): a train over its rail, a drone over its
+ *  flight (drones fly slower, so a floor's flights stay readable). */
+export const TRIP_MAX: Record<string, number> = { train: TRAIN_SECS, event: FLIGHT_SECS };
 /** The floor area Fit is measured for (audit row 24). */
 export const FIT_AREA = { w: 1440, h: 900 };
 
@@ -33,12 +34,12 @@ export function padCorridorViolations(plan: FloorPlan): Violation[] {
 
 /** The movers whose trip the audit times: a train on a rail and a drone on a drone route (an event). Belts, pipes and
  *  taps are not timed: their items run at a steady 60 px/s by design (lane.ts `moverSpeed`), so their trip grows with
- *  the line; row 25 was about drones crawling along long flight paths, and drones and trains scale their speed to
- *  cross in about 3 s. */
+ *  the line; row 25 was about drones crawling along long flight paths. A train scales its speed to its rail; every
+ *  drone on a floor flies at the speed its longest flight sets, so that flight crosses in about FLIGHT_SECS. */
 const TIMED: Partial<Record<TileRoute["kind"], string>> = { rail: "train", drone: "event" };
 const secs = (s: number) => s.toFixed(1);
 
-/** Every train or drone whose trip takes over TRIP_MAX s end to end at the movers' speed (`speed`, the viewer's
+/** Every train or drone whose trip takes over its TRIP_MAX s end to end at the movers' speed (`speed`, the viewer's
  *  lane.ts `moverSpeed`; a test may pass another to prove the check sees a slow mover): a rail's length is its piece
  *  count times the tile, in the base and in each layer view; a flight's is its path's length (as drones.ts measures
  *  it). A route with no pieces (a drone route, a failed line) carries nothing along tiles. */
@@ -49,13 +50,17 @@ export function travelViolations(plan: FloorPlan, speed: (kind: string, length: 
     const kind = TIMED[r.kind];
     if (!kind || !r.pieces.length) continue;
     const t = trip(kind, r.pieces.length * T);
-    if (t > TRIP_MAX + 1e-6) out.push({ detail: `${r.kind} ${r.key} takes ${secs(t)} s (${r.pieces.length} tiles)${view}`, at: { x: r.pieces[0].x, y: r.pieces[0].y } });
+    if (t > TRIP_MAX[kind] + 1e-6) out.push({ detail: `${r.kind} ${r.key} takes ${secs(t)} s (${r.pieces.length} tiles)${view}`, at: { x: r.pieces[0].x, y: r.pieces[0].y } });
   }
-  for (const f of flightPaths(plan.tf)) {
+  const flights = flightPaths(plan.tf).map((f) => {
     let len = 0;
     for (let i = 1; i < f.points.length; i++) len += Math.hypot(f.points[i].x - f.points[i - 1].x, f.points[i].y - f.points[i - 1].y);
-    const t = trip("event", len);
-    if (t > TRIP_MAX + 1e-6) out.push({ detail: `${f.flight} flight ${f.key} takes ${secs(t)} s (${Math.round(len)} px)`, at: { x: Math.floor(f.points[0].x / T), y: Math.floor(f.points[0].y / T) } });
+    return { f, len };
+  });
+  const longest = Math.max(0, ...flights.map((x) => x.len));
+  for (const { f, len } of flights) {
+    const t = len / speed("event", longest);
+    if (t > TRIP_MAX.event + 1e-6) out.push({ detail: `${f.flight} flight ${f.key} takes ${secs(t)} s (${Math.round(len)} px)`, at: { x: Math.floor(f.points[0].x / T), y: Math.floor(f.points[0].y / T) } });
   }
   return out;
 }
@@ -80,6 +85,18 @@ export interface FloorMeasures { congestion: number; spacing: { area: number; sp
 export function minNameSize(model: Model, container: string, plan: FloorPlan): number {
   const ctx = nameContext(model, container, plan.tf.boxes.values(), model.bundles(container).doors);
   return Math.min(14, ...[...plan.tf.boxes.values()].map((b) => boxNameFit(model, ctx, b).size));
+}
+
+/** How much wider than the Fit canvas a floor may be, side to side against its height, before a row is too long. */
+export const WIDE = 2;
+
+/** A floor more than WIDE times as wide (for its height) as the Fit canvas whose names do not read at Fit: Fit is held
+ *  back by its width, so a row of it should wrap (row 46: an airfield's hubs in one long row). Small wide floors read
+ *  at Fit and pass. */
+export function wideViolations(m: FloorMeasures, plan: FloorPlan): Violation[] {
+  const { cols, rows } = plan.tf, aspect = cols / rows, canvas = FIT_AREA.w / FIT_AREA.h;
+  if (aspect <= WIDE * canvas || m.fitZoom >= m.switchZoom) return [];
+  return [{ detail: `${cols}×${rows} tiles, ${aspect.toFixed(1)}:1: at Fit (${m.fitZoom.toFixed(2)}) names need ${m.switchZoom.toFixed(2)}` }];
 }
 
 /** The floor's measured numbers (no threshold yet):

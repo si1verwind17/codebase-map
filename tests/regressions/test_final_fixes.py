@@ -118,13 +118,13 @@ def test_scala_relative_package_import_is_local(make_repo):
 
 # --- committed identity of the demo's structure.json --------------------------------------------------------
 
-# re-pinned for SCANNER_VERSION 0.6.0: the `queues` fact on sensor_gateway's asyncio.Queue, and a Scala 3 colon
-# lambda counted as one argument (nothing else changed)
-DEMO_STRUCTURE_SHA256 = "4a10a8ad65dae05427e08d07d2f1d89689881986f24bd6b9034525443f4eb362"
+# re-pinned for SCANNER_VERSION 0.7.0: a long callee keeps the called name at its end, a call's line is that name's
+# line, and `optional` marks the parameters a call may leave out (nothing else changed)
+DEMO_STRUCTURE_SHA256 = "c7b5d6fb4fc2a00773140bce101e99745ca04b38475723ccee64c52c9a3d980b"
 # the hash with the trace keys (`fields` on classes, `refs` and `returns_refs` in signatures) taken out: the value from
-# before those keys existed, with the version strings and the `queues` fact of 0.6.0. If it moves, the scanner
-# changed something besides the trace keys
-DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "28fa73394adb3dc612f74e9b7daaf47cc233bf52f8e812dad20b82f3d0f4fd22"
+# before those keys existed, with the `queues` fact of 0.6.0, and the version strings, callees, lines and `optional`
+# of 0.7.0. If it moves, the scanner changed something besides the trace keys
+DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "aaed404445b99bb643a71b555e2a39fbc8fba154c66def0ab74b767e7925295e"
 
 
 def _without_trace_keys(s: dict) -> dict:

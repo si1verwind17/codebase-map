@@ -120,7 +120,9 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
     else wireMachine(st, m, p.view, hl, nameTag(st, model, m));
   }
   // messaging labels take the room left (a tag with no clear room under its machine goes inside it, between the name
-  // and the sub line: an estimated band); placed on the first draw, after the zone names
+  // and the sub line: an estimated band); placed on the first draw, after the zone names, clear of every layer's lines
+  // too, so a plate reads in each layer view
+  for (const r of layerTileRects(plan?.tf === tf ? plan.layers : undefined)) clear.add(r);
   if (tf.landing) {
     const band = (id: string) => { const b = tf.boxes.get(id); return b ? freeBand(b, shortName(st, model, id)) : undefined; };
     msg.labels ??= messagingLabels(model, tf, msg.flights, clear, band);

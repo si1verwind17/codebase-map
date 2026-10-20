@@ -4,13 +4,15 @@ import { Model, SITE } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { planFloor } from "../../src/factory/plan";
 import { flightPaths, type FlightPath } from "../../src/factory/flights";
-import { droneSchedule, FAIL_EVERY, PULSE, type DroneFloor, type Trip } from "../../src/factory/drones";
+import { FLIGHT_SECS } from "../../src/floor/lane";
+import { droneSchedule, FAIL_EVERY, longestFlight, PULSE, type DroneFloor, type Trip } from "../../src/factory/drones";
 import type { Messaging } from "../../src/factory/messaging";
 import type { Flight } from "../../src/factory/messaging";
 
 const DEMO = new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url);
 
-/** A flight 300 px long (a drone takes 3 s at most: here 300 / max(60, 100) = 3 s), or `len` px. */
+/** A flight 300 px long, or `len` px. Every drone on a floor flies at one speed, set by its longest flight; the timing
+ *  tests pass `LONG` as that length, so drones fly at max(60, 500 / 5) = 100 px/s. */
 function fl(flight: Flight, machine: string, item: string, opts: { group?: string; len?: number; topic?: string } = {}): FlightPath {
   const len = opts.len ?? 300;
   const launch = { x: 0, y: 0 }, hub = { x: len, y: 0 };
@@ -53,11 +55,12 @@ function world(): DroneFloor {
 const all = (f: DroneFloor) => new Set(f.flights.map((x) => x.key));
 const of = (f: DroneFloor, trips: Trip[], flight: Flight) => trips.filter((t) => f.flights[t.flight].flight === flight);
 const end = (t: Trip) => t.start + t.dur;
+const LONG = 500;
 
 describe("drone schedule", () => {
   it("a produce lands, then one copy leaves the hub for every lit consumer group", () => {
     const f = world();
-    const s = droneSchedule(f, all(f));
+    const s = droneSchedule(f, all(f), LONG);
     const trips = s.cycle(0);
     const produce = of(f, trips, "produce");
     expect(produce).toHaveLength(1);
@@ -66,11 +69,25 @@ describe("drone schedule", () => {
     const copies = trips.filter((t) => f.flights[t.flight].item === "orders" && f.flights[t.flight].flight === "copy");
     expect(copies).toHaveLength(2);   // copies equal the group count
     for (const c of copies) { expect(c.start).toBe(end(produce[0])); expect(c.loaded).toBe(true); }
-    expect(copies.map((c) => c.dur).sort()).toEqual([2, 3]);   // 120 px at 60 px/s; 300 px in 3 s
+    expect(copies.map((c) => c.dur).sort()).toEqual([1.2, 3]);   // 120 px and 300 px, both at 100 px/s
     const push = of(f, trips, "push");
     expect(push).toHaveLength(1);
     expect(push[0].start).toBe(3);
     expect(push[0].points.at(-1)).toEqual(f.flights[4].launch);   // delivered to the dock
+  });
+
+  it("every drone on a floor flies at one speed, set by its longest flight (a take counts its stack hop)", () => {
+    const f = world();
+    const longest = longestFlight(f);
+    expect(longest).toBeCloseTo(300 + Math.hypot(20 * 24 + 12 - 300, 12), 6);   // worker's take, from the stack at x=20
+    const trips = droneSchedule(f, all(f)).cycle(0);
+    const speeds = trips.filter((t) => t.dur > 0.1).map((t) => {
+      let len = 0;
+      for (let i = 1; i < t.points.length; i++) len += Math.hypot(t.points[i].x - t.points[i - 1].x, t.points[i].y - t.points[i - 1].y);
+      return len / t.dur;
+    });
+    expect(new Set(trips.map((t) => t.dur)).size).toBeGreaterThan(1);   // flights of different lengths take different times
+    for (const v of speeds) expect(v).toBeCloseTo(longest / FLIGHT_SECS, 6);
   });
 
   it("copies go only to groups whose flight is lit", () => {
@@ -104,15 +121,15 @@ describe("drone schedule", () => {
 
   it("a pull flies out empty and comes back loaded once the message is in", () => {
     const f = world();
-    const trips = of(f, droneSchedule(f, all(f)).cycle(0), "pull");
+    const trips = of(f, droneSchedule(f, all(f), LONG).cycle(0), "pull");
     expect(trips).toHaveLength(2);
     const [out, back] = trips;
     expect(out.loaded).toBe(false);
     expect(out.points).toEqual(f.flights[3].points);          // pad → hub
     expect(back.loaded).toBe(true);
     expect(back.points).toEqual([...f.flights[3].points].reverse());   // hub → pad
-    expect(out.dur).toBe(1.5);                                // 90 px at 60 px/s
-    expect(end(out)).toBe(3);                                 // reaches the hub as the produce lands
+    expect(out.dur).toBe(0.9);                                // 90 px at 100 px/s
+    expect(end(out)).toBeCloseTo(3, 9);                                // reaches the hub as the produce lands
     expect(back.start).toBe(3);
   });
 
@@ -177,8 +194,8 @@ describe("drone schedule", () => {
 
   it("the period holds the longest cycle and a pause; positions and pulses come from the time alone", () => {
     const f = world();
-    const s = droneSchedule(f, all(f));
-    // enqueue 2.5 s, take 3 s (+ stack hop), failure 3 s, copy 3 s, then the pause
+    const s = droneSchedule(f, all(f), LONG);
+    // enqueue 1.5 s, take 3 s (+ stack hop), failure 3 s, copy 3 s, then the pause
     const longest = Math.max(...[0, 1, 2].flatMap((n) => s.cycle(n).map(end)));
     expect(s.period).toBeGreaterThanOrEqual(longest + PULSE);
     const a = s.at(1.5), b = s.at(1.5);

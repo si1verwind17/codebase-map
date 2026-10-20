@@ -7,7 +7,8 @@ from pathlib import PurePosixPath
 from tree_sitter_language_pack import get_parser
 
 from .. import ids, routes
-from . import arg_count, declared_type_params, decode, enclosing_id, fields, make_node, new_result, text, walk
+from . import (arg_count, callee_text, declared_type_params, decode, enclosing_id, fields, make_node, new_result,
+               text, walk)
 
 PARSER = get_parser("python")
 ENV = re.compile(r"os\.(?:getenv|environ\.get)\(\s*['\"]([A-Za-z0-9_]+)['\"]|os\.environ\[\s*['\"]([A-Za-z0-9_]+)['\"]\s*\]")
@@ -48,6 +49,8 @@ def _params(fn, is_method: bool) -> list[dict]:
         else:
             continue
         out.append({"name": name, "type": text(typ) if typ is not None else None})
+        if t in ("default_parameter", "typed_default_parameter"):
+            out[-1]["optional"] = True
     if is_method and out and out[0]["name"] in ("self", "cls"):
         out = out[1:]
     return out
@@ -355,8 +358,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None)
                                    "relative": target.startswith("."), "names": names})
         elif n.type == "call":
             fn = n.child_by_field_name("function")
-            res["calls"].append({"callee": text(fn)[:120], "in": enclosing_id(n, scope_ids),
-                                 "line": n.start_point[0] + 1,
+            res["calls"].append({"callee": callee_text(text(fn)), "in": enclosing_id(n, scope_ids),
+                                 "line": fn.end_point[0] + 1,
                                  "args": arg_count(n, ("list_splat", "dictionary_splat"))})
         elif n.type == "concatenated_string" or (
                 n.type == "string" and (n.parent is None or n.parent.type != "concatenated_string")):

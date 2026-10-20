@@ -18,7 +18,7 @@ def test_python_nodes_ids_and_signatures():
     assert n["worker::worker.main"]["kind"] == "file"
     assert n["worker::worker.main"]["parent"] == "worker::worker/"
     run = n["worker::worker.main#run/2"]
-    assert run["signature"] == {"params": [{"name": "job_id", "type": "str"}, {"name": "dry", "type": "bool"}],
+    assert run["signature"] == {"params": [{"name": "job_id", "type": "str"}, {"name": "dry", "type": "bool", "optional": True}],
                                 "returns": "dict"}
     store = n["worker::worker.main.Job#store/3"]
     assert store["parent"] == "worker::worker.main.Job"

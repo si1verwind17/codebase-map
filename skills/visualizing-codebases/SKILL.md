@@ -120,7 +120,7 @@ inside the repo).
    but the page was not written (the message says why): report it, do not
    touch `meaning.json`.
 5. `assemble.py` prints the audit line last and writes `OUT/audit.md`. Fix
-   each `ext.missing`, `queue.missing`, `module.empty`, `example.missing` and `pin.few` content warning
+   each `ext.missing`, `queue.missing`, `data.two-way-call`, `module.empty`, `example.missing` and `pin.few` content warning
    in `meaning.json` and rerun `assemble.py`. An `ext.missing` key that names no
    outside endpoint (a test helper's, a tool's own setting such as `DOCKER_HOST`)
    gets a `problems` entry naming the key and why; that clears it. So does a
@@ -129,7 +129,8 @@ inside the repo).
    them. Map limits and findings are reported, not fixed.
 6. Open `OUT/index.html` in a browser. (`view.py REPO --out-dir OUT` rewrites
    only the page, for when the viewer changed but the map did not.)
-7. Report: commit scanned, the counts line it printed (paste that line as it is, never a retelling), every entry in `problems`,
+7. Report: commit scanned, the counts line it printed (paste that line as it is, never a retelling; when the user asks
+   for one line of counts, it is that line), every entry in `problems`,
    the audit line, each map note as applied or "not supported yet", each
    `rules.recheck` entry applied, the number of pins and examples, each
    `## Pins` line applied, the `stack.yaml` entries added this run,
@@ -277,9 +278,12 @@ schedule and tasks, each Flyte workflow's launch plan schedule and every
   `tables` the concrete tables its callers pass in (literal arguments, or
   variables set right before the call) or that configs name.
 - `data` says which way data moves: `forward` (from → to), `back` (to → from)
-  or `both`. Kinds default (request `both`, db-read `back`, the rest
-  `forward`); a `stream` has no default and must be set: a subscription the
-  service opens is `back`. The layout orders the production line by it.
+  or `both`. Kinds default (db-read `back`, the rest `forward`); a `stream`
+  has no default and must be set: a subscription the service opens is `back`.
+  A call's reply is not data moving back: a `request` or `ext-call` stays
+  `forward`, from the caller, whatever it returns (`both` draws a two-way belt,
+  as if each end called the other); a flow both ways is a `bidirectional`
+  stream. The layout orders the production line by it.
 
 Read these optional facts from code and config. Each is set only on evidence
 you can cite; leave it out when unsure. Why: the viewer draws the shape from
@@ -354,6 +358,15 @@ Sort each line into one group of its language:
    pattern's; delete your entry.
    When a library in `imports` is an ORM, look for how it names tables and
    add a `tables` pattern even though no line asks for it.
+   For a library no pack knows, search the files that import it for every form
+   it declares a route, table or queue with before you trust your pattern: a
+   verb with and without its own path, a base path set once for many routes (a
+   `mount: true` route entry, below, or composed on the keys), a declaration
+   that takes its path from a variable or a method, more than one per
+   statement. Count each form's matches; each form the pattern cannot read
+   goes into `problems` by name with one `file:line` example (what the map
+   shows instead), so the gap is said, not found later. Why: a pattern checked
+   against one example misses the other forms silently.
 4. Files whose facts a new or changed pattern touches count as changed in
    this run: on an incremental run, review them with the stale facts.
 
@@ -408,8 +421,10 @@ scala:
 - A route (`form: regex`, the default): `name` (unique per language;
   `fastapi`, `tapir` and `tapir-client` are taken), `regex` (Python `re` over the whole file, multiline) with a
   named group `path`; the method from a `method` group, a `methods` group
-  (each quoted word is one route), or the entry's `method:` (`ANY` for every
-  method); methods are upper-cased (`get` → `GET`). A pattern with a
+  (each quoted word is one route), or the entry's `method:`: the method the
+  framework serves when the call names none (`GET` for most; `ANY` only where
+  it serves every method, as pekko's `path` does); methods are upper-cased
+  (`get` → `GET`). A pattern with a
   `methods` group and no `method` group must also set `method:`, the
   fallback for a match where the group is empty. `when`: an import prefix; the pattern runs only on files that
   import it. Without `when` it runs on every file of its language.
@@ -448,7 +463,9 @@ scala:
   example's key follows `scripts/examples.py`, which writes the relation's
   spelling when a relation names the route and the bare path when none does (Express
   `app.use("/v1", router)`, Ktor `route("/v1") { }`, Chi `Route`, NestJS
-  `setGlobalPrefix`).
+  `setGlobalPrefix`). In `problems` and any other text a route's path is
+  composed too; only example keys follow `examples.py`. A bare example key
+  under a mount is expected: no problem explains it.
 - An annotation route (`form: annotated`; any language but Python and
   Scala) reads the annotations on classes and methods instead of a regex.
   The Java pack's Spring entry, shortened (in `stack.yaml` this name would
@@ -617,7 +634,8 @@ what the code would output. Values need not agree across a chain.
   streams and jobs). A method that serves several routes gets one item per
   key. One item per route, not per spelling: a route that `files` lists
   without its mount prefix and a relation writes with it is one item, keyed
-  as on the relation.
+  as on the relation; a mounted route no relation names is one item, keyed
+  bare as `examples.py` prints it.
 - **Data types:** a class whose `fields` the scanner lists, referred to by a
   signature (`signature.params[].refs`, `signature.returns_refs`). Give an
   `examples.types` entry (`"<class id>": {"value": {...}}`) to every type in
@@ -639,7 +657,8 @@ what the code would output. Values need not agree across a chain.
   entry point and data type that should have one, totals first, each `ok`,
   `missing` or `stale` (`ok 1/3 keys` when a method with several keys has
   fewer examples; `key gone` when an example's key is no longer one of its
-  method's). Write the missing ones (for types, data types only)
+  method's: change only that example's `key`, never the same path in other
+  text). Write the missing ones (for types, data types only)
   and assemble again. The audit lists entry points still without one, and
   those with a key still without one (`example.missing`). A root route
   (`GET /`) under a mount stays a key apart from the relation's (`GET /v1`):
@@ -648,7 +667,9 @@ what the code would output. Values need not agree across a chain.
 ## Problems
 
 Record everything you could not resolve in `problems`, with the nodes it
-concerns. A visible gap is useful; a confident guess is not.
+concerns. A visible gap is useful; a confident guess is not. A route's path
+in problem text carries its mount prefix (`/notes/{id}`, never `/{id}`); bare
+example keys under a mount are expected and get no problem.
 
 ## Large repos
 
@@ -713,7 +734,7 @@ map. Map limits are drawing-check failures the viewer cannot draw well yet:
 report them, never fix them, never put them on the map. Findings are what the
 map shows about the code; the only one is a cycle between services (events
 through a topic do not count). Content warnings `ext.missing`, `queue.missing`,
-`module.empty`, `example.missing` and `pin.few` you fix in `meaning.json`;
+`data.two-way-call`, `module.empty`, `example.missing` and `pin.few` you fix in `meaning.json`;
 `name.container` is a labelling gap in the scanner or viewer,
 `pin.start-missing` a pin whose start is gone (the user decides), and an
 audit error (`audit.error`) is a check that broke: report them. Without

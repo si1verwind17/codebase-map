@@ -21,8 +21,11 @@ const HUG = 3;         // stepping beside a machine the line does not touch: kee
 const FREE = -1, BOX = -2, LANE = -3;
 const BASE = 0x3fffffff;   // a base line's tile under a layer's routing: a line index past any layer's own
 const CORNER = 3;      // an end on a side's outermost tile (beside the machine's corner) costs about a turn: lines meet a side straight on, nearer its middle
+const OFF = 1.25;      // each tile an end sits off its side's middle: more than the tile it saves, so a line along a side runs on to the middle and leaves the tiles before it to the next line
 const RIDE = 0.3;      // a tile shared with a trunk costs less than a fresh one: lines bundle when that is about as short
 const EDGE = 1;        // a tile on a broker airfield's edge column costs a little more: its name grows along its row into them
+const BADGE = 2;       // a tile of the room right of a heavily used item, where its `used by N` badge grows to read at Fit
+const BADGE_ROOM = { w: 7, h: 2 };   // tiles: a `used by 10` badge at about 2.2x
 
 export function lineKind(b: Bundle, tap: boolean): LineKind {
   if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
@@ -78,8 +81,16 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
 
   // a broker airfield's two edge columns (one tile off its hubs): lines pass beside the airfield rather than along its
   // edge, so its name keeps the room to grow at Fit (a line down the edge hid pubsub's name on the demo site)
-  const edge = new Uint8Array(cols * rows);
-  for (const z of tf.zones) if (z.airfield) for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = 1;
+  const edge = new Uint8Array(cols * rows);   // the extra cost of a tile names or badges grow into
+  for (const z of tf.zones) if (z.airfield) for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = EDGE;
+  // a zone's label row (its bottom row, which the layout keeps for its name): a line runs along it only where it must
+  for (const z of tf.zones) for (let x = z.x; x < z.x + z.w; x++) if (ok(x, z.y + z.h - 1)) edge[at(x, z.y + z.h - 1)] = EDGE;
+  // a heavily used item's badge room, right of it and ending above its middle row (left free for a line to plug in
+  // there): lines pass elsewhere where they can, so the badge reads at Fit
+  for (const b of tf.boxes.values()) if (b.region === "hubs") {
+    const y0 = b.y + Math.floor(b.h / 2) - BADGE_ROOM.h;
+    for (let y = y0; y < y0 + BADGE_ROOM.h; y++) for (let x = b.x + b.w; x < b.x + b.w + BADGE_ROOM.w; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], BADGE);
+  }
 
   // the machines beside each tile (up to two; MANY when more), for the cost of hugging a machine a line does not touch
   const MANY = -9;
@@ -380,7 +391,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
     else for (let di = 0; di < 4; di++) for (const [x, y, off] of side(src, DIRS[di])) {
       if (!ok(x, y)) continue;
       const v = eff(at(x, y));
-      if (v === FREE || (me && mode === "src" && v >= 0 && shares(v, at(x, y), di))) relax(key(x, y, di), v === FREE && cornerTile(src, DIRS[di], off) ? CORNER : 0, -1, x, y);
+      if (v === FREE || (me && mode === "src" && v >= 0 && shares(v, at(x, y), di))) relax(key(x, y, di), v === FREE ? endCost(src, DIRS[di], off) : 0, -1, x, y);
     }
     const rider = me !== null, dstMode = mode === "dst";   // fixed for the whole search
     while (heap.size) {
@@ -400,7 +411,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
       const leaves = !(riding && !dstMode) || canLeave(here);   // a rider may split off here
       const lock = lead !== null && lead.get(here) === di ? di : -1;   // still on a free-standing yard's exit run
       if (into && (only < 0 || into === DIRS[only]) && leaves) {
-        const off = hv === FREE && cornerTile(dst, into, offMid(dst, x, y, into)) ? CORNER : 0;   // plugging into a trunk's tile is free: its first tile was centred
+        const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into)) : 0;   // plugging into a trunk's tile is free: its first tile was centred
         if (off === 0) return build(k, into);
         if (!goaled[k]) { goaled[k] = 1; heap.push(g[k] + off, GOAL + k); }
       }
@@ -416,7 +427,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
           // hug written out: this is the search's hottest step (same sums, in the same order)
           if (!(riding && dstMode) && leaves) {
             const a = nb[2 * nt], b = nb[2 * nt + 1];
-            const cost = gk + 1 + (((a >= 0 && a !== m0 && a !== m1 && a !== m2) || (b >= 0 && b !== m0 && b !== m1 && b !== m2) || b === MANY ? HUG : 0) + (edge[nt] ? EDGE : 0)) + (ni === di ? 0 : TURN);
+            const cost = gk + 1 + (((a >= 0 && a !== m0 && a !== m1 && a !== m2) || (b >= 0 && b !== m0 && b !== m1 && b !== m2) || b === MANY ? HUG : 0) + edge[nt]) + (ni === di ? 0 : TURN);
             relax(nt * 4 + ni, cost, k, nx, ny);
           }
         } else if (v !== BOX) {
@@ -484,6 +495,11 @@ function offMid(b: Rect, x: number, y: number, d: Dir): number {
 function cornerTile(b: Rect, d: Dir, off: number): boolean {
   const n = d === "n" || d === "s" ? b.w : b.h;
   return n >= 3 && off === (n - 1) / 2;
+}
+
+/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. */
+function endCost(b: Rect, d: Dir, off: number): number {
+  return Math.max(off * OFF, cornerTile(b, d, off) ? CORNER : 0);
 }
 
 /** Tiles just outside one side of a box, with each tile's distance from the middle of that side. */

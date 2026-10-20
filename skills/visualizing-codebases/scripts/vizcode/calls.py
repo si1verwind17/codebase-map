@@ -21,6 +21,7 @@ TYPE_CONTAINERS = {"list", "List", "dict", "Dict", "set", "Set", "tuple", "Tuple
                    "Promise", "Future", "Task", "IO", "ZIO", "Option", "Either", "Result", "Mono", "Flux",
                    "Observable", "Stream", "IEnumerable", "IList", "Dictionary", "MutableList", "MutableMap"}
 QUOTED = re.compile(r'"""[\s\S]*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+CHAINED = re.compile(r"[)\]}]\s*\.\s*[\w!?]+\s*$")   # `build(x).run`: a method of a call's result
 
 
 def callee_parts(callee: str) -> list[str]:
@@ -73,13 +74,18 @@ def _copy_paste(index: dict[str, dict[str, list[str]]], by_id: dict[str, dict]) 
     return out
 
 
+OPTIONAL_RECORDED = {"python", "scala"}   # adapters that mark the parameters a call may leave out (`optional`)
+
+
 def _accepts(method: dict, n: int) -> bool:
     """Can `method` take n arguments? Unknown signatures, *args/**kw (and the variadics other languages record so) and
-    a Scala repeated parameter (`params: Any*`) take any count."""
+    a Scala repeated parameter (`params: Any*`) take any count. Where the adapter marks optional parameters, a call
+    must also pass every required one."""
     params = (method.get("signature") or {}).get("params")
     if params is None or any(p["name"].startswith("*") or (p.get("type") or "").endswith("*") for p in params):
         return True
-    return n <= len(params)
+    required = sum(not p.get("optional") for p in params) if method.get("lang") in OPTIONAL_RECORDED else 0
+    return required <= n <= len(params)
 
 
 def _outer_type(type_text: str | None) -> str | None:
@@ -108,6 +114,32 @@ def _ancestors(cid: str, by_id: dict[str, dict]) -> set[str]:
             out.add(c)
             todo += by_id[c].get("implements") or []
     return out
+
+
+def _sig_refs(method: dict) -> set[str]:
+    sig = method.get("signature") or {}
+    return {r for p in sig.get("params", []) for r in p.get("refs") or []} | set(sig.get("returns_refs") or [])
+
+
+def _context_refs(caller: dict, by_id: dict[str, dict], spans: dict[str, list[dict]]) -> set[str]:
+    """Repo types the caller's declarations name: its own signature's, and those of the methods and vals around it
+    in its file (`val live: Layer[Chain[AKey], X] = ... new X { def apply(..) }`), less the caller's own types."""
+    line, out = caller.get("line", 0), _sig_refs(caller)
+    for m in spans.get(caller.get("file") or "", []):
+        if m is not caller and m.get("line", 0) <= line < m.get("line", 0) + (m.get("metrics") or {}).get("loc", 1):
+            out |= _sig_refs(m)
+    return out - _ancestors(caller.get("parent") or "", by_id)   # what the caller is, not what it holds
+
+
+def _narrowed(cands: list[str], context: set[str], by_id: dict[str, dict]) -> list[str]:
+    """The candidates whose class descends from a type the caller's declarations name, when that tells them apart:
+    ancestors every candidate shares (the interface they all implement) do not count."""
+    if len(cands) < 2 or not context:
+        return cands
+    ancestry = {m: _ancestors(by_id[m].get("parent") or "", by_id) for m in cands}
+    shared = set.intersection(*ancestry.values())
+    keep = [m for m in cands if (ancestry[m] - shared) & context]
+    return keep if 0 < len(keep) < len(cands) else cands
 
 
 def _owner_names(node: dict, nodes: dict[str, dict]) -> set[str]:
@@ -202,8 +234,10 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
         if r["kind"] == "uses-code":
             uses.setdefault(r["from"], set()).add(r["to"])
     index: dict[str, dict[str, list[str]]] = {}
+    spans: dict[str, list[dict]] = {}   # file -> its methods, for the declarations around a caller
     for n in nodes:
         if n["kind"] == "method":
+            spans.setdefault(n.get("file") or "", []).append(n)
             rt = root(n["id"])
             if rt:
                 index.setdefault(rt, {}).setdefault(n["name"], []).append(n["id"])
@@ -284,12 +318,19 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 named = [m for m in cands if receiver.lower() in _owner_names(by_id[m], by_id)]
                 others = [m for m in cands if by_id[m].get("parent") != caller_owner]
                 cands = named or others or cands
-            # an implementation and the trait method it implements are one target: the trait method
-            folded = list(dict.fromkeys(abstract.get(m, m) for m in cands))
-            cands = [m for m in folded if m != abstract.get(caller, caller)]
+            trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
+            narrowed = False
+            if not trusted and len(cands) > 1:
+                # an untyped receiver: the caller's declared types may name which implementation it holds; that one
+                # stays itself, folded only into a trait method that was kept too (a trace would fan out from it)
+                kept = _narrowed(cands, _context_refs(by_id[caller], by_id, spans), by_id)
+                narrowed, cands = len(kept) < len(cands), [m for m in kept if abstract.get(m) not in kept]
+            if not narrowed:
+                # an implementation and the trait method it implements are one target: the trait method
+                folded = list(dict.fromkeys(abstract.get(m, m) for m in cands))
+                cands = [m for m in folded if m != abstract.get(caller, caller)]
             if not cands:
                 continue
-            trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
             if c.get("args") is not None:   # prefer methods that can take this many arguments
                 fit = [m for m in cands if _accepts(by_id[m], c["args"])]
                 if not fit and not trusted and not any((receiver or "").lower() in _owner_names(by_id[m], by_id)
@@ -297,11 +338,14 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                     continue   # `stream.run(sink)`: an unknown value whose method takes other arguments: a library's
                 cands = fit or cands
             if len(cands) > MAX_CANDIDATES:
-                dropped[rt] = dropped.get(rt, 0) + 1
+                if not CHAINED.search(c["callee"]) and parts[0] != "?":
+                    dropped[rt] = dropped.get(rt, 0) + 1   # a chained result's method is a library's: no loss
                 continue
             for m in cands:
                 if len(cands) == 1 and (trusted or (receiver or "").lower() in _owner_names(by_id[m], by_id)):
                     conf, why = "confirmed", None
+                elif narrowed:
+                    conf, why = "inferred", "narrowed by the caller's declared types"
                 elif len(cands) == 1:
                     conf, why = "inferred", "matched by method name only"
                 else:

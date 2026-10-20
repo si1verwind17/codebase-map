@@ -499,7 +499,8 @@ function flowOf(b: Bundle, lift: (id: string) => string | undefined): Bundle["fl
   let fwd = 0, back = 0;
   for (const r of b.relations) {
     const from = lift(r.from), to = lift(r.to);
-    const d = r.data ?? (r.kind === "calls" ? "forward" : "both");
+    // direction.py's defaults, for a map assembled without them
+    const d = r.data ?? (r.kind === "db-read" ? "back" : r.kind === "stream" ? "both" : "forward");
     if (d === "both") { fwd++; back++; continue; }
     const [up] = d === "back" ? [to, from] : [from, to];
     if (up === b.a) fwd++; else back++;

@@ -13,7 +13,9 @@ env_keys  [{key, line}]
 routes    [{method, path, handler, line, framework}]
 includes  [{app, router, prefix, line}]   FastAPI include_router calls (Python only)
 tapir     {"vals": {qualname: {...}}, "bodies": [(method_id, line, body_text)], "root": imports sttp.tapir,
-           "client": imports sttp.tapir.client}  (Scala only)
+           "client": imports sttp.tapir.client, "named": {body index: qualified val name},
+           "binds": [(method_id, endpoint as written, line)] server logic bound to an endpoint,
+           "mentions"?: [dotted names] in a file importing an sttp client}  (Scala only)
 supers    [(class_id, [type name as written])]  what a class extends or an anonymous body implements (Scala, generic)
 bases     [(class_id, [base as written])]  a class's bases (Python only; used for gRPC servicers, not `implements`)
 dags      [{framework, id, schedule, tasks, node, line}]  Airflow DAGs: `@dag` functions, `with DAG(...)` blocks (Python)
@@ -26,6 +28,8 @@ package_declared  a declared package name other than the folder's last segment (
 parse_error  bool
 """
 from __future__ import annotations
+
+import re
 
 from .langs import BY_SUFFIX
 
@@ -62,6 +66,32 @@ def count_args(args, splats: tuple[str, ...], comments: tuple[str, ...] = ("comm
 
 def text(node) -> str:
     return decode(node.text)
+
+
+CALLEE_MAX = 120
+_QUOTED = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
+
+
+def callee_text(callee: str) -> str:
+    """A call's callee as recorded, at most CALLEE_MAX characters. A longer one (a fluent chain, long arguments) first
+    loses its literals and bracketed argument text, then its head, never the called name at its end; a cut head
+    starts with `()`, which call resolution reads as an untrusted receiver."""
+    if len(callee) <= CALLEE_MAX:
+        return callee
+    out, depth = [], 0
+    for ch in _QUOTED.sub('""', callee):
+        if ch in "([{":
+            depth += 1
+            if depth == 1:
+                out.append(ch)
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+            if depth == 0:
+                out.append(ch)
+        elif depth == 0:
+            out.append(ch)
+    short = re.sub(r" ?([^\w ]) ?", r"\1", re.sub(r"\s+", " ", "".join(out)).strip())
+    return short if len(short) <= CALLEE_MAX else "()" + short[-(CALLEE_MAX - 2):]
 
 
 def new_result(package: str, parse_error: bool) -> dict:

@@ -271,7 +271,7 @@
     }
    ],
    "id": "r:request:orders::api.routes#handle/1->billing::api.routes#handle/1:POST /v1/billing",
-   "data": "both"
+   "data": "forward"
   },
   {
    "kind": "request",
@@ -286,7 +286,7 @@
     }
    ],
    "id": "r:request:orders::api.routes#handle/1->reports::api.routes#handle/1:POST /v1/reports",
-   "data": "both"
+   "data": "forward"
   },
   {
    "kind": "request",
@@ -301,7 +301,7 @@
     }
    ],
    "id": "r:request:payments::api.routes#handle/1->billing::api.routes#handle/1:POST /v1/billing",
-   "data": "both"
+   "data": "forward"
   },
   {
    "kind": "request",
@@ -317,7 +317,7 @@
    ],
    "why": "the URL is read from config; only the path matches",
    "id": "r:request:payments::api.routes#handle/1->reports::api.routes#handle/1:POST /v1/reports",
-   "data": "both"
+   "data": "forward"
   }
  ],
  "pins": [],

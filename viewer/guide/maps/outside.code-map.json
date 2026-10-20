@@ -285,7 +285,7 @@
     }
    ],
    "id": "r:request:3p:payment-provider->billing::api.routes#payment_webhook/1:POST /webhooks/payments",
-   "data": "both"
+   "data": "forward"
   }
  ],
  "pins": [],

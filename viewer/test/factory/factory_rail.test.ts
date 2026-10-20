@@ -67,10 +67,11 @@ describe("rail paint placement (demo)", () => {
     }
   });
 
-  it("F0: two signs carry their summary beside the clock, on two lines where one does not fit; feature-store's shows on hover only", () => {
+  it("F0: each sign carries its summary beside the clock, on two lines where one does not fit", () => {
     const { rail } = labelled(SITE);
     expect(rail.signs.map((s) => [s.source, s.text])).toEqual([
       ["svc:demand-forecast", "2 jobs · 1×/day\n+ on demand"],
+      ["svc:feature-store", "daily\n01:00"],
       ["svc:nightly-jobs", "10 jobs\n149×/day"],
     ]);
     expect(rail.stations, "F0's one station comes from one place: no source label").toEqual([]);

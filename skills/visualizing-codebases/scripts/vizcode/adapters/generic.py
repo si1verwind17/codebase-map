@@ -9,7 +9,7 @@ from typing import Callable
 from tree_sitter_language_pack import get_parser
 
 from .. import ids
-from . import count_args, declared_type_params, decode, fields, make_node, new_result, text, walk
+from . import callee_text, count_args, declared_type_params, decode, fields, make_node, new_result, text, walk
 from .langs import LangSpec
 
 QUOTED = re.compile(r'^([@$A-Za-z]{0,3}#*)("""|"|\'|`)(.*)\2(#*)$', re.S)     # Rust r#"..."#
@@ -597,9 +597,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
             keys, args = spec.calls[t]
             parts = [c for c in (child(n, k) for k in keys) if c is not None]
             if parts:
-                callee = TURBOFISH.sub("", _without(src, n, spec.type_args, parts[0].start_byte,
-                                                    min(parts[-1].end_byte, parts[0].start_byte + 240)))
-                res["calls"].append({"callee": callee[:120], "in": scope, "line": n.start_point[0] + 1,
+                callee = TURBOFISH.sub("", _without(src, n, spec.type_args, parts[0].start_byte, parts[-1].end_byte))
+                res["calls"].append({"callee": callee_text(callee), "in": scope, "line": parts[-1].end_point[0] + 1,
                                      "args": _arg_count(_path(n, args), spec)})
                 if scope in selves and re.match(rf"{re.escape(selves[scope])}\b", callee):
                     res["calls"][-1]["self"] = selves[scope]       # a call on the method's own object

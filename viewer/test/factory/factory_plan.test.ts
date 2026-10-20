@@ -136,9 +136,9 @@ describe("floor plan", () => {
     want!.rowGaps.forEach((g, j) => expect(second.aisles!.rows[j].h, `row ${j}`).toBe(first.aisles!.rows[j].h + g));
     const r2 = routeTiles(second, bundles), failed = (rs: TileRoute[]) => rs.filter((r) => r.failed).length;
     const taken = failed(r2) <= failed(r1) && crossings(r2) < crossings(r1);
-    // both passes cross 39 (rail yards and stations, reservations-redis's chest and payments-webhook's receiving dock all
-    // reserved): the widened pass must cross strictly less, so the first is kept
-    expect([crossings(r1), crossings(r2), taken]).toEqual([39, 39, false]);
+    // the first pass crosses 43, the widened one 44 (rail yards and stations, reservations-redis's chest and
+    // payments-webhook's receiving dock all reserved): the widened pass must cross strictly less, so the first is kept
+    expect([crossings(r1), crossings(r2), taken]).toEqual([43, 44, false]);
     const p = planFloor(demo, SITE, doors, bundles);
     expect(p.tf).toEqual(taken ? second : first);
     expect(p.routes.filter((r) => r.failed)).toHaveLength(0);
@@ -306,8 +306,8 @@ describe("floor plan", () => {
     return `${n} ${h.digest("hex").slice(0, 16)}`;
   };
   it("a floor with no hub plans exactly as before: fixture and demo", () => {
-    expect(noHubDigest(new Model(shop as unknown as CodeMap))).toBe("18 a620026f9ac43394");
-    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 0ea4d7fb420af3bf");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
+    expect(noHubDigest(new Model(shop as unknown as CodeMap))).toBe("18 081d757a9c92391e");
+    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 eff5a0c9f38f355c");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
   });
   it.runIf(BIG && existsSync(BIG))("a map with no topics plans every floor exactly as before (the big map)", () => {
     expect(noHubDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 8095edabe5f0f113");
@@ -560,8 +560,8 @@ describe("floor plan", () => {
     return `${n} ${h.digest("hex").slice(0, 16)}`;
   };
   it("a floor with no implements pair plans exactly as before: fixture and demo", () => {
-    expect(noPairDigest(new Model(shop as unknown as CodeMap))).toBe("24 53826f345d063535");
-    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 2315caa2841b3692");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
+    expect(noPairDigest(new Model(shop as unknown as CodeMap))).toBe("24 13822fa1208f31fa");
+    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 4214ebecaa2f8518");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
   });
   it.runIf(BIG && existsSync(BIG))("a floor with no implements pair plans exactly as before (the big map)", () => {
     expect(noPairDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 3d5be224c7fe339d");
@@ -588,8 +588,8 @@ describe("floor plan", () => {
   const noBatch = (map: CodeMap): CodeMap => ({ ...map, relations: map.relations.filter((r) => r.kind !== "batch") });
   const noStore = (map: CodeMap): CodeMap => ({ ...map, nodes: map.nodes.map(({ store: _s, ...n }) => n) });
   it("a floor with no rail yard plans exactly as before: fixture (its batch relation stripped) and demo", () => {
-    expect(noBatchDigest(new Model(noStore(noBatch(shop as unknown as CodeMap))))).toBe("25 bb5d026dd2644e94");
-    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 7fa61c1c9ef4bbd4");   // demo re-pinned at scanner 0.6.0: three name-matched calls the scanner no longer draws; the previous map still gives the old digest
+    expect(noBatchDigest(new Model(noStore(noBatch(shop as unknown as CodeMap))))).toBe("25 f1a12bd2f50d1ec1");
+    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 ace6bb414400d730");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
   });
   it("demo and fixture: every rail yard and station has its place, and every rail runs from its yard to its station", () => {
     const demo = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);

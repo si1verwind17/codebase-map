@@ -308,9 +308,11 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       for (let i = 0; i < 4 && (await mode()) !== "names"; i++) { await page.mouse.wheel(0, -300); await page.waitForTimeout(150); }
       await expect(mode()).resolves.toBe("names");
-      // names hold two wheel notches (x e^-0.2 each) past the old 9 px switch: zooming out a notch at a time, the smallest
-      // name still shows under 9 px, and the floor turns to codes only once it would render under about 6 px (9·e^-0.4)
+      // names hold two wheel notches (x e^-0.2 each) past the old 9 px switch: zooming out a notch at a time from a
+      // readable size, the smallest name still shows under 9 px, and the floor turns to codes only once it would render
+      // under about 6 px (9·e^-0.4)
       const namePx = async () => Number(await page.locator("canvas").getAttribute("data-name-px"));
+      for (let i = 0; i < 4 && (await namePx()) < 9; i++) { await page.mouse.wheel(0, -300); await page.waitForTimeout(150); }
       let last = await namePx(), held = 0;
       for (let i = 0; i < 20 && (await mode()) === "names"; i++) {
         last = await namePx();
@@ -562,7 +564,14 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(ownNear, "a line's own words within a tile of it").toBeGreaterThan(0);
     // the ratchet: an overlap with no local fix is listed here (`<floor> <fit|near>: "<word>" over …`); the list never grows,
     // and an entry no longer found is taken off it. Empty: every overlap found so far was fixed where it was drawn.
-    const KNOWN: string[] = [];
+    // reservations: the graded end cost (lines run on to a side's middle) moved the redis line under the postgres store's
+    // name; kept on the owner's call (2026-10-20), to fix in the router later
+    const KNOWN: string[] = [
+      "svc:reservations fit: \"postgres\" over line db:redis:REDIS_URL|reservations::city.parking.reservations/",
+      "svc:reservations fit: \"postgres\" over line door:topic:kafka:reservation-events|reservations::city.parking.reservations/",
+      "svc:reservations near: \"postgres\" over line db:redis:REDIS_URL|reservations::city.parking.reservations/",
+      "svc:reservations near: \"postgres\" over line door:topic:kafka:reservation-events|reservations::city.parking.reservations/",
+    ];
     expect({ added: found.filter((f) => !KNOWN.includes(f)), gone: KNOWN.filter((k) => !found.includes(k)) }, "words over a line or another word").toEqual({ added: [], gone: [] });
     expect(errors).toEqual([]);
   }, 300_000);
@@ -790,7 +799,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
 
   it("factory view: the webhook dock lights and fades with payments-webhook and the Stripe belt; its hover lists the routes", async () => {
     const demoMap = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
-    // the fixture with two inbound webhooks into worker: its dock is upright, so its routes show on hover only
+    // the fixture with two inbound webhooks into worker: its level dock says `POST +1`, its hover lists both routes
     const two = JSON.parse(readFileSync(new URL("../fixtures/shop.code-map.json", import.meta.url), "utf8")) as CodeMap;
     const to = "worker::worker.main#health/0";
     for (const [id, col, row, key] of [["3p:pay", 3, 0, "POST /hooks/pay"], ["3p:mail", 0, 1, "POST /hooks/mail"]] as const) {
@@ -828,8 +837,8 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       const page = await open(demoMap);
       await expect(docks(page), "nothing selected: lit").resolves.toBe("svc:payments-webhook:lit");
       const { p } = await atFit(page, demo, 0, 0), d = p.tf.webhooks![0], m = p.tf.boxes.get("svc:payments-webhook")!;
-      // the dock's face says `POST`: hovering it lists the whole route
-      const dock = await atFit(page, demo, d.x + d.w - 1, d.y);
+      // the dock stands upright, with no words: hovering its middle tile lists the route
+      const dock = await atFit(page, demo, d.x + Math.floor(d.w / 2), d.y + Math.floor(d.h / 2));
       await page.mouse.move(dock.x, dock.y);
       await page.waitForFunction(() => !!document.querySelector("canvas")?.getAttribute("data-dock-tip"), null, { timeout: 5_000 });
       await expect(page.locator("canvas").getAttribute("data-dock-tip")).resolves.toBe("POST /webhooks/stripe");
@@ -863,10 +872,10 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.mouse.click(belt.x, belt.y);
       await page.waitForFunction(() => /stripe/.test(document.querySelector(".insp")?.textContent ?? "") && /payments-webhook/.test(document.querySelector(".insp")?.textContent ?? ""), null, { timeout: 5_000 });
       await docksAre(page, "svc:payments-webhook:lit");
-      // two routes into worker: the upright dock's hover lists both
+      // two routes into worker: the dock's hover lists both
       const model2 = new Model(two), page2 = await open(JSON.stringify(two));
       const { p: p2 } = await atFit(page2, model2, 0, 0), d2 = p2.tf.webhooks![0];
-      const at2 = await atFit(page2, model2, d2.x, d2.y + 1);
+      const at2 = await atFit(page2, model2, d2.x + Math.floor(d2.w / 2), d2.y + Math.floor(d2.h / 2));
       await page2.mouse.move(at2.x, at2.y);
       await page2.waitForFunction(() => !!document.querySelector("canvas")?.getAttribute("data-dock-tip"), null, { timeout: 5_000 });
       await expect(page2.locator("canvas").getAttribute("data-dock-tip")).resolves.toBe("POST /hooks/mail\nPOST /hooks/pay");

@@ -1,12 +1,12 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.6.0",
-  "rules_version": 2,
+  "scanner_version": "0.7.0",
+  "rules_version": 3,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "b8dee938fe3ed49ee97fce945887053a10fcd79e",
-  "scanned_at": "2026-10-15T15:23:05Z",
+  "commit": "de45af0c6169e23195952f498a76792b79b3ec75",
+  "scanned_at": "2026-10-20T14:14:15Z",
   "languages": [
    "python",
    "scala"
@@ -2230,7 +2230,8 @@
      },
      {
       "name": "read",
-      "type": "ResultSet => A"
+      "type": "ResultSet => A",
+      "optional": true
      }
     ],
     "returns": "Task[List[A]]"
@@ -2384,7 +2385,8 @@
      },
      {
       "name": "read",
-      "type": "ResultSet => A"
+      "type": "ResultSet => A",
+      "optional": true
      }
     ],
     "returns": "Task[List[A]]"
@@ -2780,7 +2782,8 @@
      },
      {
       "name": "default",
-      "type": "str | None"
+      "type": "str | None",
+      "optional": true
      }
     ],
     "returns": "str"
@@ -3030,7 +3033,8 @@
     "params": [
      {
       "name": "max_messages",
-      "type": "int"
+      "type": "int",
+      "optional": true
      }
     ],
     "returns": null
@@ -3290,7 +3294,8 @@
     "params": [
      {
       "name": "days",
-      "type": "int"
+      "type": "int",
+      "optional": true
      }
     ],
     "returns": "str"
@@ -3413,7 +3418,8 @@
     "params": [
      {
       "name": "days",
-      "type": "int"
+      "type": "int",
+      "optional": true
      }
     ],
     "returns": "int"
@@ -3680,7 +3686,8 @@
     "params": [
      {
       "name": "ds",
-      "type": null
+      "type": null,
+      "optional": true
      }
     ],
     "returns": "int"
@@ -3781,7 +3788,8 @@
     "params": [
      {
       "name": "ds",
-      "type": null
+      "type": null,
+      "optional": true
      }
     ],
     "returns": "None"
@@ -3895,7 +3903,8 @@
     "params": [
      {
       "name": "ds",
-      "type": null
+      "type": null,
+      "optional": true
      }
     ],
     "returns": "str"
@@ -3948,7 +3957,8 @@
     "params": [
      {
       "name": "ds",
-      "type": null
+      "type": null,
+      "optional": true
      }
     ],
     "returns": "str"
@@ -4001,7 +4011,8 @@
     "params": [
      {
       "name": "ds",
-      "type": null
+      "type": null,
+      "optional": true
      }
     ],
     "returns": "None"
@@ -4654,7 +4665,8 @@
      },
      {
       "name": "stripe_signature",
-      "type": "str"
+      "type": "str",
+      "optional": true
      }
     ],
     "returns": "dict"
@@ -5805,11 +5817,13 @@
     "params": [
      {
       "name": "start",
-      "type": "date"
+      "type": "date",
+      "optional": true
      },
      {
       "name": "end",
-      "type": "date"
+      "type": "date",
+      "optional": true
      }
     ],
     "returns": "dict"
@@ -9564,11 +9578,7 @@
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 43
-    },
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 43
+     "line": 46
     },
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
@@ -9602,11 +9612,7 @@
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 25
-    },
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 25
+     "line": 28
     },
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
@@ -9801,11 +9807,7 @@
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 51
-    },
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 51
+     "line": 55
     },
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
@@ -9854,10 +9856,6 @@
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 58
-    },
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 58
     }
    ],
    "why": "matched by method name only"
@@ -9887,7 +9885,7 @@
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 67
+     "line": 70
     },
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
@@ -9921,7 +9919,7 @@
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
-     "line": 53
+     "line": 54
     }
    ],
    "why": "matched by method name only"
@@ -11477,7 +11475,7 @@
     }
    ],
    "id": "r:request:jobs/dags::dags.nightly_settlement#settle/0->billing::city.parking.billing.SettleEndpoint$#routes/1:POST /internal/settle",
-   "data": "both"
+   "data": "forward"
   },
   {
    "kind": "request",
@@ -11500,7 +11498,7 @@
     }
    ],
    "id": "r:request:reservations::city.parking.reservations.PricingClient.Live#quote/2->pricing::city.parking.pricing.QuoteEndpoint$#routes/1:GET /v1/quote",
-   "data": "both"
+   "data": "forward"
   },
   {
    "kind": "stream",

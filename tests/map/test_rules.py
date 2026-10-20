@@ -150,12 +150,13 @@ def test_behind_explains_a_changes_file_that_does_not_match(monkeypatch):
         rules.behind(cmap_at(1), TEXT.split("## Rules 2")[0].replace("Rules 3", "Rules 2"))
 
 
-def test_rules_two_adds_in_process_queues_to_the_baseline():
-    assert RULES_VERSION == 2
+def test_rules_two_and_three_follow_the_baseline():
+    assert RULES_VERSION == 3
     parsed = rules.parse_changes(rules.CHANGES.read_text(encoding="utf-8"))
     assert parsed[1] == ["Baseline: nothing to re-check."]
     assert len(parsed[2]) == 2 and parsed[2][0].startswith("In-process queues (SKILL.md § In-process queues)")
     assert parsed[2][1].startswith("Actor and entity messages")
+    assert len(parsed[3]) == 1 and parsed[3][0].startswith("A call's direction (SKILL.md § data)")
 
 
 def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):

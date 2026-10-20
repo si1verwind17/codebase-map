@@ -277,6 +277,12 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
                     out.append({"id": "ext.missing", "node": None,
                                 "detail": f"config key {key} looks like an outside endpoint but nothing in the map names {key}"})
         out += _queues_missing(cmap, summary_md)
+    for r in cmap.get("relations", []):
+        if r.get("kind") in ("request", "ext-call") and r.get("data") == "both":
+            out.append({"id": "data.two-way-call", "node": r.get("from"),
+                        "detail": f"{r['kind']} {r.get('id') or r['from'] + ' -> ' + r['to']} has data both, which "
+                                  "draws a two-way belt as if each end called the other: a reply is not data moving "
+                                  "back. Leave it forward, from the caller; a flow both ways is a bidirectional stream"})
     for n in nodes.values():
         p = nodes.get(n.get("parent"))
         if p and n["kind"] == "package" and p["kind"] in ("service", "library"):

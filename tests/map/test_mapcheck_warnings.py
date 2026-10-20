@@ -154,3 +154,12 @@ def test_ext_missing_needs_every_word_of_the_key_to_name_one_owner():
     s = "- **env keys:** PAYMENTS_UI_URL; CORE_API_URL; CORE_BANKING_URL; FRAUD_API_URL\n"
     got = [w["detail"].split()[2] for w in mapcheck.warnings(m, s) if w["id"] == "ext.missing"]
     assert got == ["CORE_BANKING_URL", "FRAUD_API_URL"]
+
+
+def test_data_two_way_call():
+    m = {"nodes": [], "relations": [
+        {"id": "r1", "kind": "ext-call", "from": "a", "to": "3p:x", "data": "both"},
+        {"id": "r2", "kind": "request", "from": "a", "to": "b", "data": "forward"},
+        {"id": "r3", "kind": "stream", "from": "a", "to": "b", "data": "both"}]}
+    got = [(w["node"], w["detail"].split()[1]) for w in mapcheck.warnings(m) if w["id"] == "data.two-way-call"]
+    assert got == [("a", "r1")]                  # a two-way stream is fine; a call's reply is no flow back

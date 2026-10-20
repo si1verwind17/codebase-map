@@ -8,7 +8,8 @@ from pathlib import PurePosixPath
 from tree_sitter_language_pack import get_parser
 
 from .. import ids, routes, stack
-from . import arg_count, declared_type_params, decode, enclosing_id, fields, make_node, new_result, text, walk
+from . import (arg_count, callee_text, declared_type_params, decode, enclosing_id, fields, make_node, new_result,
+               text, walk)
 
 PARSER = get_parser("scala")
 CLASS_KINDS = {"class_definition": "", "trait_definition": "", "enum_definition": "", "object_definition": "$"}
@@ -19,6 +20,9 @@ INTERP = re.compile(r"#?\$\{([^}]*)\}|#?\$([A-Za-z_]\w*)")
 # the effect type names come from the packs and stack.yaml
 OPERATORS = r"\.\s*(provide\w*|fork\w*)\b|\*>|<\*"
 SERVER_LOGIC = r"(?<![\w.]){}\s*\.\s*z?[sS]erverLogic"
+# `X.endpoint.zServerLogic(..)`, `.serverSecurityLogic..`: the endpoint a body binds server logic to
+BINDS = re.compile(r"(?<![\w.])([A-Za-z_][\w.]*?)\s*\.\s*z?[sS]erver(?:Security)?Logic\w*")
+DOTTED = re.compile(r"(?<![\w.])[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+")
 
 
 def _visibility(node) -> str:
@@ -85,13 +89,19 @@ def _anonymous(node):
 
 
 def _params(fn) -> list[dict]:
+    """Every parameter list's parameters; `optional` marks one a call may leave out: a default value, a later
+    (curried) list, a `using` or `implicit` list."""
     out = []
-    for plist in fn.children_by_field_name("parameters"):
+    lists = [p for p in fn.children_by_field_name("parameters") if p.type != "type_parameters"]
+    for i, plist in enumerate(lists):
+        given = re.match(r"\(\s*(?:using|implicit)\b", text(plist)) is not None
         for p in plist.named_children:
             if p.type != "parameter":
                 continue
             name, typ = p.child_by_field_name("name"), p.child_by_field_name("type")
             out.append({"name": text(name) if name else "_", "type": text(typ) if typ else None})
+            if i or given or p.child_by_field_name("default_value") is not None:
+                out[-1]["optional"] = True
     return out
 
 
@@ -165,7 +175,9 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
     pkg_id = ids.package_id(mid, pkg)
     scope_ids: dict[int, str] = {}
     method_bodies: list[tuple[str, str]] = []     # (method id, body text) of defs
-    val_bodies: list[tuple[int, str]] = []        # (index in tapir bodies, val name)
+    val_bodies: list[tuple[int, str, str]] = []   # (index in tapir bodies, val name, qualified name)
+    starts: list[int] = []                        # the line each tapir body's text starts on
+    def_names: dict[int, str] = {}                # index in tapir bodies -> qualified name, for defs
     unnamed: dict[str, int] = {}                  # anonymous implementations per owner, for `$impl<n>`
     file_holder: list[dict] = []
 
@@ -206,8 +218,12 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                 name_node = c.child_by_field_name("name")
                 if name_node is None:
                     continue
-                parent = owner if owner is not None else file_node()
                 params = _params(c)
+                body = c.child_by_field_name("body")
+                if not params and body is not None and (hit := routes.tapir_val(
+                        qual, text(name_node), text(body), key=".".join(qual) if text(name_node) == "apply" else None)):
+                    res["tapir"]["vals"][hit[0]] = hit[1]   # `def v1() = base.in("v1")`: also a prefix, as a val
+                parent = owner if owner is not None else file_node()
                 fid = reg.claim(ids.method_id(parent["id"], text(name_node), len(params)))
                 ret = c.child_by_field_name("return_type")
                 n = make_node(fid, "method", parent["id"], text(name_node), "scala", rel_file, c, _visibility(c))
@@ -217,9 +233,10 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                 res["nodes"].append(n)
                 parent["metrics"]["methods"] += 1
                 scope_ids[c.start_byte] = fid
-                body = c.child_by_field_name("body")
                 if body is not None:
                     res["tapir"]["bodies"].append((fid, n["line"], text(body)))
+                    starts.append(body.start_point[0] + 1)
+                    def_names[len(starts) - 1] = ".".join(qual + [text(name_node)])
                     method_bodies.append((fid, text(body)))
                     if owner is not None:
                         anonymous(body, owner, qual, None)
@@ -246,7 +263,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                         holder = n
                     # `val endpoint = Base.V1.x.get...`: the route belongs to the val, else the enclosing object
                     res["tapir"]["bodies"].append((holder["id"], c.start_point[0] + 1, text(val)))
-                    val_bodies.append((len(res["tapir"]["bodies"]) - 1, text(pat)))
+                    starts.append(val.start_point[0] + 1)
+                    val_bodies.append((len(res["tapir"]["bodies"]) - 1, text(pat), ".".join(qual + [text(pat)])))
                     if owner is not None:
                         anonymous(val, owner, qual, text(pat))
 
@@ -271,7 +289,7 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
 
     visit(root, None, [])
     # `val quote = endpoint.get...` served by `quote.zServerLogic(...)` in a def: that def handles the route
-    for i, name in val_bodies:
+    for i, name, _ in val_bodies:
         users = [fid for fid, body in method_bodies if re.search(SERVER_LOGIC.format(re.escape(name)), body)]
         if len(users) == 1:
             _, line, body = res["tapir"]["bodies"][i]
@@ -290,8 +308,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
         elif n.type == "call_expression":
             fn = n.child_by_field_name("function")
             if fn is not None:
-                res["calls"].append({"callee": text(fn)[:120], "in": enclosing_id(n, scope_ids),
-                                     "line": n.start_point[0] + 1,
+                res["calls"].append({"callee": callee_text(text(fn)), "in": enclosing_id(n, scope_ids),
+                                     "line": fn.end_point[0] + 1,
                                      "args": _arg_count(n)})
         elif n.type in ("string", "interpolated_string_expression"):
             if n.type == "string" and n.parent is not None and n.parent.type == "interpolated_string_expression":
@@ -303,6 +321,12 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
     res["tapir"]["root"] = any(i["target"].startswith("sttp.tapir") for i in res["imports"])
     # a file that interprets endpoints as requests describes calls it makes, not routes it serves
     res["tapir"]["client"] = any(i["target"].startswith("sttp.tapir.client") for i in res["imports"])
+    res["tapir"]["named"] = {**def_names, **{i: q for i, _, q in val_bodies}}
+    res["tapir"]["binds"] = [(fid, m.group(1), start + body.count("\n", 0, m.start()))
+                             for (fid, _, body), start in zip(res["tapir"]["bodies"], starts)
+                             for m in BINDS.finditer(body)]
+    if any(i["target"].startswith(("sttp.client", "sttp.tapir.client")) for i in res["imports"]):
+        res["tapir"]["mentions"] = sorted(set(DOTTED.findall(decode(src))))   # what a client file may call
     src_text = decode(src)
     for m in ENV.finditer(src_text):
         res["env_keys"].append({"key": m.group(1), "line": src_text.count("\n", 0, m.start()) + 1})

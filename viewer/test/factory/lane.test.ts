@@ -14,9 +14,10 @@ describe("lane labels", () => {
 });
 
 describe("mover speed", () => {
-  it("keeps belts and pipes at 60 px/s and lets a drone cross in about three seconds", () => {
+  it("keeps belts and pipes at 60 px/s and lets the length it is given take 3 s (a rail) or 5 s (a floor's longest flight)", () => {
     expect(moverSpeed("event", 120)).toBe(60);
-    expect(moverSpeed("event", 900)).toBe(300);
+    expect(moverSpeed("event", 900)).toBe(180);   // a floor's longest flight: 5 s
+    expect(moverSpeed("train", 900)).toBe(300);   // a rail: 3 s
     expect(moverSpeed("db-write", 900)).toBe(60);
     expect(moverSpeed("stream", 5000)).toBe(60);
   });

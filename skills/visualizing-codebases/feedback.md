@@ -34,11 +34,13 @@ Nothing is posted by you: the last step opens GitHub's new-issue form, filled in
    never a guess. Describe the shape, never the code: "a consumer registered through a factory method is
    missing", not the class's name. Technical words (`decorator`, `INSERT`, the database library's name) are not
    private; names from the repository are. When the shape needs code, write a minimal made-up snippet in the same language
-   with placeholder names (`Foo`, `handle`, `items`). Leave out the business domain, and anything the user calls
-   confidential.
+   with placeholder names and values (`Foo`, `handle`, `items`, `8080`, `"key"`): no port, number, string key or
+   URL from the repository. Leave out the business domain, and anything the user calls confidential.
 3. **Check it:** `$PY SKILL_DIR/scripts/feedback.py preview REPO --out-dir OUT`. It prints the whole issue,
    then the words that match a name from this repository's map (it exits 1 while any remain), then common words
-   that are also names in the map (never blocking). Rewrite each matching word and preview again. After two
+   that are also names in the map (never blocking). Rewrite each matching word and preview again. A matching word
+   that is a library's own call (its connect, execute, a decorator) is described in words ("the database library's
+   connect and execute calls"), never renamed to a call the library does not have. After two
    rewrites with words still matching, stop rewriting: show the user those words and ask. A word stays only when
    the user, shown it, says it may go: add `--allow WORD` for it (the words as printed). Never allow one yourself.
 4. **Show the issue and ask.** Paste the preview output from `Title:` to the end into your reply as a code block,

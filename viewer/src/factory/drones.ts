@@ -8,7 +8,8 @@
 //   - every FAIL_EVERY-th cycle a consumer with a failure flight sends a red drone from its failure pad to the
 //     dead-letter hub, once its own delivery has landed; that hub then hands on in turn.
 // A hub none of whose lit inbound flights fly this cycle hands nothing on. A hub with no lit inbound at all hands on
-// at the start of the cycle. Speeds follow the layout pass: a drone crosses its path in about 3 s (`moverSpeed`).
+// at the start of the cycle. Every drone on the floor flies at one speed: the floor's longest flight takes about 5 s
+// (`moverSpeed`, `longestFlight`).
 import { moverSpeed } from "../floor/lane";
 import type { Pt } from "../route/types";
 import type { FlightPath } from "./flights";
@@ -53,8 +54,6 @@ export const PULSE = 0.8;
 const PAUSE = 1;
 
 const cumulative = (pts: Pt[]) => { const l = [0]; for (let i = 1; i < pts.length; i++) l.push(l[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)); return l; };
-const durOfLen = (len: number) => Math.max(0.1, len / moverSpeed("event", len));
-const durOf = (pts: Pt[]) => { const l = cumulative(pts); return durOfLen(l[l.length - 1]); };
 const INBOUND = new Set(["produce", "enqueue", "failure"]);
 
 /** The point `d` px along `pts`, whose cumulative lengths are `lengths` (clamped to its ends), written into `into`. */
@@ -68,8 +67,25 @@ export function pointAlong(pts: Pt[], lengths: number[], d: number, into: { x: n
   return into;
 }
 
-export function droneSchedule(floor: DroneFloor, lit: ReadonlySet<string>): DroneSchedule {
+const pathLength = (pts: Pt[]) => { const l = cumulative(pts); return l[l.length - 1]; };
+
+/** The floor's longest flight path, px, lit or not (a take counts its hop from the waiting stack): it sets the one
+ *  speed every drone on the floor flies at, so the speed does not change with what is lit. */
+export function longestFlight(floor: DroneFloor): number {
+  const stackAt = new Map(floor.stacks.map((s) => [s.item, { x: s.x * T + T / 2, y: s.y * T + T / 2 }]));
+  return Math.max(0, ...floor.flights.map((f) => {
+    const from = f.flight === "take" ? stackAt.get(f.item) : undefined;
+    return pathLength(from ? [from, ...f.points] : f.points);
+  }));
+}
+
+/** `longest`: the length that sets the drones' speed (the floor's longest flight, or longer when the caller also flies
+ *  drones along routes no flight covers). */
+export function droneSchedule(floor: DroneFloor, lit: ReadonlySet<string>, longest = longestFlight(floor)): DroneSchedule {
   const { flights, messaging } = floor;
+  const speed = moverSpeed("event", longest);
+  const durOfLen = (len: number) => Math.max(0.1, len / speed);
+  const durOf = (pts: Pt[]) => durOfLen(pathLength(pts));
   const on = flights.map((f) => lit.has(f.key));
   const hubs = new Map(messaging.airfields.flatMap((a) => a.hubs).map((h) => [h.item, h]));
   const byTopic = new Map([...hubs.values()].map((h) => [h.topic, h.item]));
@@ -161,8 +177,8 @@ export function droneSchedule(floor: DroneFloor, lit: ReadonlySet<string>): Dron
     return items.flatMap(hubTrips).sort((a, b) => a.flight - b.flight || a.start - b.start);
   };
 
-  const longest = Math.max(0, ...build(0, true).map((t) => t.start + t.dur));
-  const period = items.length ? longest + PAUSE : 0;
+  const span = Math.max(0, ...build(0, true).map((t) => t.start + t.dur));
+  const period = items.length ? span + PAUSE : 0;
   let last: { n: number; trips: Trip[] } | null = null;
   const cycle = (n: number) => {
     if (last?.n !== n) last = { n, trips: build(n, false) };

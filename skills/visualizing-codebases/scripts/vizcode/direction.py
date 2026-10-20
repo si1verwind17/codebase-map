@@ -1,7 +1,7 @@
 """Which way data moves on a runtime relation: forward (from → to), back (to → from) or both."""
 from __future__ import annotations
 
-DATA_DEFAULTS = {"request": "both", "event": "forward", "batch": "forward", "db-write": "forward",
+DATA_DEFAULTS = {"request": "forward", "event": "forward", "batch": "forward", "db-write": "forward",
                  "ext-call": "forward", "db-read": "back", "hand-off": "forward"}  # stream: no default, the meaning pass decides
 DATA_VALUES = ("forward", "back", "both")
 

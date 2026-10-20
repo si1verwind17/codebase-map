@@ -73,7 +73,7 @@ describe("inbound webhook receiving docks", () => {
   const { bundles, doors } = demo.bundles(SITE);
   const plan = planFloor(demo, SITE, doors, bundles);
 
-  it("the demo site's payments-webhook has a 1×3 receiving dock against its box, `POST` on its face, no text over a line or label", () => {
+  it("the demo site's payments-webhook has a 1×3 receiving dock against its box, upright on the side its belt arrives, no text over a line or label", () => {
     const tf = plan.tf, box = tf.boxes.get("svc:payments-webhook")!;
     expect(tf.webhooks, "one webhook dock on the site").toHaveLength(1);
     const d = tf.webhooks![0];
@@ -82,11 +82,10 @@ describe("inbound webhook receiving docks", () => {
     expect(against(d, box), "against its box").toBe(true);
     expect(d.signs).toEqual(["POST /webhooks/stripe"]);
     expect(tf.notes ?? []).not.toContainEqual(expect.stringMatching(/^webhook/));
-    // the full route needs 6 tiles of words + 1 of stripes, more than the 5-tile side: the face names its method, `POST`
-    // (the route on hover), in a 3-long dock
-    expect(d.face).toBe("POST");
-    expect(d.w).toBe(Math.max(3, Math.ceil(plateW("POST", 10) / T) + 1));
-    expect(Math.ceil(plateW("POST /webhooks/stripe", 10) / T) + 1).toBeGreaterThan(box.w);
+    // the Stripe belt arrives on the east side, facing Stripe: an upright dock carries no words, its route shows on hover
+    expect(d.side).toBe("e");
+    expect(d.face).toBeUndefined();
+    expect(dockFace(d)).toBeUndefined();
     noTextOver(demo, SITE, tf, plan.routes, "demo site");
   });
 
@@ -135,9 +134,10 @@ describe("inbound webhook receiving docks", () => {
       expect(inside(d, after(r).x, after(r).y), `${ext} plugs into the dock`).toBe(true);
     }
     check(p.tf, p.routes, "two webhooks");
-    expect(d.side === "e" || d.side === "w", "upright: arrives on worker's east side").toBe(true);
-    expect(d.face, "an upright dock carries no words: its routes show on hover").toBeUndefined();
-    expect(dockFace(d)).toBeUndefined();
+    // level: the belts arrive on worker's north side, 5 tiles long: too short for the first route and `+1`, so the face
+    // names the first route's method and `+1`
+    expect(d.side, "arrives on worker's north side").toBe("n");
+    expect([d.face, d.w]).toEqual(["POST +1", 3]);
     noTextOver(m, SITE, p.tf, p.routes, "two webhooks");
     expect(planFloor(m, SITE, ds, bs)).toEqual(p);
     // the arrival side held: the next side in the push dock's order; all four held: no dock, the belts keep the wall, a note

@@ -40,6 +40,24 @@ def test_scala_tapir_vals_collected():
                                          "BaseEndpoint.V1.Orders.create", "BaseEndpoint.V1.Orders.byId"}
 
 
+def test_scala_tapir_prefix_from_a_def_and_an_objects_apply():
+    src = b"""package io.demo.api
+import sttp.tapir.*
+object BaseApi:
+  private val base = endpoint.in("api")
+  def v2 = base.in("v2")
+  object V1:
+    private val v1 = base.in("v1")
+    def apply(): Endpoint[Unit, Unit, Unit, Unit, Any] = v1
+  def all = repo.findAll
+"""
+    res = scala.parse(src, "shop/src/main/scala/io/demo/api/BaseApi.scala", SHOP_MOD, ids.IdRegistry())
+    vals = res["tapir"]["vals"]
+    assert {"BaseApi.v2", "BaseApi.V1"} <= set(vals)
+    assert vals["BaseApi.V1"] == {"base": "v1", "segs": [], "scope": ["BaseApi", "V1"]}
+    assert "io.demo.api.BaseApi$#all/0" in {n["id"].split("::")[1] for n in res["nodes"]}   # a plain def stays a method
+
+
 # --- parking-city demo forms ------------------------------------------------
 PC = {
     "build.sbt": 'lazy val common = (project in file("common"))\n'
@@ -288,3 +306,105 @@ object HealthCheck {
                                    "common/src/main/scala/com/example/common/http/api/HealthCheck.scala": src}))
     got = [(r["method"], r["path"], r["handler"]) for ff in s["facts"].values() for r in ff["routes"]]
     assert got == [("GET", "/health", "common::com.example.common.http.api.HealthCheck$#serverEndpoint/0")]
+
+
+SPLIT_API = {
+    "build.sbt": 'lazy val api = project in file("api")\n'
+                 'lazy val shop = (project in file("shop")).dependsOn(api)\n',
+    "api/src/main/scala/acme/api/Base.scala": '''package acme.api
+
+import sttp.tapir.*
+
+object Base:
+  private val base = endpoint.in("shop")
+  object V1:
+    private val v1 = base.in("v1")
+    val orders = v1.in("orders")
+    val stock = v1.in("stock")
+    val partner = v1.in("partner")
+''',
+    "api/src/main/scala/acme/api/CreateOrder.scala": '''package acme.api
+
+import sttp.tapir.*
+import sttp.tapir.json.zio.*
+
+object CreateOrder:
+  val endpoint = Base.V1.orders.post.in(jsonBody[In]).out(jsonBody[Out])
+''',
+    "api/src/main/scala/acme/api/CheckStock.scala": '''package acme.api
+
+import sttp.tapir.*
+
+object CheckStock:
+  val endpoint = Base.V1.stock.get.in(query[String]("sku")).out(stringBody)
+''',
+    "api/src/main/scala/acme/api/PartnerQuote.scala": '''package acme.api
+
+import sttp.tapir.*
+
+object PartnerQuote:
+  val endpoint = Base.V1.partner.post.out(stringBody)
+''',
+    "shop/src/main/scala/acme/shop/OrderServer.scala": '''package acme.shop
+
+import acme.api.CreateOrder
+import sttp.tapir.ztapir.*
+import zio.*
+
+object OrderServer:
+  val serverEndpoint: URLayer[OrderSvc, ZServerEndpoint[Any, Any]] =
+    ZLayer { ZIO.serviceWith[OrderSvc](CreateOrder.endpoint.zServerLogic) }
+''',
+    "shop/src/main/scala/acme/shop/Calls.scala": '''package acme.shop
+
+import sttp.tapir.client.sttp.SttpClientInterpreter
+import sttp.tapir.Endpoint
+
+trait Calls:
+  extension [I, E, O](e: Endpoint[Unit, I, E, O, Any])
+    def call(uri: Uri) = SttpClientInterpreter().toRequest(e, Some(uri))
+''',
+    "shop/src/main/scala/acme/shop/StockClient.scala": '''package acme.shop
+
+import acme.api.CheckStock
+import sttp.client3.*
+
+object StockClient extends Calls:
+  def check(sku: String): Task[String] = backend.send(CheckStock.endpoint.call(uri)(sku)).map(_.body)
+''',
+}
+
+
+def test_tapir_endpoint_bound_in_another_module_is_served_there(make_repo):
+    from vizcode import structure
+    s = structure.build(make_repo(SPLIT_API))
+    got = [(r["method"], r["path"], r["handler"], f.rsplit("/", 1)[-1], r["line"])
+           for f, ff in s["facts"].items() for r in ff["routes"]]
+    assert got == [("POST", "/shop/v1/orders", "shop::acme.shop.OrderServer$#serverEndpoint/0", "OrderServer.scala", 9)]
+
+
+def test_tapir_endpoint_only_called_is_a_client_and_a_bare_contract_is_neither(make_repo):
+    from vizcode import structure
+    s = structure.build(make_repo(SPLIT_API))
+    clients = [(c["method"], c["path"]) for ff in s["facts"].values() for c in ff.get("clients", [])]
+    assert clients == [("GET", "/shop/v1/stock")]                      # called through the client helper
+    every = [r["path"] for ff in s["facts"].values() for r in ff["routes"]] + [p for _, p in clients]
+    assert "/shop/v1/partner" not in every                              # described, never served or called here
+
+
+def test_tapir_binding_follows_the_import_among_same_named_endpoints(make_repo):
+    """v1 and v2 each define `object Quote` with a `def endpoint`; each server binds the one it imports."""
+    from vizcode import structure
+    files = {"build.sbt": 'lazy val api = project in file("api")\nlazy val shop = (project in file("shop")).dependsOn(api)\n'}
+    for v in ("v1", "v2"):
+        files[f"api/src/main/scala/acme/api/{v}/Quote.scala"] = (
+            f'package acme.api.{v}\n\nimport sttp.tapir.*\n\nobject Quote:\n'
+            f'  def endpoint = endpoint.in("quote" / "{v}").post.out(stringBody)\n')
+        files[f"shop/src/main/scala/acme/shop/{v}/QuoteServer.scala"] = (
+            f'package acme.shop.{v}\n\nimport acme.api.{v}.Quote\nimport sttp.tapir.ztapir.*\n\nobject QuoteServer:\n'
+            f'  val serverEndpoint: URLayer[Svc, ZServerEndpoint[Any, Any]] =\n'
+            f'    ZLayer {{ ZIO.serviceWith[Svc](Quote.endpoint.zServerLogic) }}\n')
+    s = structure.build(make_repo(files))
+    got = sorted((r["path"], r["handler"].split("::")[1]) for ff in s["facts"].values() for r in ff["routes"])
+    assert got == [("/quote/v1", "acme.shop.v1.QuoteServer$#serverEndpoint/0"),
+                   ("/quote/v2", "acme.shop.v2.QuoteServer$#serverEndpoint/0")]

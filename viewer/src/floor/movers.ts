@@ -4,7 +4,7 @@
 import { Container, Graphics, type Text } from "pixi.js";
 import { flies, type Bundle } from "../model/model";
 import type { Pt, Route } from "../route/types";
-import { droneSchedule, type Drone, type DroneFloor, type DroneSchedule, type Pulse } from "../factory/drones";
+import { droneSchedule, longestFlight, type Drone, type DroneFloor, type DroneSchedule, type Pulse } from "../factory/drones";
 import type { PxRect } from "../factory/clear";
 import { replicaPulse, tagKey, type FlightPath, type Placed } from "../factory/flights";
 import type { TrainPath } from "../factory/rail-place";
@@ -66,6 +66,8 @@ export class Motion {
   private movers: Mover[] = [];
   private schedule: DroneSchedule | null = null;
   private floor: DroneFloor | null = null;
+  /** the length that sets every drone's speed on this floor: its longest flight or drone-carried route */
+  private flyLongest = 0;
   private droneG: Graphics | null = null;
   private pulseG: Graphics | null = null;
   private swapped = new Set<string>();   // tags reading `replica k of N` now
@@ -95,7 +97,10 @@ export class Motion {
     this.floor = m.drones && m.drones.flights.length ? m.drones : null;
     // a lit bundle with flights flies them (one only partly carried by flights also keeps its old route's movers)
     const lit = this.floor ? new Set(this.floor.flights.map((f) => f.key).filter((k) => m.lit.has(k))) : new Set<string>();
-    this.schedule = this.floor && lit.size ? droneSchedule(this.floor, lit) : null;
+    const flown = m.routes.filter((r) => flies(m.bundles.find((x) => x.key === r.key)?.kind ?? ""))
+      .map((r) => r.points.reduce((s, p, i) => (i ? s + dist(r.points[i - 1], p) : 0), 0));
+    this.flyLongest = Math.max(this.floor ? longestFlight(this.floor) : 0, ...flown);
+    this.schedule = this.floor && lit.size ? droneSchedule(this.floor, lit, this.flyLongest) : null;
     this.droneG = this.pulseG = null;
     if (this.schedule && !m.reduced) {
       this.pulseG = new Graphics();
@@ -144,7 +149,7 @@ export class Motion {
       const g = mv.g.clear();
       const spacing = itemSpacing(mv.kind, mv.total);
       const before = mv.phase;
-      mv.phase = (mv.phase + ms * 0.06 * ((moverSpeed(mv.kind, mv.total) / 60) * (60 / spacing))) % 60;
+      mv.phase = (mv.phase + ms * 0.06 * ((moverSpeed(mv.kind, flies(mv.kind) ? this.flyLongest : mv.total) / 60) * (60 / spacing))) % 60;
       if (mv.phase < before) mv.cycle++;   // a pass finished: a two-way belt carries the next item the other way
       for (let d = mv.phase * (spacing / 60); d < mv.total; d += spacing) {
         const forward = !mv.both || mv.cycle % 2 === 0;

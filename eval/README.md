@@ -56,11 +56,11 @@ by an independent judge on Opus.
 
 | Scenario | Skill@ | Result | Notes |
 |---|---|---|---|
-| 1 | 5008e58 | 8/8 (2 repos) | Flask and http4s worked out from the code; each route pattern matched only route lines |
-| 2 | 5008e58 | 12/12 (2 repos) | Fiber and Hono routes, mounts and sinks; the Reported check graded from `stack.yaml` |
-| 3 | 5008e58 | 4/5 | 3 pins, an example per entry point and data type, fingerprints left to `assemble.py`; the reply's "4 relations" counted only the runtime ones of 8 |
-| 4 | 24fc1e0 | 5/5 | `renewals` written into the stale examples once `stale.json` named it (`value_lacks`); two runs before that change cleared the flags unchanged (3/5) |
-| 5 | 5008e58 | 15/15 (3 repos) | Rails `resources`, Laravel without a `use`, Spring with a Feign client; library's `PUT /members/{member_no}` got no relation (check 4 covers shop and orders) |
-| 6 | 5008e58 | 6/10, 9/10 (2 runs) | run to run variance: `main`'s skill scored 8/10 on the same fixture; misses: `common` not a library (so no `via`), the trigger, the wildcard key; both runs cite the backfill's README line one line early |
-| 7 | 5008e58 | 6/6 | the queue joined `place` to `cook` (the method that handles each ticket); `stock.py`'s local queue left as a problem |
-| 8 | d67f9ff | 5/5 | run on the branch before the squash (the form fields and the re-ask wording came after it); graded with check 3 as now written (strictly, 4/5: turn 4 asked again naming the digest of the text shown in full at turn 2). Earlier runs on the branch: 4/5 retyped and summarised previews, then 4/5 described a register call instead of the decorator; the procedure now asks for the code to be read and the preview pasted whole. Each run said the scan had no map yet, and one offered to finish the run first |
+| 1 | b77eff4 | 8/8 (2 repos) | Flask and http4s worked out from the code; `add_url_rule("/ping", view_func=ping)` keyed `GET /ping` with the view as handler (the 4b347fd `ANY` miss gone) |
+| 2 | b77eff4 | 12/12 (2 repos) | Fiber and Hono routes, mounts and sinks; problems write composed paths (`/api/items/{id}`, `/notes/{id}`); both runs keyed examples with the mount first, then bare after `examples.py` |
+| 3 | 4b347fd | 5/5 | 3 pins, an example per entry point and data type (both LoanOpened copies), fingerprints left to `assemble.py`; the reply pasted the printed counts line, which matched the map |
+| 4 | 4b347fd | 5/5 | `renewals` written into the `Loan` type and both entry responses from `value_lacks`; the export's pin took over the agent pin on `get_loan` in place, the first agent pin went to `unpinned`, `overdue-check` dropped, `export-comment.md` deleted |
+| 5 | b77eff4 | 15/15 (3 repos) | Rails `resources`/`resource`, Laravel `match` and an `/admin` prefix mount, Spring with a Feign ext-call, all from the packs; one example per route key; shop's problems still explained its bare admin key (with the prefix) |
+| 6 | 4b347fd | 9/10 | the trigger drawn as a `batch` keyed `task copy_customers`, backfill cited at README:5; miss: `copy_tables` drawn as one relation per literal table (no `shop.*` key, no `tables`) |
+| 7 | 4b347fd | 6/6 | the queue joined `place` to `kitchen.run`, `stock.py:7` left as a problem; the reply pasted the printed counts line (6 relations, calls included) |
+| 8 | 4b347fd | 5/5 | notice in full before any command; the snippet took placeholder values (`port=1234`) and kept the database library's own `connect`/`execute`; flagged words put to the user, no `--allow`; one `send` (strictly: one `sed` on a preview it ran itself, the text shown whole) |
