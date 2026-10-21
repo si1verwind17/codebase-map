@@ -129,7 +129,7 @@ def test_spring_exact_routes(make_repo):
         ("ANY", "/orders/any", f"{CTRL}#any/0", 16), ("ANY", "/v1/orders/any", f"{CTRL}#any/0", 16),
         ("DELETE", "/orders/{id}", f"{CTRL}#remove/0", 20), ("DELETE", "/v1/orders/{id}", f"{CTRL}#remove/0", 20)]
     assert {(r["framework"], r["source"]) for r in s["facts"][f]["routes"]} == {("spring-mvc", "stack.yaml")}
-    # Review Focus 2: a verb method without a class prefix gives the method path alone
+    # a verb method without a class prefix gives the method path alone
     assert routes_of(s, "src/main/java/io/demo/shop/Health.java") == [
         ("GET", "/health", "io.demo.shop.Health#health/0", 6)]
     # a class prefix with no verb methods gives nothing; no `when` import, no routes
@@ -138,7 +138,7 @@ def test_spring_exact_routes(make_repo):
 
 
 def test_annotated_non_literal_path_skipped(make_repo):
-    """Review Focus 1: `@GetMapping(PATH)` gives no route, no crash, and the report counts the other matches."""
+    """`@GetMapping(PATH)` gives no route, no crash, and the report counts the other matches."""
     repo = make_repo(SPRING_SRC)
     with_stack(repo, SPRING)
     s = structure.build(repo, "docs/viz-code")

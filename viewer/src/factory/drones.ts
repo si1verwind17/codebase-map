@@ -1,5 +1,5 @@
 // src/factory/drones.ts
-// When each drone flies (spec §5, Task 5), pure: a function of the floor's flight paths, the lit set and the time, with
+// When each drone flies, pure: a function of the floor's flight paths, the lit set and the time, with
 // no randomness. The floor runs in cycles of one period. In each cycle, per hub:
 //   - produce / enqueue (and failures into a dead-letter hub) fly in first;
 //   - once the last of them lands, the hub hands on: one copy to every lit consumer group, the push to its dock, one

@@ -1,4 +1,4 @@
-// Painting rails (spec §6), the pure part: where yard parts, sign texts and station labels go, the rail inside a yard
+// Painting rails, the pure part: where yard parts, sign texts and station labels go, the rail inside a yard
 // and through a station, train paths, hover lists, the rail junction op, and the keys selection uses.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

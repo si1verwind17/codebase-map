@@ -1,5 +1,5 @@
 // test/factory_trunk_card.test.ts
-// The trunk hover card (spec §8 Hover): a tile carrying two or more lines names them, a count by kind, then one row per
+// The trunk hover card: a tile carrying two or more lines names them, a count by kind, then one row per
 // branch, ordered by the branch end's short code.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

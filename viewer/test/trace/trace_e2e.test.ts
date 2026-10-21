@@ -1,4 +1,4 @@
-// The trace pane in a browser (spec §3): started from the inspector or a pinned trace, the split with its divider and
+// The trace pane in a browser: started from the inspector or a pinned trace, the split with its divider and
 // maximize (remembered, and working with storage blocked), the floor following the trace, Esc, pins and their export,
 // and the big map's responsiveness. Needs `npm run build` first and a Chromium:
 // VIZ_CHROMIUM=/usr/bin/chromium npx vitest run test/trace_e2e.test.ts   (add VIZ_BIG_MAP=<map> for the big-map case)

@@ -1,4 +1,4 @@
-// Layers in the viewer (spec §15): the scene shows one extra layer at a time over a faint base, a floor change resets it to
+// Layers in the viewer: the scene shows one extra layer at a time over a faint base, a floor change resets it to
 // the base, and the button and its list name a layer by its heavily used item's map code.
 import { readFileSync } from "node:fs";
 import { Container, Graphics } from "pixi.js";
@@ -240,7 +240,7 @@ describe("the `used by N` badge's spot (clear.ts planBadge)", () => {
   });
 });
 
-describe("layer names (spec §15 naming rule, revised after the demo)", () => {
+describe("layer names (revised after the demo)", () => {
   it("a layer is named by its item's map code as the floor shows it on the machine; the button shows that name, the list adds the count after a ·", () => {
     expect(layerLabel(null)).toBe("Base");
     const m = demo();

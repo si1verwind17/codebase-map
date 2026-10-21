@@ -15,7 +15,7 @@
     onChange: () => void; onReveal: (id: string) => void; onEnter: (id: string) => void;
     /** a stand-in rail (`rail:` key, from tf.rails.shells) or a yard (`yard:` key), which no bundle carries */
     railLine?: (key: string) => RailLine | undefined;
-    /** start a trace on a node (spec §3.1) */
+    /** start a trace on a node */
     onTrace?: (id: string) => void;
     /** the open trace's focus: its Trace buttons are disabled ("Already traced"), a press would only restart it and
      *  lose its depth and folds */
@@ -29,7 +29,7 @@
   let real = $derived(target?.type === "node" ? (model.twinOf(target.id) ?? target.id) : undefined);
   let twinHome = $derived(target?.type === "node" && model.twinOf(target.id) ? model.path(model.floorOf(real!) ?? SITE)[1] : undefined);
   let node = $derived(real ? model.nodes.get(real) : undefined);
-  // a line of an extra layer (spec §15) is a line of this floor too
+  // a line of an extra layer is a line of this floor too
   const lineOf = (k: string) => { const b = model.bundles(container); return b.bundles.find((x) => x.key === k) ?? b.layered.find((x) => x.key === k); };
   let rail = $derived(target?.type === "bundle" && !lineOf(target.key) ? railLine?.(target.key) : undefined);
   let relations = $derived<Relation[]>(

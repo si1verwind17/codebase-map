@@ -1,5 +1,5 @@
 // test/factory_webhooks.test.ts
-// Inbound webhooks (spec §7): on the site, a request from an outside service ends at a receiving dock on its service.
+// Inbound webhooks: on the site, a request from an outside service ends at a receiving dock on its service.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import shop from "../fixtures/shop.code-map.json";

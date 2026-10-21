@@ -1,4 +1,4 @@
-// Layers (spec §15): a floor's base layer is everything it draws by default; lines that do not fit the base go into
+// Layers: a floor's base layer is everything it draws by default; lines that do not fit the base go into
 // extra layers shown on demand. Today that is one layer per heavily used item (`floor.hubs`, the scanner's fan-in >= 8
 // items), holding every line into and out of it. A layer is named by its item's map code, exactly as the floor shows it
 // on the machine (`S7·P1·F1`), with the item's full name on hover; the list adds " · <count>".

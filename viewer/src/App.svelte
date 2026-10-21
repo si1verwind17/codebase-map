@@ -52,7 +52,7 @@
     saveCodeLinks(safeStorage(), codeLinks);
     scene?.setCodeLinks(codeLinks);
   }
-  // layers (spec §15): the floor's extra layers (one per heavily used item, named by its code), the one shown (the
+  // layers: the floor's extra layers (one per heavily used item, named by its code), the one shown (the
   // scene's, reset to the base on a floor change), the line kinds it draws (the legend's line rows follow it) and the
   // list's state
   let layers = $derived(model ? floorLayers(model, container) : []);
@@ -74,7 +74,7 @@
     scene?.keepCentre();
     requestAnimationFrame(() => scene?.resize());
   }
-  // the trace pane (spec §3): what it traces, where it is drawn, the divider's place and whether it fills the screen
+  // the trace pane: what it traces, where it is drawn, the divider's place and whether it fills the screen
   // the trace graph is built on the first trace, not on load: this line alone reads it, and only once `trace` is set
   let graph = $derived(model ? new TraceGraph(model) : null);
   let trace = $state.raw<TraceState | null>(null);
@@ -197,7 +197,7 @@
   let resizeWatch: ResizeObserver | null = null;
   let tracePane = $state<{ escape: () => boolean }>();   // the pane's own Esc: its pin form, then its detail panel
 
-  /** Start a trace on `focus` (spec §3.1, S1, A2): any map node or floor group, or a line (`line`); the pane opens below
+  /** Start a trace on `focus`: any map node or floor group, or a line (`line`); the pane opens below
    *  the floor; the floor keeps its zoom, and the selection is cleared so the floor and the pane show one subject. */
   function startTrace(focus: string, direction: PinDirection = "both", line?: LineStart) {
     if (!model || (!line && !traceable(model, focus))) return;
@@ -206,7 +206,7 @@
   }
 
   /** The pane's own new state: its direction, depth and folds keep the floor as it is; Trace from here, a new focus,
-   *  clears the selection as startTrace does (S1). */
+   *  clears the selection as startTrace does. */
   function retrace(st: TraceState) {
     const refocus = st.focus !== trace?.focus;
     trace = st;
@@ -223,7 +223,7 @@
 
   /** What the inspector shows (audit row 64): with the pane open, the item the floor's blue mark is on (the pointed
    *  row's node, else the trace's focus; a line's trace, its line while this floor has it) — shown, not selected, so the
-   *  floor and the pane keep one subject (S1, A1); with the pane closed, the selection (nothing: the floor). */
+   *  floor and the pane keep one subject; with the pane closed, the selection (nothing: the floor). */
   let shown = $derived<Target>(trace && model
     ? traceSubject(model, trace, point, (k) => {
         const b = model!.bundles(container);

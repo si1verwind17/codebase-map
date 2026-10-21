@@ -95,7 +95,7 @@ def test_go_gin_echo_chi():
 
 
 def test_go_negatives():
-    """Review Focus 3: look-alikes and missing imports give no route, mount or table."""
+    """Look-alikes and missing imports give no route, mount or table."""
     http = ('q := r.URL.Query()\nq.Get("id")\nresp, _ := client.R().Get("/orders")\nh.Handle(event)\n'
             'mux.HandleFunc("orders", h)\nmux.HandleFunc(path, h)\n')
     assert found("go", http, ["net/http"]) == []
@@ -180,7 +180,7 @@ def test_aspnet_minimal_api_and_tables():
 
 
 def test_csharp_negatives():
-    """Review Focus 3."""
+    """Look-alikes give nothing."""
     # minimal APIs run without `when` (implicit usings: Program.cs names nothing); the look-alikes give nothing
     src = ('app.MapGet("/ping", h);\nconfig.Map("/x");\ndict.MapGetter("/y", h);\nvar g = app.MapGroup("/g");\n'
            'cfg.MapGet("/one");\nm.MapGet(path, h);\nm.MapPost($"/i/{x}", h);\nMapGet("/bare", h);\n'
@@ -251,7 +251,7 @@ def test_axum_forms_and_actix():
 
 
 def test_rust_negatives():
-    """Review Focus 3."""
+    """Look-alikes give nothing."""
     src = ('.route("/a", get(h))\n.nest("/n", r)\n#[get("/x")]\nfn x() {}\nweb::scope("/v1")\n'
            'map.route("k")\n#[test]\nfn t() {}\n')
     assert found("rust", src, ["std::collections"]) == [] and found_mounts("rust", src, ["serde"]) == []
@@ -303,7 +303,7 @@ def test_rails_routes(make_repo):
 
 
 def test_ruby_negatives_and_tables():
-    """Review Focus 3: Rails needs `to: "c#a"`; Sinatra needs its import and a block; tables need ActiveRecord."""
+    """Rails needs `to: "c#a"`; Sinatra needs its import and a block; tables need ActiveRecord."""
     src = ('get "/x"\nget "/y", to: redirect("/z")\nget "/w", to: "nohash"\nclient.get "/v", to: "a#b"\n'
            'cache.get("/k") do\nend\n')
     assert found("ruby", src, []) == []
@@ -413,7 +413,7 @@ def test_expand_entry_shape():
 
 
 def test_php_negatives_and_tables():
-    """Review Focus 3."""
+    """Look-alikes give nothing."""
     # a routes file may call the global `Route` alias without a `use`: the Route patterns run without `when`
     route = "Route::get('/x', [C::class, 'a']);\nRoute::match(['get'], '/m', h);\n" \
             "Route::middleware(['auth'])->prefix('v1');\n"
@@ -454,7 +454,7 @@ def test_php_import_kinds():
 
 @pytest.mark.parametrize("lang", ["go", "csharp", "rust", "ruby", "php"])
 def test_every_pack_regex_entry_has_when(lang):
-    """Review Focus 3: a pack regex without `when` fires on any file of the language. The exceptions are files
+    """A pack regex without `when` fires on any file of the language. The exceptions are files
     that import nothing, each with a tight regex and look-alike tests: Rails routes and resources, C#
     minimal APIs (implicit usings), Laravel routes (the global `Route` alias), Rails models (`self.table_name`)
     and gorm models (`TableName`)."""

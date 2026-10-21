@@ -1,5 +1,5 @@
 // src/factory/pads.ts
-// Where drones land (spec §5). A pad per producer, consumer group and failure is a mark inside its machine, on the
+// Where drones land. A pad per producer, consumer group and failure is a mark inside its machine, on the
 // roof's bottom row, laid from the right (the owner, 2026-10-06: the floor round the machine stays free for belts and
 // pipes): it holds no floor tile. A push subscription's 1×3 receiving dock stands outside, against the side of the
 // machine that faces its hub (its broker's airfield on the site, the hub's door inside a building), near the side's
@@ -188,7 +188,7 @@ function tileRect(m: Rect, side: Dir, off: number, len: number): Rect {
   }
 }
 
-/** An inbound webhook's receiving dock (spec §7): on the site, every `request` from an outside service into a service
+/** An inbound webhook's receiving dock: on the site, every `request` from an outside service into a service
  *  ends here, not at the service's wall. One per service, 1 deep against a side (the push dock's art); `keys` are the
  *  bundles whose belts plug into it, `signs` the distinct routes it receives (each relation's key, `webhook` with none),
  *  sorted. `face` is what is written on the dock itself (a level dock only: no word is turned): its route, or the first

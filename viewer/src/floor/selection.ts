@@ -37,7 +37,7 @@ export function applyDronePaths(st: SceneState) {
   for (const [k, views] of st.droneViews) for (const v of views) v.visible = st.dronePaths || keys.has(k);
 }
 
-/** Base lines while an extra layer shows (spec §15: a very faint background beneath it, the mock's 12%). */
+/** Base lines while an extra layer shows (a very faint background beneath it, the mock's 12%). */
 export const BASE_FADE = 0.12;
 
 /** Show an extra layer of this floor (`id`), or the base (null; also for an id this floor does not have): the layer's
@@ -145,9 +145,9 @@ export function restyle(st: SceneState) {
   // the selection fade is the only greyed look (an inferred factory line has a dashed edge instead); while a layer shows,
   // every base line is also at BASE_FADE and the selection fades within the layer, but a selected box's own base lines
   // (belts, pipes, rails with their station and platform, drones, taps) come up to full strength with its layer lines
-  // (spec §15, revised after the demo)
+  // (revised after the demo)
   const base = st.layer === null ? 1 : BASE_FADE;
-  // a running trace (spec §3.2) decides the fade: the items it passes through and the lines between them stay at full
+  // a running trace decides the fade: the items it passes through and the lines between them stay at full
   // strength, the rest fade as a selection fades them; a selected item keeps its ring and its own lines
   const traced = st.traced;
   const onTrace = (k: string) => !!traced && endsOf(st, k).every((e) => traced.has(e));

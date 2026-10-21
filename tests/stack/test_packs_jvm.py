@@ -42,7 +42,7 @@ def test_spring_sinks_and_tables(spring_repo):
 
 
 def test_spring_beside_jaxrs(spring_repo):
-    """Review Focus 5: both frameworks count in the pattern report; a method both annotate is one route."""
+    """Both frameworks count in the pattern report; a method both annotate is one route."""
     s = structure.build(spring_repo, "docs/viz-code")
     stock = "legacy::io.demo.shop.legacy.StockResource"
     assert routes(s, f"{LEGACY}/StockResource.java") == [
@@ -142,7 +142,7 @@ def test_ktor_routes_mounts_tables(ktor_repo):
 
 
 def test_ktor_regex_negatives(make_repo):
-    """Review Focus 3: Ktor's route and mount patterns fire only under `io.ktor.server.routing`, and never on a
+    """Ktor's route and mount patterns fire only under `io.ktor.server.routing`, and never on a
     member call (`client.get("/x") { }`, `m.get("/x")`) or a string template path."""
     src = ("package a\n\nfun f(client: Any, m: Map<String, Int>) {\n    client.get(\"/remote\") { }\n"
            "    m.get(\"/k\")\n    get(\"/x\") { }\n    route(\"/v2\") { }\n}\n")
@@ -207,14 +207,14 @@ def test_python_tables():
 
 @pytest.mark.parametrize("lang", ["java", "kotlin"])
 def test_every_pack_regex_route_has_when(lang):
-    """Review Focus 3: a pack regex route without `when` would fire on any file of the language."""
+    """A pack regex route without `when` would fire on any file of the language."""
     for p in stack.default().patterns:
         if p.lang == lang and p.source == "pack":
             assert p.when, p.name
 
 
 def test_pack_names_do_not_block_a_stack_yaml(tmp_path):
-    """A stack.yaml written before the packs (Task 1's example names) still loads."""
+    """A stack.yaml written before the packs (the old example names) still loads."""
     st = stack.load(write(tmp_path, "java:\n  routes:\n    - name: spring-mvc\n      form: annotated\n"
                                     "      verbs: {GetMapping: GET}\n  tables:\n    - {name: jpa-table, regex: '(?P<table>x)'}\n"))
     assert {p.name for p in st.patterns if p.lang == "java"} >= {"spring-mvc", "spring-web"}
@@ -232,7 +232,7 @@ def test_table_dedupe_across_patterns(make_repo):
         ("Order", 4, "quill"), ("Item", 4, "quill")]
 
 
-# Carried fixes (Task 3 review): stack.yaml replaces a pack entry by name; framework wiring ignored by its pack;
+# stack.yaml replaces a pack entry by name; framework wiring ignored by its pack;
 # a stack.yaml pattern a pack pattern duplicates is reported as such; pack gaps; dedupe order per group
 
 def test_stack_yaml_entry_replaces_the_pack_entry_of_that_name(make_repo):

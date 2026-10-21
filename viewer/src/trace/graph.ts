@@ -1,4 +1,4 @@
-// The trace's graph (spec §3.3): the map's calls and runtime relations as directed edges, built once per map. A db-read
+// The trace's graph: the map's calls and runtime relations as directed edges, built once per map. A db-read
 // is turned round (table → reader) so a table's upstream is its writers and its downstream its readers. A trait method
 // also leads to its implementations' same-named methods (format.md: `calls` are drawn to the trait method), so a trace
 // does not stop at a trait. `uses-code` is not part of a trace.
@@ -24,7 +24,7 @@ export interface Edge {
   relations: Relation[];     // the map's relations behind it (none for `implements`)
 }
 
-/** Kinds that end a box of their own in the pane (spec §3.4): every other node lives in its service's or library's box. */
+/** Kinds that end a box of their own in the pane: every other node lives in its service's or library's box. */
 const OWN_BOX = new Set(["service", "library", "table", "topic", "external", "datastore"]);
 
 /** The box a node is drawn in: its service or library (the top of its parent chain), or itself for a table, topic,

@@ -27,4 +27,4 @@ export const FONT = "Archivo, system-ui, sans-serif";
 
 /** Belt treads, faint rules and zone edges, lit windows, the split line of a two-way belt. */
 export const F = { tread: 0x3a3e45, rule: 0xb8c6d2, lit: 0xfff1b8, split: 0x5b6470, hub: 0xd4ead9, crate: 0xe8eef3,
-  amberSoft: 0xefe3bf };   // rail yards and stations (the approved mock factory-transport.html's amberSoft)
+  amberSoft: 0xefe3bf };   // rail yards and stations (the approved mock's amberSoft)

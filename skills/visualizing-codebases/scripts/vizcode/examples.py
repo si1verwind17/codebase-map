@@ -7,7 +7,7 @@ from .fingerprint import entry_fingerprint, type_fingerprint
 
 LABEL = "example values, not computed"
 ENTRY_KINDS = ("request", "event", "stream", "batch")          # a relation of these kinds ending at a method
-TRACE_KINDS = ("calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off")   # spec §3.3
+TRACE_KINDS = ("calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off")
 HOPS = 2
 CONTAINER_KINDS = ("service", "library", "package", "file", "class")
 STALE_HINT = "stale — rewrite its value against the code, or delete it when its {gone} is gone; then delete the flag"
@@ -159,7 +159,7 @@ def wanted(cmap: dict, pins: list[dict] | None = None) -> dict:
 
 
 def shape_errors(examples: dict) -> list[str]:
-    """meaning.json's `examples` shape, before assembling: {types: {class id: {value: {...}}},
+    """Meaning.json's `examples` shape, before assembling: {types: {class id: {value: {...}}},
     entries: [{node, key, request, response?}]}."""
     out: list[str] = []
     types, entries = examples.get("types", {}), examples.get("entries", [])
@@ -180,7 +180,7 @@ def shape_errors(examples: dict) -> list[str]:
 
 
 def check(cmap: dict) -> list[str]:
-    """assemble.py's refusals for an assembled map's examples, as a fix list (format.md § Examples)."""
+    """Assemble.py's refusals for an assembled map's examples, as a fix list (format.md § Examples)."""
     nodes = {n["id"]: n for n in cmap.get("nodes", [])}
     ex = cmap.get("examples") or empty()
     errors: list[str] = []

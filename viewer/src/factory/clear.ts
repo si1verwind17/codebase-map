@@ -105,7 +105,7 @@ export const BADGE_FONT = 10.5;
  *  0.62 em wide here, plus 4 px padding each side): the drawn badge is never larger, so its spot holds it. */
 export const badgeSize = (n: number) => ({ w: Math.ceil(`used by ${n}`.length * BADGE_FONT * 0.62) + 8, h: 14 });
 
-/** Where a `used by N` badge stands beside its machine (spec §15) and how far it may grow: its box at scale `k` has
+/** Where a `used by N` badge stands beside its machine and how far it may grow: its box at scale `k` has
  *  its corner at (`ax` + `ox`·w·k, `ay` + `oy`·h·k), so the anchor (`ax`, `ay`) stays put and the badge grows away
  *  from the box (`ox` 0 grows right, -1 left; `oy` 0 grows down, -1 up, -0.5 both ways, centred). `side` is the side of
  *  the box it stands on. `maxK` is the largest scale (up to MAX_K) whose box is clear of every obstacle, so the badge

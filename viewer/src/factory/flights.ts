@@ -1,5 +1,5 @@
 // src/factory/flights.ts
-// Where messaging is painted (spec §5), pure: one dotted flight path per flight from its pad or dock to its hub (or
+// Where messaging is painted, pure: one dotted flight path per flight from its pad or dock to its hub (or
 // back), the old machine→hub drone routes those paths replace, and the clear room their plates, the consumer tags and
 // the dock signs take. Painting (messaging-paint.ts) and motion read the result; nothing here draws.
 import { type Bundle, type Model } from "../model/model";

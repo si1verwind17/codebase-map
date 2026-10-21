@@ -1,4 +1,4 @@
-// Where a trace starts (spec §3.1, any-box A2–A5): any box. A method, table, topic or external starts at itself, a
+// Where a trace starts: any box. A method, table, topic or external starts at itself, a
 // datastore at its tables; a service, library, package, file, class or floor group at the entry points inside it, else
 // at its boundary methods (methods inside it at one end of a traced relation whose other end is outside it), else at
 // itself; a line at the nodes at both ends of what it carries. An entry point is a route's handler (`files[].routes`) or

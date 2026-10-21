@@ -71,7 +71,7 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
     return { code: model.codes.get(shows || id) ?? "", name: shows ? model.label(shows) : shortName(st, model, id) };
   };
   paintLines(st, routes, bundleOf, trunkHover(st, routes, bundleOf, end), st.layers.lines, st.lineViews, tf.cols);
-  // each extra layer's lines (spec §15), painted as the base's are, in its own container above them: hidden until shown
+  // each extra layer's lines, painted as the base's are, in its own container above them: hidden until shown
   st.layerViews.clear();
   const layers = plan?.tf === tf ? plan.layers : undefined;
   for (const [id, l] of Object.entries(layers ?? {}) as [LayerId, { routes: TileRoute[] }][]) {
@@ -179,7 +179,7 @@ function badgeView(layer: FloorLayer) {
   const t = new Text({ resolution: 2, text: `used by ${layer.usedBy}`, style: label(BADGE_FONT, "700", C.paper) });
   return { t, ...badgeSize(layer.usedBy) };
 }
-/** A heavily used item's `used by N` badge (spec §15): paper on ink, as the factory's tags, beside its box where the
+/** A heavily used item's `used by N` badge: paper on ink, as the factory's tags, beside its box where the
  *  floor is clear (clear.ts `planBadge`; kept in the plan). It keeps a readable size as the floor zooms out, as far as
  *  its clear room allows (`zoomBadges`). A tap or click, or Enter on its button once Tab has made the canvas
  *  keyboard-reachable (Pixi's accessibility layer), opens its item's layer. */
@@ -223,7 +223,7 @@ export function zoomBadges(st: SceneState, z: number) {
  *  paint ops (the legend reads a layer's plates from them). */
 function paintLines(st: SceneState, routes: TileRoute[], bundleOf: (r: TileRoute) => Bundle, hover: (hit: Graphics) => void,
   into: Container, views: Map<string, Container[]>, cols: number): FactoryOp[] {
-  // taps first, then rails, belts and pipes on top (the underground order, spec §4)
+  // taps first, then rails, belts and pipes on top (the underground order)
   const order = { tapR: 0, tapW: 0, tapRW: 0, drone: 1, rail: 2, belt: 3, pipe: 4 };
   const idx = routes.map((_, i) => i).sort((p, q) => order[routes[p].kind] - order[routes[q].kind]);
   const ops = factoryOps(routes.map((r) => { const b = bundleOf(r); return { pieces: r.pieces, kind: r.kind, failed: r.failed, both: r.both, inferred: b.inferred === b.relations.length && b.relations.length > 0 }; }), cols, idx);

@@ -1,4 +1,4 @@
-// Example values the agent wrote (spec §2.3, §3.6), the Swagger way: one per entry point (its request and response, or
+// Example values the agent wrote, the Swagger way: one per entry point (its request and response, or
 // an event's payload) and one per data type. What the detail panel shows for a method or an arrow: the entry point's
 // example if it is one, else the examples of the types its signature refers to; a type without one shows its fields.
 // Always labelled as examples.

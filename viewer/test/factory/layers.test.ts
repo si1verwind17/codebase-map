@@ -1,4 +1,4 @@
-// Layers (spec §15): a heavily used item's lines do not fit a floor's base layer: they go into that item's extra layer;
+// Layers: a heavily used item's lines do not fit a floor's base layer: they go into that item's extra layer;
 // the base layer and its plan stay exactly as before, and each layer's lines route over the base after it.
 import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";

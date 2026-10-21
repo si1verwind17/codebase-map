@@ -26,7 +26,7 @@ const perView = (plan: FloorPlan, check: (routes: TileRoute[]) => Violation[]) =
 const perRoute = (plan: FloorPlan, check: (r: TileRoute) => Violation[]) =>
   perView(plan, (routes) => routes.filter((r) => r.pieces.length).flatMap(check));
 
-/** Every check over one floor's plan, in the order of the check table (spec §3). */
+/** Every check over one floor's plan, in the order of the check table. */
 function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorMeasures): [CheckId, () => Violation[]][] {
   const { tf } = plan, { bundles } = model.bundles(c);
   return [

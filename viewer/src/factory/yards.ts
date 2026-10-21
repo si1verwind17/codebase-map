@@ -1,5 +1,5 @@
 // src/factory/yards.ts
-// Where batch rails start and stop (spec §2, §6). A rail yard stands flush against its scheduler's side (an inner yard,
+// Where batch rails start and stop. A rail yard stands flush against its scheduler's side (an inner yard,
 // whose scheduler is off the floor, stands free in the in column below its door), one platform
 // row per destination (no header: the block and its rows say what it is); a station strip stands flush against each destination's side, facing the
 // yard. Both, and the yard's sign tile, are reserved before routing: the router treats them as obstacles. A rail leaves

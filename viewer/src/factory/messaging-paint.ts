@@ -1,5 +1,5 @@
 // src/factory/messaging-paint.ts
-// Painting messaging (spec §5, mock factory-transport.html panels 1 and 2): landing pads, receiving docks, the queue's
+// Painting messaging: landing pads, receiving docks, the queue's
 // waiting stack, the dead-letter hub's red marks, dotted flight paths, and the plates, tags and signs placed for them
 // in flights.ts. Geometry comes from pads.ts and flights.ts; this file only draws.
 import { Container, Graphics, Text, TextStyle } from "pixi.js";

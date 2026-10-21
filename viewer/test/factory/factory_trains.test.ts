@@ -1,4 +1,4 @@
-// Trains (spec §6, Task 4), the pure part: one train per lit rail, its cadence by the platform's runs per day, the
+// Trains, the pure part: one train per lit rail, its cadence by the platform's runs per day, the
 // waits at both ends, the layout pass's speed rule, and the demo floors' trains.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";

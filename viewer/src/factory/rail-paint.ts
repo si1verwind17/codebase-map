@@ -1,5 +1,5 @@
 // src/factory/rail-paint.ts
-// Painting batch rails (spec §6, mock factory-transport.html Batch and factory-more.html §5): rail yards with their
+// Painting batch rails: rail yards with their
 // platform strips (or a parked train, a yard with no platform), the rail from each platform out of the yard, station
 // sidings with a signal and a buffer stop, schedule signs, and the hover lists of signs, platforms, stations and yards.
 // No part carries a caption naming its kind, and no word is turned: everything reads left to right. Geometry comes
@@ -39,7 +39,7 @@ export interface RailViews {
 }
 
 /** What the scene keeps from the paint: the pieces painted beside each rail's route (its yard link and its siding: the
- *  selection highlight covers them too) and Task 4's train paths. */
+ *  selection highlight covers them too) and the trains' paths. */
 export interface PaintedRails { extra: Map<string, Piece[]>; trainPaths: TrainPath[]; tracks: RailTrack[];
   /** the zoom moved: a hover list on show keeps its readable size */ zoomed(z: number): void }
 

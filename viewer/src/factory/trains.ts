@@ -1,5 +1,5 @@
 // src/factory/trains.ts
-// When each train runs (spec §6, Task 4), pure: a function of the floor's train paths, the lit set and the time, with
+// When each train runs, pure: a function of the floor's train paths, the lit set and the time, with
 // no randomness. One train per lit rail: a locomotive and 2–3 wagons. In each period it waits at its yard platform (or
 // door) loaded, runs to the station, waits there (unloading halfway), and runs back empty, the locomotive staying at
 // the station end. A busier platform (more runs per day) has a shorter period, so it departs more often:

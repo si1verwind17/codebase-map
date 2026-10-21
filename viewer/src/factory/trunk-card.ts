@@ -1,4 +1,4 @@
-// The trunk hover card (spec §8 Hover), pure: which tiles two or more lines share (a trunk's run, its splitter and merger
+// The trunk hover card, pure: which tiles two or more lines share (a trunk's run, its splitter and merger
 // plates), and the card's words for the lines on one. The scene draws the card (floor/trunk-hover.ts).
 import { DRAW_ORDER, type Bundle } from "../model/model";
 import type { RelationKind } from "../model/types";

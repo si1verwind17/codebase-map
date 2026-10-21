@@ -1,4 +1,4 @@
-// Floor 0 only: the optional code-dependency overlay (spec §8 Libraries). Each `uses-code` pair on the
+// Floor 0 only: the optional code-dependency overlay. Each `uses-code` pair on the
 // site is a thin conduit of fine slate dots, straight from the user's roof centre to the used box's centre (a library on
 // the shelf, or another service). It is drawn under the machines, so only the gap between the two boxes shows. It is not
 // a line: never routed, never lit, never selected, and it carries nothing. It also never runs over a word: where it would

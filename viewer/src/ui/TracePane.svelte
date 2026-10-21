@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The trace pane (spec §3): the lineage around one focus on one page. Boxes and rows are HTML, arrows one SVG above
+  // The trace pane: the lineage around one focus on one page. Boxes and rows are HTML, arrows one SVG above
   // them (it takes clicks on its arrows only, so an arrow inside a box stays visible and the rows stay clickable); positions come from trace/layout.ts. A click on a row or an arrow opens the detail panel on the right.
   import { onMount, tick } from "svelte";
   import type { Model } from "../model/model";

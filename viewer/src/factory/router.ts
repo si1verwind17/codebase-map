@@ -1,5 +1,5 @@
 // src/factory/router.ts
-// Lines as tiles (spec §4): each bundle becomes a chain of 1×1 pieces found by A* on the floor grid. A line
+// Lines as tiles: each bundle becomes a chain of 1×1 pieces found by A* on the floor grid. A line
 // that must cross another passes under it; lines routed first stay on top, so the picture is stable. Lines from one
 // machine leave as one trunk and split off it; lines into one machine merge onto one.
 import { flies, type Bundle } from "../model/model";
@@ -42,7 +42,7 @@ const DX = DIRS.map((d) => STEP[d][0]), DY = DIRS.map((d) => STEP[d][1]);   // S
 const centre = (r: Rect): Pt => ({ x: (r.x + r.w / 2) * T, y: (r.y + r.h / 2) * T });
 const band = (l: TileLane): Rect => ({ x: l.x0, y: l.y, w: l.x1 - l.x0, h: LANE_H });
 
-/** `base`: given, this is a layer's pass (spec §15): the lines already laid on this floor, which `bundles` route over. Their tiles on top are
+/** `base`: given, this is a layer's pass: the lines already laid on this floor, which `bundles` route over. Their tiles on top are
  *  held by a line no layer line may ride: a layer line goes round them where it can and under them where it must, never
  *  along them; they are read, never changed. */
 export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[]): TileRoute[] {

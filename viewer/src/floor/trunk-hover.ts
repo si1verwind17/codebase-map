@@ -1,4 +1,4 @@
-// The trunk hover card (spec §8 Hover): hovering a tile two or more lines share (a trunk's run, a splitter or merger
+// The trunk hover card: hovering a tile two or more lines share (a trunk's run, a splitter or merger
 // plate) shows its lines on an ink card, in the rail hover lists' style. The card stands on the tile, not the pointer:
 // above it, or below when there is no room above; it never covers the tile. It hides on pointer-out, on a floor change
 // (the scene clears the layer), on a selection change and when the camera moves. It takes no pointer events: a click on

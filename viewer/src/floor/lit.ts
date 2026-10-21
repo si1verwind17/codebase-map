@@ -3,7 +3,7 @@ import type { Model } from "../model/model";
 
 /** What moves on floor `c` while nothing is selected: every line on the floor, on every floor, every rail's train
  *  (`rails`: the floor's train path keys, stand-in `rail:` keys among them), and every line of its extra layers
- *  (spec §15: they move while their layer shows). The one place this default is decided. */
+ *  (they move while their layer shows). The one place this default is decided. */
 export function defaultLit(model: Model, c: string, rails: readonly string[] = []): string[] {
   const b = model.bundles(c), keys = [...new Set([...b.bundles, ...b.layered].map((x) => x.key))], have = new Set(keys);   // a line in two layers once
   return keys.concat(rails.filter((k) => !have.has(k)));

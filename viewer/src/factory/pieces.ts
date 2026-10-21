@@ -1,4 +1,4 @@
-// Painting one line tile (spec §4): belts curve round corners with a chevron riding the curve; pipes and taps
+// Painting one line tile: belts curve round corners with a chevron riding the curve; pipes and taps
 // get elbows, flanges and clamps; rails get ties; a hood stands beside every underground run.
 import type { Graphics } from "pixi.js";
 import { C, F } from "../floor/palette";
@@ -80,7 +80,7 @@ export function paintPiece(g: Graphics, p: Piece, kind: LineKind, both: boolean)
 
 /** A rail tile: every piece's ties first, then every piece's two rails over them. One piece is a plain straight or
  *  curve; a junction tile (a destination peeling off a shared trunk) passes its straight and its curve together, so the
- *  tile shows both rails crossing over both sets of ties, with no plate or marker (spec §6, as in Factorio). */
+ *  tile shows both rails crossing over both sets of ties, with no plate or marker (as in Factorio). */
 export function paintRailTile(g: Graphics, ps: Piece[]) {
   for (const p of ps) railTies(g, p);
   for (const p of ps) railRails(g, p);

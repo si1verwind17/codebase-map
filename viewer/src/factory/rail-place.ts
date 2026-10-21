@@ -1,7 +1,7 @@
 // src/factory/rail-place.ts
-// Where batch rails are painted (spec §6, mock factory-transport.html Batch, factory-more.html §5), pure: the parts of
+// Where batch rails are painted, pure: the parts of
 // each rail yard (platform strips, the parked train's strip, the rail from each platform to the exit it leaves by), the station sidings,
-// the train paths Task 4 runs, the sign text and station labels placed in clear room, the hover lists, and the legend
+// the paths trains run, the sign text and station labels placed in clear room, the hover lists, and the legend
 // kinds. rail-paint.ts draws from this; nothing here draws.
 import type { Model } from "../model/model";
 import type { Relation } from "../model/types";
@@ -15,7 +15,7 @@ import { piecesToPoints, type TileRoute } from "./router";
 import { exits, stationId, yardId, type StationBox, type YardBox } from "./yards";
 import { STEP, T, type Dir, type Piece } from "./tiles";
 
-/** One train's track, for Task 4: `points` (world px) run from its platform's strip, through the yard to the exit its
+/** One train's track: `points` (world px) run from its platform's strip, through the yard to the exit its
  *  rail leaves by, along the rail (underground runs included) and through the station to its buffer stop. `key` is the
  *  rail's route key (a batch bundle's, or a stand-in's `rail:` key), `platform` its `platformId`, `station` its
  *  `stationId`; `runsPerDay` is its platform's (null: no known schedule, on demand). */
@@ -79,7 +79,7 @@ export function railTracks(tf: TileFloor, routes: TileRoute[]): RailTrack[] {
   return out;
 }
 
-/** Task 4's train paths: one per rail that routed; a yard-less one starts at its door's edge. */
+/** The trains' paths: one per rail that routed; a yard-less one starts at its door's edge. */
 export function trainPaths(tf: TileFloor, routes: TileRoute[]): TrainPath[] {
   const yards = tf.rails?.batch.yards ?? [];
   return railTracks(tf, routes).filter((t) => t.route && !t.route.failed && t.route.pieces.length).map((t) => {

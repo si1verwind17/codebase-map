@@ -1,4 +1,4 @@
-// Painting machines (spec §2): block buildings with a flat shade, their code on a tab and their name inside.
+// Painting machines: block buildings with a flat shade, their code on a tab and their name inside.
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import { C, F, FONT } from "../floor/palette";
 import { fitLine, fitSignature, fits, nameSpec } from "./fit";
@@ -59,7 +59,7 @@ export function doorText(r: { x: number; y: number; w: number; h: number }, side
  *  role tag stands left of them and the sub line stops short of both. */
 export type Store = "database" | "cache" | "bucket" | "warehouse";
 
-/** A datastore's art by what it stores (spec §7): a database or a warehouse is today's warehouse, a cache a chest, a
+/** A datastore's art by what it stores: a database or a warehouse is today's warehouse, a cache a chest, a
  *  bucket a container yard; no `store` reads as a database. A cache chest beside its machine (the `chest` footprint) is
  *  always a cache. */
 export const storeArt = (b: Box, store: Store | undefined): "warehouse" | "chest" | "yard" | undefined =>

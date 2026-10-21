@@ -239,7 +239,7 @@ export class Model {
   private chains = new Map<string, readonly { id: string; group?: string }[]>();   // id -> its walk off the site floor
 
   /** One bundle per pair of items on this floor, plus relations leaving the floor. `layered`: the lines kept out of
-   *  the base layer (spec §15), each tagged with the extra layer that draws it (a line in two layers is listed once per
+   *  the base layer, each tagged with the extra layer that draws it (a line in two layers is listed once per
    *  layer, so count or collect its key once); `bundles` never holds them. Worked out once per floor and code-links
    *  flag (the map never changes under a Model) and shared: callers must not mutate the result. */
   bundles(container: string, opts: { codeLinks?: boolean } = {}): FloorBundles {

@@ -1,5 +1,5 @@
 // src/factory/messaging.ts
-// The messaging picture of one floor (spec §5), pure: airfields of hubs per broker, and who produces to, consumes
+// The messaging picture of one floor, pure: airfields of hubs per broker, and who produces to, consumes
 // from or fails into each hub, with the flight each one flies. Layout, painting and motion read this; nothing here
 // draws. Facts come from the map: delivery and dead_letter_of on the topic, group / subscription / on_failure on the
 // event relation, replicas on the consuming service. Absent facts read as a plain fan-out.

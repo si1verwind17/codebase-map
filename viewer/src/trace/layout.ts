@@ -1,4 +1,4 @@
-// Where the trace pane draws what reach.ts found (spec §3.4): one box per service or library (tables, topics,
+// Where the trace pane draws what reach.ts found: one box per service or library (tables, topics,
 // externals and datastores alone), columns by hop distance (upstream left, the focus's box in column 0, downstream
 // right), a call within a box going down and a hop to another box going sideways. Rows in a box are a call tree: depth
 // first in call order, each row indented by its call depth, a call an elbow from the caller's trunk into the callee

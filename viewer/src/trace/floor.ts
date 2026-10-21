@@ -1,4 +1,4 @@
-// The trace on the floor (spec §3.2): the floor keeps its zoom; the items it shows that the trace passes through stay
+// The trace on the floor: the floor keeps its zoom; the items it shows that the trace passes through stay
 // at full strength, and the lines between them carry the moving parts.
 import { SITE, type Model } from "../model/model";
 import type { Target } from "../floor/state";

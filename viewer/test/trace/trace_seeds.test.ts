@@ -161,7 +161,7 @@ describe("the header and the pin's name (spec A6)", () => {
 });
 
 describe("what a pick traces from while the pane is open (spec A2, A5)", () => {
-  it("a node by its id; a twin as the package it stands for (Review Focus 2); an id not in the map, nothing", () => {
+  it("a node by its id; a twin as the package it stands for; an id not in the map, nothing", () => {
     expect(startFor(demo, SITE, { type: "node", id: "svc:billing" })).toEqual({ focus: "svc:billing" });
     expect(startFor(demo, "svc:feature-store", { type: "node", id: "twin:pipelines_shared::pipelines_shared/" }))
       .toEqual({ focus: "pipelines_shared::pipelines_shared/" });
@@ -176,7 +176,7 @@ describe("what a pick traces from while the pane is open (spec A2, A5)", () => {
     expect([...s.line!.ends].sort()).toEqual(["3p:smtp", "svc:notifier"]);
   });
 
-  it("a line that carries no traced relation starts nothing (Review Focus 1)", () => {
+  it("a line that carries no traced relation starts nothing", () => {
     expect(startFor(demo, SITE, { type: "bundle", key: "nope|nada" })).toBeNull();
     const rail = { title: "a → b", relations: demo.map.relations.filter((r) => r.kind === "uses-code").slice(0, 1) };
     expect(startFor(demo, SITE, { type: "bundle", key: "rail:x" }, () => rail)).toBeNull();

@@ -72,7 +72,7 @@ export interface SceneState {
   lineViews: Map<string, Container[]>;
   dronePaths: boolean;
   droneViews: Map<string, Container[]>;   // a drone route's line and hit area, by bundle key
-  /** The extra layer shown now (spec §15), null for the base; a floor change resets it. */
+  /** The extra layer shown now, null for the base; a floor change resets it. */
   layer: LayerId | null;
   /** This floor's extra layers (model/layers.ts `floorLayers`), its lines kept out of the base, and each hub layer as drawn. */
   floorLayers: FloorLayer[];
@@ -102,7 +102,7 @@ export interface SceneState {
   trunkTip: CardTip;
   /** The webhook dock's hover card (messaging-paint.ts `paintWebhooks`), hidden by a camera move as the trunk card is. */
   dockTip: CardTip;
-  /** One path per rail on this floor, platform to buffer stop (Task 4's trains run them). */
+  /** One path per rail on this floor, platform to buffer stop (the trains run them). */
   trainPaths: TrainPath[];
   geo: FloorGeometry | null;
   routes: Route[];

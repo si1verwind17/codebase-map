@@ -1,5 +1,5 @@
 // test/factory_conduits.test.ts
-// The F0 code-dependency overlay (spec §8 Libraries): optional thin dotted conduits from a service to the code it uses.
+// The F0 code-dependency overlay: optional thin dotted conduits from a service to the code it uses.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Model, SITE } from "../../src/model/model";

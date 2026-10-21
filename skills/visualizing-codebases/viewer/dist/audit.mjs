@@ -1,4 +1,4 @@
-// audit-inputs: 81590b0af12330570b0cb561b06373932c9ba6eb4f3f7583d570f95777de3e35
+// audit-inputs: acb22615e21e93ffcdb51da2dd67881203b52b38e4f6a8bdfb205072c41e3e85
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -213,7 +213,7 @@ var Model = class {
 	}
 	chains = /* @__PURE__ */ new Map();
 	/** One bundle per pair of items on this floor, plus relations leaving the floor. `layered`: the lines kept out of
-	*  the base layer (spec §15), each tagged with the extra layer that draws it (a line in two layers is listed once per
+	*  the base layer, each tagged with the extra layer that draws it (a line in two layers is listed once per
 	*  layer, so count or collect its key once); `bundles` never holds them. Worked out once per floor and code-links
 	*  flag (the map never changes under a Model) and shared: callers must not mutate the result. */
 	bundles(container, opts = {}) {
@@ -3397,7 +3397,7 @@ var band = (l) => ({
 	w: l.x1 - l.x0,
 	h: 3
 });
-/** `base`: given, this is a layer's pass (spec §15): the lines already laid on this floor, which `bundles` route over. Their tiles on top are
+/** `base`: given, this is a layer's pass: the lines already laid on this floor, which `bundles` route over. Their tiles on top are
 *  held by a line no layer line may ride: a layer line goes round them where it can and under them where it must, never
 *  along them; they are read, never changed. */
 function routeTiles(tf, bundles, base) {
@@ -5863,7 +5863,7 @@ var perView = (plan, check) => views(plan).flatMap(([view, routes]) => check(rou
 	detail: v.detail + view
 })));
 var perRoute = (plan, check) => perView(plan, (routes) => routes.filter((r) => r.pieces.length).flatMap(check));
-/** Every check over one floor's plan, in the order of the check table (spec §3). */
+/** Every check over one floor's plan, in the order of the check table. */
 function checks(model, c, plan, measured) {
 	const { tf } = plan, { bundles } = model.bundles(c);
 	return [

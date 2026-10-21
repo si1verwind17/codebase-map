@@ -1,4 +1,4 @@
-// Pinned traces (spec §2.2, §3.7): the map's pins (the agent's and the user's) minus the ones unpinned here, plus the
+// Pinned traces: the map's pins (the agent's and the user's) minus the ones unpinned here, plus the
 // ones pinned here. Changes take effect at once, are kept in browser storage like comments (the page works without
 // it), and go to the agent in export-comment.md under `## Pins`. A change the agent has applied (the next map carries
 // it) is dropped from storage when the page loads that map.
@@ -115,7 +115,7 @@ export class Pins {
     this.save();
   }
 
-  /** The `## Pins` section of export-comment.md (spec §2.2): `pin:` lines, then `unpin:` lines; "" with no change. */
+  /** The `## Pins` section of export-comment.md: `pin:` lines, then `unpin:` lines; "" with no change. */
   toMarkdown(): string {
     if (!this.changes()) return "";
     return [

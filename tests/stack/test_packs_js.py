@@ -99,7 +99,7 @@ def test_express_mounts_sinks_tables(express_repo):
 
 
 def test_express_negatives(make_repo):
-    """Review Focus 3: `map.get("x")`, a one-argument `app.get('title')` (a setting), a template path and a
+    """`map.get("x")`, a one-argument `app.get('title')` (a setting), a template path and a
     member of another name are not routes; nothing matches without the `express` import."""
     src = ("const app = makeApp();\nconst map = new Map();\nmap.get('/x', 1);\napp.get('title');\n"
            "app.get(`/t/${id}`, h);\nmyapp.get('/m', h);\napp.get('/real', h);\napp.use('/v2', r);\n"
@@ -244,7 +244,7 @@ def test_js_and_ts_packs_carry_the_same_entries():
 
 @pytest.mark.parametrize("lang", ["typescript", "javascript"])
 def test_every_js_pack_regex_entry_has_when(lang):
-    """Review Focus 3: a pack regex without `when` would fire on any file of the language."""
+    """A pack regex without `when` would fire on any file of the language."""
     st = stack.default()
     for p in (*st.patterns, *st.tables):
         if p.lang == lang and p.source == "pack":

@@ -1,4 +1,4 @@
-// What a trace shows (spec §3.3, §3.5): from the focus, edges followed downstream and/or upstream, breadth first, two
+// What a trace shows: from the focus, edges followed downstream and/or upstream, breadth first, two
 // hops each way to start. A node's `+` adds one hop beyond it; more than FOLD_AT neighbours on a side show the total
 // and the first FOLD_AT in call order until "show all"; calls into a shared library fold into one box per library and
 // side until it is opened; an edge back to a node on the path that led here is a loop (↺), drawn once; a hop known only

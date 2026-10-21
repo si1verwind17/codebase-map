@@ -1,4 +1,4 @@
-"""Regression tests for the final-review findings (symlinks, subdirectories, excludes,
+"""Regression tests (symlinks, subdirectories, excludes,
 route idioms, commit drift, defaulted libraries, output-dir paths)."""
 import copy
 import json

@@ -1,5 +1,5 @@
 // src/factory/layout.ts
-// Grid cells from the map's layout to tile boxes, lanes and zones (spec §2–3). Viewer-side: no scanner change.
+// Grid cells from the map's layout to tile boxes, lanes and zones. Viewer-side: no scanner change.
 import type { Door, Model } from "../model/model";
 import { doorAnchor, SITE } from "../model/model";
 import type { Cell, Floor } from "../model/types";

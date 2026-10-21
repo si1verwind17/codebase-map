@@ -231,7 +231,7 @@ export class FloorScene {
   /** Whether `t` has no line left to see once layer `layer` closes (the App then clears the selection). */
   liveOnlyIn(t: Target, layer: LayerId): boolean { return selection.liveOnlyIn(this.s, t, layer); }
 
-  /** A trace runs (spec §3.2): `items` are the items on this floor it passes through (trace/floor.ts), null when it
+  /** A trace runs: `items` are the items on this floor it passes through (trace/floor.ts), null when it
    *  closes or a selection takes the floor (spec S2). The camera does not move. Nothing to change: no restyle. */
   setTrace(items: ReadonlySet<string> | null) {
     if (!items && !this.s.traced && !this.s.traceHover && !this.s.traceMarked.size) return;
@@ -309,7 +309,7 @@ export class FloorScene {
     if (measuring()) { linesRead(this.s); this.s.textsZoom = 0; delete this.app.canvas.dataset.textsZoom; }   // tests: the conduits' paths as now drawn
   }
 
-  /** Show one of this floor's extra layers (spec §15), or the base (null). Moving parts follow it. */
+  /** Show one of this floor's extra layers, or the base (null). Moving parts follow it. */
   setLayer(id: LayerId | null) {
     selection.setLayer(this.s, id);
     if (measuring()) { linesRead(this.s); this.s.textsZoom = 0; delete this.app.canvas.dataset.textsZoom; }   // tests: the lines and words of the layer now shown

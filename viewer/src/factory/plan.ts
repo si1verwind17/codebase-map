@@ -115,7 +115,7 @@ export function layFloor(model: Model, container: string, doors: Door[], bundles
   return tf;
 }
 
-/** `layers`: each extra layer's lines (spec §15), routed after the base on the same floor; present only when the floor
+/** `layers`: each extra layer's lines, routed after the base on the same floor; present only when the floor
  *  has one. The base (`tf`, `routes`, `gap`, `landing`) is exactly the plan without them. */
 export interface FloorPlan { tf: TileFloor; routes: TileRoute[]; gap: number; landing?: Landing; layers?: Partial<Record<LayerId, { routes: TileRoute[] }>> }
 
