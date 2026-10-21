@@ -3,11 +3,17 @@
 # is a client). ignore: the most used standard library requires.
 # routes (regex): Rails `get "/x", to: "c#a"` in `config/routes.rb` and Sinatra `get "/x" do` (when `sinatra`).
 # The Rails entry has no `when`: a routes file requires nothing, so the regex requires the
-# `to: "c#a"` argument instead, which keeps other `get "x"` calls out; the agent maps `c#a` to its action.
+# `to: "c#a"` argument instead, which keeps other `get "x"` calls out.
 # `resources :users` / `resource :profile` (no `when` either: a bare call at the start of a line) expand to Rails'
 # REST actions, kept by `only:` / `except:` on the same line (`param:` names the `:id`; `%i[]`, `%w[]`, `=>` too); a nested or namespaced one keeps only its own name.
-# Both are blocks or strings, not methods: the empty `handler` group makes the handler the method around the
-# match or the file, never a `def` below it. tables: ActiveRecord `self.table_name = "x"`, without `when` (a Rails
+# Their handler is the controller action by Rails convention (`handler_class`, `handler_method`): `c#a` is
+# `CController#a` (`admin/orders#create`: `OrdersController`, under `admin` when several share the name),
+# `resources :users` is `UsersController#index` and so on, `resource :profile` is `ProfilesController` (plural by
+# adding `s`: an irregular plural, `resource :address`, finds no class). A `controller:` or `module:` option on the
+# line (the `nohandler` group) names another controller: those routes, like those where the class or action is not
+# in the repo, keep the empty `handler` group's handler, the method around the match or the file, never a `def`
+# below it. An enclosing `namespace`, `scope module:` or `controller` block is not read: a resource in one is matched
+# by its class name alone, when that name is unique. tables: ActiveRecord `self.table_name = "x"`, without `when` (a Rails
 # model requires nothing): the regex needs `self.table_name =` at the start of a line and a string literal.
 # queues: in-process queue creation sites (`Queue.new`/`SizedQueue.new` (core, so no `when`)): candidates the agent confirms (SKILL.md § In-process queues).
 ruby:
@@ -30,14 +36,20 @@ ruby:
   routes:
     - name: rails
       path: literal
-      regex: '^[ \t]*(?P<method>get|post|put|patch|delete)\s*\(?\s*["''](?P<path>[^"'']+)["'']\s*,\s*to:\s*["''][\w/]+#\w+["''](?P<handler>)'
+      regex: '^[ \t]*(?P<method>get|post|put|patch|delete)\s*\(?\s*["''](?P<path>[^"'']+)["'']\s*,\s*to:\s*["''](?P<controller>[\w/]+)#(?P<action>\w+)["''](?P<handler>)'
+      handler_class: '{controller|camel}Controller'
+      handler_method: '{action}'
     - name: rails-resources
-      regex: '^[ \t]*resources\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bparam:|:param\s*=>)\s*:(?P<param>\w+)))?(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?P<handler>)'
+      regex: '^[ \t]*resources\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bparam:|:param\s*=>)\s*:(?P<param>\w+)))?(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\b(?:controller|module):|:(?:controller|module)\s*=>)\s*(?P<nohandler>\S+)))?(?P<handler>)'
       expand: {index: GET, new: GET /new, create: POST, show: GET /:id, edit: GET /:id/edit,
                update: [PATCH /:id, PUT /:id], destroy: DELETE /:id}
+      handler_class: '{path|camel}Controller'
+      handler_method: '{action}'
     - name: rails-resource
-      regex: '^[ \t]*resource\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?P<handler>)'
+      regex: '^[ \t]*resource\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\b(?:controller|module):|:(?:controller|module)\s*=>)\s*(?P<nohandler>\S+)))?(?P<handler>)'
       expand: {new: GET /new, create: POST, show: GET, edit: GET /edit, update: [PATCH, PUT], destroy: DELETE}
+      handler_class: '{path|camel}sController'
+      handler_method: '{action}'
     - name: sinatra
       when: sinatra
       path: literal

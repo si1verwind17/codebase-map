@@ -43,6 +43,11 @@ class RoutePattern:
     # `expand`: action -> ((METHOD, path suffix), ...); a match gives one route per pair of each action its
     # `only` / `except` groups keep (Rails `resources :users, only: [:index]`); a `param` group renames `:id`
     expand: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+    # `handler_class` / `handler_method`: templates naming the handler by convention (`{path|camel}Controller`,
+    # `{action}`) from the regex groups and the expanded action; structure resolves them to a method when that
+    # class and method exist, else the route keeps its span-rule handler, as it does when a `nohandler` group matched
+    handler_class: str | None = None
+    handler_method: str | None = None
 
 
 @dataclass(frozen=True)
@@ -248,7 +253,8 @@ def _add_routes(st: Stack, fname: str, lang: str, entries: list, source: str) ->
                 raise _fail(fname, where, name, "clashes with a built-in rule")
             _place(st, st.patterns, "routes", fname, where, name, _annotated(fname, lang, where, name, e, source))
             continue
-        if extra := sorted(set(e) - {"name", "form", "regex", "path", "when", "method", "mount", "expand"}):
+        if extra := sorted(set(e) - {"name", "form", "regex", "path", "when", "method", "mount", "expand",
+                                     "handler_class", "handler_method"}):
             raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
         for key in ("name", "regex"):
             if not isinstance(e.get(key), str) or not e[key]:
@@ -281,8 +287,60 @@ def _add_routes(st: Stack, fname: str, lang: str, entries: list, source: str) ->
             raise _fail(fname, where, name, "no method source: add a method group, or method: "
                         "(also required with a methods group, for a match where that group is empty)")
         method = e["method"].upper() if e.get("method") else None
+        h_class, h_method = _handler_templates(fname, where, name, e, regex, expand, mount)
         _place(st, st.patterns, "routes", fname, where, name,
-               RoutePattern(lang, name, regex, reader, _trim(e.get("when"), lang), method, source, mount, expand))
+               RoutePattern(lang, name, regex, reader, _trim(e.get("when"), lang), method, source, mount, expand,
+                            h_class, h_method))
+
+
+TEMPLATE_FIELD = re.compile(r"\{(\w+)(?:\|(\w+))?\}")
+TEMPLATE_FILTERS = {"camel": lambda v: "/".join("".join(w[:1].upper() + w[1:] for w in re.split(r"[_-]", part))
+                                                for part in v.split("/"))}
+
+
+def _handler_templates(fname: str, where: str, name: str, e: dict, regex: re.Pattern, expand: tuple,
+                       mount: bool) -> tuple[str | None, str | None]:
+    """`handler_class` and `handler_method`, both or neither: templates whose `{group}` / `{group|camel}` fields
+    name regex groups, or `action` (the expanded action) on an entry with `expand`."""
+    values = [e.get("handler_class"), e.get("handler_method")]
+    if values == [None, None]:
+        return None, None
+    if mount:
+        raise _fail(fname, where, name, "a mount has no handler_class or handler_method")
+    if not all(isinstance(v, str) and v.strip() for v in values):
+        raise _fail(fname, where, name, "handler_class and handler_method go together, each a template string")
+    known = set(regex.groupindex) | ({"action"} if expand else set())
+    for v in values:
+        for field, filt in TEMPLATE_FIELD.findall(v):
+            if field not in known:
+                raise _fail(fname, where, name, f"template field '{field}' is not a regex group"
+                            + (" or action" if expand else ""))
+            if filt and filt not in TEMPLATE_FILTERS:
+                raise _fail(fname, where, name, f"unknown template filter '{filt}' (one of {', '.join(TEMPLATE_FILTERS)})")
+    return values[0].strip(), values[1].strip()
+
+
+def _fill(template: str, values: dict) -> str | None:
+    """The template with its fields filled in; None when a field's value is empty."""
+    missing = False
+
+    def one(m: re.Match) -> str:
+        nonlocal missing
+        v = (values.get(m.group(1)) or "").strip()
+        missing = missing or not v
+        return TEMPLATE_FILTERS[m.group(2)](v) if m.group(2) else v
+    out = TEMPLATE_FIELD.sub(one, template)
+    return None if missing else out
+
+
+def _named_handler(pat: RoutePattern, m: re.Match, action: str | None = None) -> dict:
+    """The route's `handler_class` and `handler_method`, when the pattern names them, every field has a value and
+    the match has no `nohandler` text (an option naming another handler, such as Rails `controller:`)."""
+    if not pat.handler_class or (m.groupdict().get("nohandler") or "").strip():
+        return {}
+    values = {**m.groupdict(), **({"action": action} if action else {})}
+    cls, meth = _fill(pat.handler_class, values), _fill(pat.handler_method, values)
+    return {"handler_class": cls, "handler_method": meth} if cls and meth else {}
 
 
 EXPAND_ITEM = re.compile(r"(\w+)(?:\s+(/\S*))?")
@@ -629,7 +687,7 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
             param = (m.group("param") or "").strip() if "param" in groups else ""
             out += [{"method": method, "handler": handler, "line": line,
                      "path": normalise(base + (re.sub(r"(?<=/):id\b", ":" + param, suffix) if param else suffix)),
-                     "framework": pat.name, "source": pat.source, "at": m.start()}
+                     "framework": pat.name, "source": pat.source, "at": m.start(), **_named_handler(pat, m, action)}
                     for action, pairs in pat.expand
                     if (only is None or action in only) and (exclude is None or action not in exclude)
                     for method, suffix in pairs]
@@ -644,7 +702,8 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
         for method in methods:
             out.append({"method": method, "path": read_path(text, pat.path), "handler": handler,
                         "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
-                        **({"handler_name": named.strip()} if named and named.strip() else {})})
+                        **({"handler_name": named.strip()} if named and named.strip() else {}),
+                        **_named_handler(pat, m)})
     compose(src, out, mounts or [], lang)
     return out
 

@@ -547,6 +547,15 @@ scala:
   to keep or drop (any words: `[:index, :show]`, `%i[index]`), and an
   optional `param` group renames the suffixes' `:id` (Rails `param: :slug`).
   The Ruby pack's `rails-resources` / `rails-resource` use it.
+  `handler_class` and `handler_method` (both or neither) name the handler by
+  convention: templates whose `{group}` or `{group|camel}` fields
+  (`line_items` → `LineItems`) are regex groups, or `{action}`, the expanded
+  action (`handler_class: '{path|camel}Controller'`, `handler_method:
+  '{action}'`). The handler is that method when the module has one class of
+  that name (its last `::`, `.` or `/` segment; the segments before it, when
+  the template gives any, must end the class's package and outer classes)
+  holding it; else the rules below, as when a `nohandler` group matched (an
+  option naming another handler).
   An optional `handler` group (`app.get("/x", (?P<handler>[\w.]+))`) names
   the handler by its last `.` or `::` segment (`h.GetOrder` → `GetOrder`):
   among the methods and functions of that name in the module (those the
@@ -610,11 +619,17 @@ scala:
   `RegisterRestClient`, Micronaut `Client`). A path that is not a string literal (a
   constant) gives no route. Spring `${property}` placeholders stay in the
   path as written: resolve them from the config when you match it.
-- Routes whose handler is the file: Rails (`config/routes.rb`, `to: "c#a"`,
-  and `resources :users` / `resource :profile` expanded to their REST
-  actions, `only:` / `except:` on the same line kept) and Sinatra blocks. Map
+- Rails routes (`config/routes.rb`, `to: "c#a"`, and `resources :users` /
+  `resource :profile` expanded to their REST actions, `only:` / `except:` on
+  the same line kept) are handled by the controller action
+  (`UsersController#index`, `ProfilesController#show`) when the repo has
+  that class and method; else, like Sinatra blocks, by the file: then map
   `c#a`, or a resource action, to the controller's method yourself when you
-  attach relations and examples. A resource nested in another or in a
+  attach relations and examples. The file is also the handler of a resource
+  with `controller:` or `module:` on its line, and of one whose controller
+  has an irregular plural (`resource :address`). An enclosing `namespace`,
+  `scope module:` or `controller` block is not read: check that the
+  controller the scanner chose is the one in that namespace. A resource nested in another or in a
   `namespace` is listed with its own name only (`/posts`, not
   `/users/{user_id}/posts`), and `path:` or options on a following line are
   not read: compose the full path yourself, as for mounts. A

@@ -449,7 +449,11 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
     point at (_import_hints) when any, and for a bare name the free functions when any, the one in the same file,
     else the same package, else the module. Ambiguity at a level, or no match, leaves a function of that name
     nested in the span-rule handler (made a node: _nested_node), else the file: never the function that registers
-    the route. A route that names no handler but sits on a nested function's decorators is that function's."""
+    the route. A route that names no handler but sits on a nested function's decorators is that function's.
+    A route whose pattern names its handler by convention (`handler_class`, `handler_method`) is that method when
+    its module has exactly one class of that name (the last `::`, `.` or `/` segment of both names; the segments
+    before it, when cls has any, must end the package and outer classes in the class id) holding a method of that
+    name; else the rules above."""
     methods: dict[tuple[str, str], list[tuple[str, str, str]]] = {}   # (module, name) -> (file, package, id)
     owner_kind: dict[str, str] = {}
     for f, r in results.items():
@@ -458,8 +462,24 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
             if n["kind"] == "method":
                 methods.setdefault((file_mod[f], n["name"]), []).append((f, r["package"], n["id"]))
     parent = {n["id"]: n.get("parent") for r in results.values() for n in r["nodes"]}
+    classes: dict[tuple[str, str], list[str]] = {}       # (module, class name) -> class ids
+    members: dict[tuple[str, str], list[str]] = {}       # (class id, method name) -> method ids
+    for f, r in results.items():
+        for n in r["nodes"]:
+            if n["kind"] == "class":
+                # by the name's last segment: Ruby `class Admin::OrdersController` is named `Admin.OrdersController`
+                classes.setdefault((file_mod[f], _segments(n["name"])[-1]), []).append(n["id"])
+            elif n["kind"] == "method" and owner_kind.get(n.get("parent") or "") == "class":
+                members.setdefault((n["parent"], n["name"]), []).append(n["id"])
     for f, r in results.items():
         for route in r["routes"]:
+            cls, meth = route.pop("handler_class", None), route.pop("handler_method", None)
+            if cls and (found := _conventional_handler(cls, meth, classes.get((file_mod[f], _segments(cls)[-1]), []),
+                                                       members)):
+                route.pop("handler_name", None)
+                route.pop("nested_handler", None)
+                route["handler"] = found
+                continue
             name = route.pop("handler_name", None) or route.pop("nested_handler", None)
             nested = [x for x in r.get("nested", []) if x["in"] == route["handler"]]
             if not name:
@@ -490,6 +510,21 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                              NEW_FILE_NODE if Path(f).suffix in BY_SUFFIX else None)
             if found is not None:
                 route["handler"] = found
+
+
+def _segments(name: str) -> list[str]:
+    return [x for x in re.split(r"::|[./\\]", name) if x]
+
+
+def _conventional_handler(cls: str, meth: str, cands: list[str], members: dict) -> str | None:
+    """The method `meth` of the one class among cands that `cls` names (see _resolve_handlers), else None."""
+    outer = [x.lower() for x in _segments(cls)[:-1]]
+    if outer:   # a named namespace: the class id's package and outer-class segments end with cls's own
+        cands = [c for c in cands if [x.lower() for x in _segments(c.split("::", 1)[-1])[:-1]][-len(outer):] == outer]
+    if len(cands) != 1:
+        return None
+    hits = members.get((cands[0], meth), [])
+    return hits[0] if len(hits) == 1 else None
 
 
 GLOBAL_USING = re.compile(r"^\s*global\s+using\s+(?:static\s+)?(?:\w+\s*=\s*)?([\w.]+)\s*;", re.M)

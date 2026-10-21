@@ -291,15 +291,100 @@ def test_rails_routes(make_repo):
              "app/controllers/orders_controller.rb": "class OrdersController < ApplicationController\n  def show\n"
                                                     "  end\nend\n"}
     s = build(make_repo, files)
-    # routes.rb imports nothing; the handler is the file (the agent maps `orders#show`)
+    # routes.rb imports nothing: `orders#show` is the controller's action; where the action is not in the repo
+    # (`admin/orders#create`, the users actions) the handler is the file
     assert routes(s, "config/routes.rb") == [
-        ("GET", "/orders/{id}", ".::config/routes.rb", 2, "rails", "pack"),
+        ("GET", "/orders/{id}", ".::app/controllers.OrdersController#show/0", 2, "rails", "pack"),
         ("POST", "/orders", ".::config/routes.rb", 3, "rails", "pack"),
         *[(m, p, ".::config/routes.rb", 4, "rails-resources", "pack") for m, p in (
             ("GET", "/users"), ("GET", "/users/new"), ("POST", "/users"), ("GET", "/users/{id}"),
             ("GET", "/users/{id}/edit"), ("PATCH", "/users/{id}"), ("PUT", "/users/{id}"), ("DELETE", "/users/{id}"))]]
     assert sinks(s, "config/application.rb") == [("http-in", "rails")]
     assert s["stack"]["servers_without_routes"] == []
+
+
+def test_rails_resources_are_handled_by_their_controller_actions(make_repo):
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  resources :orders, only: [:index, :show]\n"
+                                 "  resources :invoices, only: [:index]\n  resource :profile, only: :show\nend\n",
+             "app/controllers/orders_controller.rb": "class OrdersController < ApplicationController\n"
+                                                    "  def index\n  end\n\n  def show\n  end\nend\n",
+             "app/controllers/profiles_controller.rb": "class ProfilesController < ApplicationController\n"
+                                                      "  def show\n  end\nend\n"}
+    s = build(make_repo, files)
+    ctl = ".::app/controllers."
+    assert routes(s, "config/routes.rb") == [
+        ("GET", "/orders", f"{ctl}OrdersController#index/0", 2, "rails-resources", "pack"),
+        ("GET", "/orders/{id}", f"{ctl}OrdersController#show/0", 2, "rails-resources", "pack"),
+        ("GET", "/invoices", ".::config/routes.rb", 3, "rails-resources", "pack"),   # no InvoicesController
+        ("GET", "/profile", f"{ctl}ProfilesController#show/0", 4, "rails-resource", "pack")]
+    assert not any("handler_class" in r or "handler_method" in r for r in s["facts"]["config/routes.rb"]["routes"])
+
+
+def test_a_controller_name_shared_by_two_namespaces_is_picked_by_the_route_namespace(make_repo):
+    ctl = "class OrdersController < ApplicationController\n  def create\n  end\n\n  def index\n  end\nend\n"
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  post 'orders', to: 'admin/orders#create'\n"
+                                 "  resources :orders, only: [:index]\nend\n",
+             "app/controllers/orders_controller.rb": ctl,
+             "app/controllers/admin/orders_controller.rb": "module Admin\n  " + ctl.replace("\n", "\n  ") + "\nend\n"}
+    s = build(make_repo, files)
+    rails = [r for r in s["facts"]["config/routes.rb"]["routes"] if r["framework"] == "rails"]
+    assert [r["handler"] for r in rails] == [".::Admin.OrdersController#create/0"]
+    # `resources :orders` names no namespace: two OrdersController classes, so the handler stays the file
+    res = [r for r in s["facts"]["config/routes.rb"]["routes"] if r["framework"] == "rails-resources"]
+    assert [r["handler"] for r in res] == [".::config/routes.rb"]
+
+
+def test_a_route_naming_a_namespace_never_takes_the_top_level_controller(make_repo):
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  post 'orders', to: 'admin/orders#create'\nend\n",
+             "app/controllers/orders_controller.rb": "class OrdersController < ApplicationController\n"
+                                                    "  def create\n  end\nend\n"}
+    s = build(make_repo, files)
+    assert [r["handler"] for r in s["facts"]["config/routes.rb"]["routes"]] == [".::config/routes.rb"]
+
+
+def test_a_compact_namespaced_controller_is_found(make_repo):
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  post 'orders', to: 'admin/orders#create'\n"
+                                 "  resources :invoices, only: [:index]\nend\n",
+             "app/controllers/admin/orders_controller.rb": "class Admin::OrdersController < ApplicationController\n"
+                                                          "  def create\n  end\nend\n",
+             "app/controllers/billing/invoices_controller.rb": "class Billing::InvoicesController < ApplicationController\n"
+                                                              "  def index\n  end\nend\n"}
+    s = build(make_repo, files)
+    got = [(r["path"], r["handler"]) for r in s["facts"]["config/routes.rb"]["routes"]]
+    assert [h.split("#")[-1] for _, h in got] == ["create/0", "index/0"]
+    assert "Admin.OrdersController" in got[0][1] and "Billing.InvoicesController" in got[1][1]
+
+
+def test_a_resource_naming_another_controller_keeps_the_file(make_repo):
+    ctl = "class OrdersController < ApplicationController\n  def index\n  end\nend\n"
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  resources :orders, controller: 'purchases', only: :index\n"
+                                 "  resources :orders, :module => 'shop', only: :index\n"
+                                 "  resource :orders, only: :index, controller: \"purchases\"\nend\n",
+             "app/controllers/orders_controller.rb": ctl}
+    s = build(make_repo, files)
+    assert {r["handler"] for r in s["facts"]["config/routes.rb"]["routes"]} == {".::config/routes.rb"}
+
+
+def test_handler_templates_shape():
+    st = stack.load(None)
+    ok = ("ruby:\n  routes:\n    - {name: r, regex: '^res :(?P<path>\\w+)', expand: {index: GET},"
+          " handler_class: '{path|camel}_x', handler_method: 'do_{action}'}\n")
+    stack._read(st, "stack.yaml", yaml.safe_load(ok), "stack")
+    assert [(r["handler_class"], r["handler_method"]) for r in stack.find_routes(st, "ruby", "res :line_items\n", [], [], "f")
+            if r["framework"] == "r"] == [("LineItems_x", "do_index")]
+    for bad, why in (("method: GET, handler_class: X", "go together"),
+                     ("method: GET, handler_class: '{nope}', handler_method: x", "template field 'nope' is not a regex group"),
+                     ("method: GET, handler_class: '{path|upper}', handler_method: x", "unknown template filter 'upper'"),
+                     ("method: GET, handler_class: X, handler_method: '{action}'", "'action' is not a regex group"),
+                     ("mount: true, handler_class: X, handler_method: y", "a mount has no handler_class")):
+        doc = "ruby:\n  routes:\n    - {name: r, regex: '^res :(?P<path>\\w+)', " + bad + "}\n"
+        with pytest.raises(stack.StackError, match=why):
+            stack._read(stack.load(None), "stack.yaml", yaml.safe_load(doc), "stack")
 
 
 def test_ruby_negatives_and_tables():

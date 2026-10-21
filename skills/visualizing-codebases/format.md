@@ -598,7 +598,10 @@ adds to it). A route entry is one of:
   a `path` and an optional `target` group, and its matches are mounts. Optional `expand`
   (action → `METHOD` or `METHOD /suffix`, or a list of them): a match gives one route per
   item of each action that its optional `only` / `except` groups keep (the words in them); an
-  optional `param` group renames the suffixes' `:id`.
+  optional `param` group renames the suffixes' `:id`. Optional `handler_class` and
+  `handler_method` (both or neither): templates of `{group}`, `{group|camel}` and, with `expand`,
+  `{action}` fields naming the handler's class and method by convention, unused when an optional
+  `nohandler` group matched (SKILL.md § Stack).
 - `form: annotated` (not for Python or Scala): `name`, `verbs` (annotation
   name → HTTP method, or `from-method-arg`), optional `when`, `prefix`,
   `path_args` (default `[value, path, 0]`), `method_arg` (default `method`),
@@ -656,7 +659,7 @@ annotations), whose IO parts are `imports` entries instead. When several
 | `go.yaml` | `net/http` `HandleFunc`/`Handle`, Gin, Echo, Chi (groups and `Route`/`Mount` are mounts) | gorm `TableName()` | `database/sql`, pgx, lib/pq, gorm, sqlx, BigQuery; Mongo; sarama, kafka-go, amqp091, Pub/Sub; go-redis; resty; `net/http` (`http`), Gin/Echo/Chi (`http-in`); AWS, GCP; gRPC | none: the standard library (paths without a host) is ignored in code |
 | `csharp.yaml` | ASP.NET controllers (annotated, `[controller]` token, `~/` absolute), minimal APIs `app.MapGet`, `MapGroup` mounts | EF `[Table("x")]`, `ToTable("x")` | EF Core, Dapper, Npgsql, SqlClient, BigQuery; MongoDB.Driver; Confluent.Kafka, RabbitMQ.Client, Pub/Sub; StackExchange.Redis, Extensions caching; `System.Net.Http`, `Microsoft.Extensions.Http`; ASP.NET MVC/Builder (`http-in`), SignalR; AWS, Azure, GCP; Grpc | `System`, `Microsoft.AspNetCore`, `Microsoft.Extensions` |
 | `rust.yaml` | Axum `.route("/x", get(h))`, chained `get(a).put(b)` one route each (`nest` a mount), actix-web (`scope` a mount) | none | sqlx, diesel, tokio-postgres; rdkafka, lapin; redis; reqwest; Axum, actix-web (`http-in`); AWS SDKs; tonic | `std`, `core`, `alloc` |
-| `ruby.yaml` | Rails `get "/x", to: "c#a"`, `resources`/`resource` (expanded to their actions), Sinatra `get "/x" do` | ActiveRecord `self.table_name = "x"` | ActiveRecord, pg, mysql2; Sidekiq, Kafka, Bunny; redis; Faraday, HTTParty, `net/http`; Sinatra, Rails (`http-in`) | common standard-library requires (`json`, `set`, `time`, …) |
+| `ruby.yaml` | Rails `get "/x", to: "c#a"`, `resources`/`resource` (expanded to their actions; handled by the controller action when it is in the repo), Sinatra `get "/x" do` | ActiveRecord `self.table_name = "x"` | ActiveRecord, pg, mysql2; Sidekiq, Kafka, Bunny; redis; Faraday, HTTParty, `net/http`; Sinatra, Rails (`http-in`) | common standard-library requires (`json`, `set`, `time`, …) |
 | `php.yaml` | Laravel `Route::get`/`match` (`Route::prefix` a mount; no `use` needed: the global `Route` alias), Symfony `#[Route]` (annotated) | Eloquent `protected $table`, Doctrine `ORM\Table(name)` | PDO, Doctrine DBAL/ORM, Laravel DB; php-amqplib, Enqueue, Laravel Queue, Symfony Messenger, Pub/Sub; Predis, `Redis`, Laravel Redis; Guzzle, Laravel Http, Symfony HttpClient; Laravel/Symfony routing (`http-in`); AWS, GCP; Grpc | `Illuminate`, `Symfony` (PHP's standard library is global, not namespaced) |
 | `modules.yaml` | build files per ecosystem (Modules above), not a language pack | | | |
 
