@@ -160,6 +160,7 @@ export function createLayers() {
   // nothing in the moving parts or the selection overlay takes a click: drawn above the lines' hit areas, they would
   // otherwise catch a press (Pixi tests every shape under the interactive stage) and hand it to the stage, which clears
   layers.motion.eventMode = "none";
+  layers.motion.isRenderGroup = true;   // redrawn every frame: its own render group, so a frame re-uploads only its transforms
   layers.overlay.eventMode = "none";
   layers.conduits.eventMode = "none";   // a conduit has no click and no hover
   return layers;

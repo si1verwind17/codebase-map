@@ -22,6 +22,7 @@ import { drawFactory, zoomBadges } from "./factory-draw";
 import { linesRead, measuring, syncLabels, textsRead, wordsRead } from "./labels";
 import * as selection from "./selection";
 import * as transitions from "./transitions";
+import { pauseWhenHidden } from "./visibility";
 
 export type { SceneEvents, Target } from "./state";
 
@@ -39,6 +40,7 @@ export class FloorScene {
   /** Plan jobs asked of the planner and not yet answered, on the canvas as `data-plan-jobs` (tests wait for 0). */
   private jobs = 0;
   private gone = false;
+  private unpause = () => {};   // undoes the hidden-tab pause (init)
   /** The floor `ready` last waited for a plan for: its `show` reports no plan hit. */
   private waited: string | null = null;
 
@@ -75,6 +77,7 @@ export class FloorScene {
     this.app.stage.hitArea = this.app.screen;
     cam.setupCamera(this.s);
     this.app.ticker.add((t) => this.tick(t.deltaMS));
+    if (!this.gone) this.unpause = pauseWhenHidden(document, this.app.ticker);   // no motion, and no catch-up jump, while the tab is hidden (none once destroyed)
   }
 
   setReducedMotion(on: boolean) {
@@ -530,6 +533,7 @@ export class FloorScene {
 
   destroy() {
     this.gone = true;
+    this.unpause();
     this.precompute.stop();   // a queued idle slice must not touch the app once it is gone
     this.planner?.dispose();  // the worker ends; a floor change still waiting on it goes on to nothing (enter, leave)
     this.app.destroy(true, { children: true });

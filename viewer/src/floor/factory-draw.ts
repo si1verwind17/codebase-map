@@ -166,8 +166,12 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   const same = plan?.tf === tf ? plan : undefined;
   const spots = placeBadges(sized.map((b) => ({ id: b.l.item, m: geo.machines.get(b.l.item)!, w: b.w, h: b.h })), clear, layerTileRects(same?.layers), same ? (same.badges ??= new Map()) : undefined);
   for (const { l, w, h, t } of sized) st.machineViews.get(l.item)!.addChild(usedByBadge(st, l, spots.get(l.item)!, w, h, t));
+  // the smoke, redrawn every frame, in its own render group (so a frame re-uploads only its transforms), last of the tags
   st.smoke = deco();
-  st.layers.tags.addChild(st.smoke);
+  const smoke = new Container({ isRenderGroup: true });
+  smoke.eventMode = "none";
+  smoke.addChild(st.smoke);
+  st.layers.tags.addChild(smoke);
 }
 
 /** A badge's text, and the size its spot is planned for (`badgeSize`, an estimate never smaller than the drawn box). */
