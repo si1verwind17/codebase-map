@@ -1,3 +1,4 @@
 node_modules/
 .shot-page.html
 .vitest/
+.profile/

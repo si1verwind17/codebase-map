@@ -11,7 +11,8 @@
     "e2e": "vitest run test/app/e2e.test.ts",
     "test:gpu": "VIZ_GPU=1 VIZ_CHROMIUM=${VIZ_CHROMIUM:-/usr/bin/chromium} vitest run --no-file-parallelism",
     "guide": "node scripts/guide.mjs",
-    "shots:compare": "node scripts/shotset.mjs --compare"
+    "shots:compare": "node scripts/shotset.mjs --compare",
+    "profile": "node scripts/profile.mjs"
   },
   "devDependencies": {
     "@fontsource-variable/archivo": "5.3.0",

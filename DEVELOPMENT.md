@@ -43,6 +43,50 @@ The commands below write `VIZ_CHROMIUM=…` for that path.
 - **Agent behaviour:** run the scenarios in [`eval/`](eval/README.md) that the change touches and update the
   latest results there.
 
+## Profiling
+
+How fast the viewer is on a big map: load, entering the busiest service, entering its busiest floor before it is laid
+out, the script cost of each frame, and the heap. It runs on a synthetic map, `viewer/scripts/big_map.py`: one service
+of 300 packages with three hot runs of packages whose range-group floors hold over 2,000 relations each (15k nodes,
+12k relations, 3,341 floors, made by the skill's own `assemble`). The map is deterministic and written to the
+gitignored `viewer/.profile/` on the first run (about 100 s).
+
+```
+cd viewer && npm run build
+VIZ_CHROMIUM=… npm run profile -- --runs 3                  # GPU drawing; add --throttle 4 for a slow machine,
+                                                            # --picker to open the map through the file input,
+                                                            # --map P for another map, --cpuprofile DIR for profiles
+node scripts/profile-top.mjs DIR/run1-coldEntry.cpuprofile  # where the time went (--viewer: a --sourcemap build)
+npx vitest bench --run test/perf --reporter=verbose          # the model and the floor planner alone, in node
+```
+
+`npm run profile` prints the median of each metric over the runs:
+
+| Metric | What it measures | Baseline | Baseline, 4× throttle | After |
+|---|---|---|---|---|
+| `firstFrameMs` | page start to the first floor drawn | 327 | 1,151 | — |
+| `parseMs` | `JSON.parse` of the map | 28 | 100 | — |
+| `enterService.longTaskSumMs` | long tasks from entering the service until its nearby floors are planned | 2,336 | 10,959 | — |
+| `enterService.longTaskMaxMs` | the longest of them | 996 | 4,039 | — |
+| `enterService.settleMs` | entering the service until no floor waits to be planned | 3,594 | 12,259 | — |
+| `coldEntry.floorMs` | Open sub-assembly on the busiest floor, not yet laid out, until it shows | 985 | 3,998 | — |
+| `coldEntry.longestTaskMs` | the longest task from that press until the camera rests | 1,008 | 4,079 | — |
+| `frameJsMs.idle` | script ms per frame, the service floor at rest | 4.0 | 5.1 | — |
+| `frameJsMs.pan` | script ms per frame while panning it | 4.3 | 6.2 | — |
+| `heapMB.load` | JS heap after load (after GC) | 21.1 | 21.3 | — |
+| `heapMB.session` | JS heap after the session (after GC) | 57.9 | 57.8 | — |
+| `heapMB.worker` | a layout worker's heap (none yet) | — | — | — |
+
+The model bench on the same map (mean ms): `new Model` 4.7, `bundles` of the busiest floor 14.3 cold and 14.8 warm,
+`doorShows` over its 15 doors 370, `planFloor` cold 509, `relationsOf` the service 0.8, `methodsIn` the service 30.5,
+Find's seven keystrokes of "account" 17.
+
+Baseline: 2026-10-21, commit `b3bf452`, Intel i7-14700F, NVIDIA RTX 5070 (Chromium on Vulkan; median of 3 runs).
+
+Two pixel guards go with it: `npm run shots:compare` (Still motion) and `node scripts/motion-shots.mjs`, the demo
+with motion on at fixed moments of a fake clock (drones, trains and smoke), `--compare <baseline-dir>` exiting 1 on
+any differing pixel.
+
 ## Workflow
 
 1. **Branch.** Work on a feature branch off `main`; commit there.
