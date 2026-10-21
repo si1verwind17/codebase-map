@@ -48,11 +48,13 @@ export function entryPoints(model: Model, owner: string): EntryPoint[] {
 
 /** `ids` sorted in place by code (numeric runs as numbers), an id without a code by itself. */
 const byCode = (model: Model, ids: string[]): string[] =>
-  ids.sort((a, b) => (model.codes.get(a) ?? a).localeCompare(model.codes.get(b) ?? b, undefined, { numeric: true }));
+  ids.sort((a, b) => numeric.compare(model.codes.get(a) ?? a, model.codes.get(b) ?? b));
+/** `localeCompare(…, undefined, { numeric: true })` made once: the same order, without a collator per comparison. */
+const numeric = new Intl.Collator(undefined, { numeric: true });
 
 /** Every method inside `id` (a package, file or class), in code order. */
 export function methodsIn(model: Model, id: string): string[] {
-  return byCode(model, model.map.nodes.filter((n) => n.kind === "method" && model.isInside(n.id, id)).map((n) => n.id));
+  return byCode(model, model.descendants(id).filter((x) => model.nodes.get(x)?.kind === "method"));
 }
 
 export type SeedRule = "self" | "tables" | "entry points" | "boundary methods" | "container" | "ends";
@@ -75,12 +77,13 @@ export function lineStart(model: Model, key: string, relations: readonly Relatio
 /** The methods inside container `id` at one end of a relation a trace follows whose other end is outside it (spec A3),
  *  in code order. */
 export function boundaryMethods(model: Model, id: string): string[] {
-  const within = (x: string) => x === id || model.isInside(x, id);
+  const inside = new Set(model.descendants(id));
+  const within = (x: string) => x === id || inside.has(x);
   const out = new Set<string>();
-  for (const r of model.map.relations) {
+  for (const r of model.relationsOf(id)) {   // every relation with an end inside `id`, in map order
     if (!TRACE_KINDS.includes(r.kind)) continue;
     for (const [end, other] of [[r.from, r.to], [r.to, r.from]] as const)
-      if (model.nodes.get(end)?.kind === "method" && model.isInside(end, id) && !within(other)) out.add(end);
+      if (model.nodes.get(end)?.kind === "method" && inside.has(end) && !within(other)) out.add(end);
   }
   return byCode(model, [...out]);
 }

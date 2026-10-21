@@ -1,4 +1,4 @@
-// audit-inputs: 6ac9a62611f778e0bcc77a6b25372a51d0abca99084757a69089c32013589194
+// audit-inputs: 327c50d20ee8e4d48357d6b56049f6aee8a1b7e11486906c51f909f344b819b4
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -164,23 +164,53 @@ var Model = class {
 	liftTo(container, id) {
 		const floor = this.floor(container);
 		if (!floor) return void 0;
-		if (container === "site" && (floor.utilities ?? []).includes(id)) return void 0;
+		const onSite = container === SITE;
+		if (onSite && (floor.utilities ?? []).includes(id)) return void 0;
+		for (const step of this.liftChain(id, onSite)) {
+			if (Object.hasOwn(floor.items, step.id)) return step.id;
+			if (step.group && Object.hasOwn(floor.items, step.group)) return step.group;
+		}
+	}
+	/** The walk `liftTo` makes up from `id`, the same on every floor: each id on the way and the group it is a member of.
+	*  Only the site floor differs, for a table with no datastore (it stops there). Kept per id. */
+	liftChain(id, onSite) {
+		let chain = this.chains.get(id);
+		if (chain && onSite) {
+			const end = chain.findIndex((s) => {
+				const n = this.nodes.get(s.id);
+				return n?.kind === "table" && !n.parent;
+			});
+			return end < 0 || end === chain.length - 1 ? chain : chain.slice(0, end + 1);
+		}
+		if (chain) return chain;
+		const steps = [];
 		let cur = id;
 		const seen = /* @__PURE__ */ new Set();
 		while (cur && !seen.has(cur)) {
 			seen.add(cur);
-			if (cur in floor.items) return cur;
 			const viaGroup = this.memberOf.get(cur);
-			if (viaGroup && viaGroup in floor.items) return viaGroup;
-			const n = this.nodes.get(cur);
-			if (n?.kind === "table" && container === "site") cur = n.parent ?? void 0;
-			else cur = n?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : void 0);
+			steps.push(viaGroup ? {
+				id: cur,
+				group: viaGroup
+			} : { id: cur });
+			cur = this.nodes.get(cur)?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : void 0);
 		}
+		this.chains.set(id, steps);
+		return this.liftChain(id, onSite);
 	}
+	chains = /* @__PURE__ */ new Map();
 	/** One bundle per pair of items on this floor, plus relations leaving the floor. `layered`: the lines kept out of
 	*  the base layer (spec §15), each tagged with the extra layer that draws it (a line in two layers is listed once per
-	*  layer, so count or collect its key once); `bundles` never holds them. */
+	*  layer, so count or collect its key once); `bundles` never holds them. Worked out once per floor and code-links
+	*  flag (the map never changes under a Model) and shared: callers must not mutate the result. */
 	bundles(container, opts = {}) {
+		const k = `${container}|${opts.codeLinks ? 1 : 0}`;
+		let b = this.floorBundles.get(k);
+		if (!b) this.floorBundles.set(k, b = this.bundlesOf(container, !!opts.codeLinks));
+		return b;
+	}
+	floorBundles = /* @__PURE__ */ new Map();
+	bundlesOf(container, codeLinks) {
 		const onSite = container === SITE;
 		if (this.nodes.get(container)?.kind === "datastore") return {
 			bundles: [],
@@ -188,10 +218,10 @@ var Model = class {
 			doors: [],
 			layered: []
 		};
-		const wanted = (k) => RUNTIME.includes(k) || k === "calls" && !onSite || k === "uses-code" && !!opts.codeLinks;
+		const wanted = (k) => RUNTIME.includes(k) || k === "calls" && !onSite || k === "uses-code" && codeLinks;
 		const byKey = /* @__PURE__ */ new Map();
 		const out = /* @__PURE__ */ new Map();
-		for (const r of this.map.relations) {
+		for (const r of this.relationsNear(container)) {
 			if (!wanted(r.kind)) continue;
 			const a = this.liftTo(container, r.from);
 			const b = this.liftTo(container, r.to);
@@ -297,6 +327,27 @@ var Model = class {
 			outward: [...out.values()].sort((p, q) => (p.item + p.other).localeCompare(q.item + q.other))
 		};
 	}
+	/** The relations with an end that may lift to an item on `container`'s floor, in map order: those with an item of
+	*  the floor on an end's lift chain (as an id or its group); on the site floor, all of them. The rest lift to nothing
+	*  there, so `bundles` skips them. */
+	relationsNear(container) {
+		const rels = this.map.relations;
+		if (container === "site") return rels;
+		if (!this.relsByChain) {
+			this.relsByChain = /* @__PURE__ */ new Map();
+			rels.forEach((r, i) => {
+				for (const end of [r.from, r.to]) for (const step of this.liftChain(end, false)) for (const k of step.group ? [step.id, step.group] : [step.id]) {
+					const list = this.relsByChain.get(k);
+					if (!list) this.relsByChain.set(k, [i]);
+					else if (list[list.length - 1] !== i) list.push(i);
+				}
+			});
+		}
+		const near = /* @__PURE__ */ new Set();
+		for (const item of Object.keys(this.floor(container)?.items ?? {})) for (const i of this.relsByChain.get(item) ?? []) near.add(i);
+		return [...near].sort((a, b) => a - b).map((i) => rels[i]);
+	}
+	relsByChain;
 	/** The deepest floor both `container` and `other` sit on, and the item standing for `other` there. */
 	commonFloor(container, otherFloor) {
 		const here = this.path(container), there = this.path(otherFloor);
@@ -430,20 +481,89 @@ var Model = class {
 	drawsImplements() {
 		return this.drawsImpl ??= this.implementers.size > 0 && Object.keys(this.map.layout.containers).some((c) => this.implementLinks(c).length > 0);
 	}
+	/** The relations (no code links) with an end that is `id` or inside it, in map order. */
 	relationsOf(id) {
-		const inside = (x) => x === id || this.isInside(x, id);
-		return this.map.relations.filter((r) => r.kind !== "uses-code" && (inside(r.from) || inside(r.to)));
+		if (!this.relsByOwner) {
+			this.relsByOwner = /* @__PURE__ */ new Map();
+			for (const r of this.map.relations) {
+				if (r.kind === "uses-code") continue;
+				const owners = /* @__PURE__ */ new Set([
+					r.from,
+					...this.insideOf(r.from),
+					r.to,
+					...this.insideOf(r.to)
+				]);
+				for (const o of owners) {
+					const list = this.relsByOwner.get(o);
+					if (list) list.push(r);
+					else this.relsByOwner.set(o, [r]);
+				}
+			}
+		}
+		return [...this.relsByOwner.get(id) ?? []];
 	}
+	relsByOwner;
+	/** Whether `id` is inside `container`: below it in the parent chain, or (a floor group) a member of it, inside a
+	*  member, or inside a group that is one. */
 	isInside(id, container) {
+		return this.insideOf(id).has(container);
+	}
+	/** Everything `id` is inside: its parent chain, and the floor groups whose members hold it or one of those (a group
+	*  in a group: both). From the groups' own members, as one id can be listed by groups on two floors. Kept per id. */
+	insideOf(id) {
+		let set = this.inside.get(id);
+		if (set) return set;
+		if (!this.holders) {
+			this.holders = /* @__PURE__ */ new Map();
+			for (const g of this.groups.values()) for (const m of g.members) {
+				const h = this.holders.get(m);
+				if (h) h.push(g.id);
+				else this.holders.set(m, [g.id]);
+			}
+		}
+		const s = /* @__PURE__ */ new Set();
 		let cur = this.nodes.get(id)?.parent ?? void 0;
-		const g = this.groups.get(container);
-		if (g) return g.members.some((m) => m === id || this.isInside(id, m));
-		while (cur) {
-			if (cur === container) return true;
+		while (cur && !s.has(cur)) {
+			s.add(cur);
 			cur = this.nodes.get(cur)?.parent ?? void 0;
 		}
-		return false;
+		for (const a of s) if (this.groups.has(a)) s.delete(a);
+		const queue = [id, ...s];
+		for (let i = 0; i < queue.length; i++) for (const g of this.holders.get(queue[i]) ?? []) if (!s.has(g)) {
+			s.add(g);
+			queue.push(g);
+		}
+		this.inside.set(id, set = s);
+		return set;
 	}
+	inside = /* @__PURE__ */ new Map();
+	holders;
+	/** Every id `x` with `isInside(x, id)`: the nodes below it, and for a floor group its members and what is inside
+	*  them. Unordered. */
+	descendants(id) {
+		const out = /* @__PURE__ */ new Set(), walked = /* @__PURE__ */ new Set();
+		const below = (x) => {
+			if (walked.has(x)) return;
+			walked.add(x);
+			for (const c of this.children.get(x) ?? []) {
+				out.add(c);
+				below(c);
+			}
+		};
+		const inGroup = (g, seen = /* @__PURE__ */ new Set()) => {
+			if (seen.has(g)) return;
+			seen.add(g);
+			for (const m of this.groups.get(g).members) {
+				out.add(m);
+				if (this.groups.has(m)) inGroup(m, seen);
+				else below(m);
+			}
+		};
+		if (this.groups.has(id)) inGroup(id);
+		else below(id);
+		return [...out];
+	}
+	children = /* @__PURE__ */ new Map();
 	/** Short codes: S1, S1·P2, S1·P2·C3·M4 … stable for a given set of ids (sorted). */
 	assignCodes() {
 		const prefix = {
@@ -461,8 +581,15 @@ var Model = class {
 		};
 		const kids = /* @__PURE__ */ new Map();
 		const roots = [];
-		for (const n of this.map.nodes) if (n.parent && this.nodes.has(n.parent)) kids.set(n.parent, [...kids.get(n.parent) ?? [], n]);
-		else roots.push(n);
+		for (const n of this.map.nodes) {
+			if (n.parent) {
+				const c = this.children.get(n.parent);
+				if (c) c.push(n.id);
+				else this.children.set(n.parent, [n.id]);
+			}
+			if (n.parent && this.nodes.has(n.parent)) kids.set(n.parent, [...kids.get(n.parent) ?? [], n]);
+			else roots.push(n);
+		}
 		const walk = (list, base) => {
 			const counters = {};
 			for (const n of [...list].sort((a, b) => a.id.localeCompare(b.id))) {
