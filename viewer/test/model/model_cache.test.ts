@@ -130,6 +130,45 @@ describe("Model caches equal the walks they replace", () => {
   }, 300_000);
 });
 
+describe("names on demand and the search index equal the walks they replace", () => {
+  /** Every query a reader's Find can type that reaches a different part of the ranking: each code, each 1–3 character
+   *  prefix of each name (the map's and the floor's), and 50 seeded random substrings of names and ids. */
+  const queries = (m: Model, ref: Reference): string[] => {
+    const names = m.map.nodes.flatMap((n) => [n.name, ref.itemName(n.id)]);
+    const out = new Set<string>(m.map.nodes.map((n) => m.codes.get(n.id) ?? ""));
+    for (const x of names) for (let k = 1; k <= 3; k++) out.add(x.slice(0, k));
+    let seed = 7;
+    const rand = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const pool = [...names, ...m.map.nodes.map((n) => n.id)];
+    for (let i = 0; i < 50; i++) {
+      const s = pool[rand(pool.length)], a = rand(s.length), b = a + 1 + rand(Math.min(8, s.length - a));
+      out.add(i % 5 === 0 ? s.slice(a, b).toUpperCase() : s.slice(a, b));
+    }
+    return [...out].filter(Boolean);
+  };
+
+  it.each(MAPS)("%s", (_name, load) => {
+    const m = new Model(load()), ref = new Reference(new Model(load()));
+    const doors = doorsOf(m).map(([, anchor]) => m.doorId(anchor));
+    for (const id of [...ids(m), ...doors]) expect(m.itemName(id), id).toBe(ref.itemName(id));
+    for (const q of queries(m, ref)) {
+      expect(m.search(q, 12), q).toEqual(ref.search(q, 12));
+      expect(m.search(q, 30), q).toEqual(ref.search(q, 30));
+    }
+  }, 300_000);
+
+  it("itemName names one site item without naming every node", () => {
+    const model = new Model(JSON.parse(DEMO_TEXT));
+    const spy = vi.spyOn(model, "baseName");
+    const items = Object.keys(model.floor(SITE)!.items), item = items.sort()[0];
+    model.itemName(item);
+    // F0's names alone: one call per item, and one more for each twin (named after the package it stands for)
+    const twins = items.filter((id) => model.twinOf(id)).length;
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(items.length + twins);
+  });
+});
+
 describe("an id that is also an object key", () => {
   it("a node named `constructor` lifts as its parent does, on every floor, and bundles agree", () => {
     const map = JSON.parse(DEMO_TEXT) as CodeMap;

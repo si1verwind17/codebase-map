@@ -1,4 +1,4 @@
-// audit-inputs: df9a132986a39dd098b0dc59713c257ba737a975619480b1ead8b3409fcc58e7
+// audit-inputs: 936de24163a1e3616ce7b44fc2c5174e7052a861d7bee663aa82ae74a27c17ee
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -81,10 +81,53 @@ var Model = class {
 	*  shortest run of parent segments that tells them apart. Never cut. `label` stays the map's own name. */
 	itemName(id) {
 		if (id.startsWith(DOOR)) return this.itemName(doorAnchor(id));
-		this.floorNames ??= this.uniqueNames();
-		return this.floorNames.get(id) ?? this.baseName(id);
+		const c = this.homeFloor(id);
+		return c === void 0 ? this.baseName(id) : this.namesOn(c).get(id);
 	}
-	floorNames;
+	/** The floor whose names an item wears: the first, in sorted order, that lists it. Found without naming anything, so
+	*  a name asks for one floor's clash rules, not every floor's. */
+	homeFloor(id) {
+		if (!this.firstFloor) {
+			this.firstFloor = /* @__PURE__ */ new Map();
+			for (const c of Object.keys(this.map.layout.containers).sort()) for (const item of Object.keys(this.map.layout.containers[c].items ?? {})) if (!this.firstFloor.has(item)) this.firstFloor.set(item, c);
+		}
+		return this.firstFloor.get(id);
+	}
+	firstFloor;
+	/** Each item's name on one floor, clashes told apart (rules on `itemName`); worked out once per floor. */
+	namesOn(c) {
+		let name = this.floorNames.get(c);
+		if (name) return name;
+		const items = Object.keys(this.map.layout.containers[c].items ?? {}).sort();
+		name = new Map(items.map((id) => [id, this.baseName(id)]));
+		const clashes = () => {
+			const by = /* @__PURE__ */ new Map();
+			for (const [id, n] of name) by.set(n, [...by.get(n) ?? [], id]);
+			return [...by.values()].filter((ids) => ids.length > 1);
+		};
+		for (const ids of clashes()) for (const id of ids) if (id.endsWith("$") && ids.includes(id.slice(0, -1))) name.set(id, `${name.get(id)} (object)`);
+		for (const ids of clashes()) for (const id of ids) {
+			const sig = /#([^#]+\/[^#/]+)$/.exec(this.twinOf(id) ?? id)?.[1];
+			if (sig) name.set(id, sig);
+		}
+		for (const ids of clashes()) {
+			const base = new Map(ids.map((id) => [id, name.get(id)]));
+			for (let k = 1; k <= 12; k++) {
+				const cand = ids.map((id) => {
+					const p = lastSegments(this.twinOf(id) ?? id, k);
+					return p ? `${p}.${base.get(id)}` : base.get(id);
+				});
+				if (new Set(cand).size === ids.length || k === 12) {
+					ids.forEach((id, i) => name.set(id, cand[i]));
+					break;
+				}
+			}
+		}
+		for (const ids of clashes()) for (const id of ids) name.set(id, `${name.get(id)} (${this.codes.get(id) ?? id})`);
+		this.floorNames.set(c, name);
+		return name;
+	}
+	floorNames = /* @__PURE__ */ new Map();
 	/** An item's own name, before any floor clash: implementations qualified by the class that holds them. */
 	baseName(id) {
 		const twin = this.twinOf(id);
@@ -97,39 +140,6 @@ var Model = class {
 		if (anon) return `${ownerName || (lastSegments(id, 1) ?? "")}.${anon[1]} (impl)`.replace(/^\./, "");
 		if (n.implements?.length && ownerName) return `${ownerName}.${n.name}`;
 		return n.name;
-	}
-	uniqueNames() {
-		const out = /* @__PURE__ */ new Map();
-		for (const c of Object.keys(this.map.layout.containers).sort()) {
-			const items = Object.keys(this.map.layout.containers[c].items ?? {}).sort();
-			const name = new Map(items.map((id) => [id, this.baseName(id)]));
-			const clashes = () => {
-				const by = /* @__PURE__ */ new Map();
-				for (const [id, n] of name) by.set(n, [...by.get(n) ?? [], id]);
-				return [...by.values()].filter((ids) => ids.length > 1);
-			};
-			for (const ids of clashes()) for (const id of ids) if (id.endsWith("$") && ids.includes(id.slice(0, -1))) name.set(id, `${name.get(id)} (object)`);
-			for (const ids of clashes()) for (const id of ids) {
-				const sig = /#([^#]+\/[^#/]+)$/.exec(this.twinOf(id) ?? id)?.[1];
-				if (sig) name.set(id, sig);
-			}
-			for (const ids of clashes()) {
-				const base = new Map(ids.map((id) => [id, name.get(id)]));
-				for (let k = 1; k <= 12; k++) {
-					const cand = ids.map((id) => {
-						const p = lastSegments(this.twinOf(id) ?? id, k);
-						return p ? `${p}.${base.get(id)}` : base.get(id);
-					});
-					if (new Set(cand).size === ids.length || k === 12) {
-						ids.forEach((id, i) => name.set(id, cand[i]));
-						break;
-					}
-				}
-			}
-			for (const ids of clashes()) for (const id of ids) name.set(id, `${name.get(id)} (${this.codes.get(id) ?? id})`);
-			for (const [id, n] of name) if (!out.has(id)) out.set(id, n);
-		}
-		return out;
 	}
 	kindOf(id) {
 		const twin = this.twinOf(id);
@@ -612,14 +622,24 @@ var Model = class {
 		const t = text.trim().toLowerCase();
 		if (!t) return [];
 		const hits = [];
-		for (const n of this.map.nodes) {
-			const code = (this.codes.get(n.id) ?? "").toLowerCase();
-			const names = [n.name.toLowerCase(), this.itemName(n.id).toLowerCase()];
-			const score = code === t ? 0 : names.some((x) => x === t) ? 1 : names.some((x) => x.startsWith(t)) ? 2 : names.some((x) => x.includes(t)) ? 3 : n.id.toLowerCase().includes(t) ? 4 : -1;
-			if (score >= 0) hits.push([score, n.id]);
+		for (const r of this.searchRows()) {
+			const score = r.code === t ? 0 : r.name === t || r.shown === t ? 1 : r.name.startsWith(t) || r.shown.startsWith(t) ? 2 : r.name.includes(t) || r.shown.includes(t) ? 3 : r.idl.includes(t) ? 4 : -1;
+			if (score >= 0) hits.push([score, r.id]);
 		}
 		return hits.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1])).slice(0, limit).map((h) => h[1]);
 	}
+	/** Each node's code, map name, shown name (`itemName`) and id, lowercased once: built on the first search, so a map
+	*  nobody searches never names every node. */
+	searchRows() {
+		return this.rows ??= this.map.nodes.map((n) => ({
+			id: n.id,
+			code: (this.codes.get(n.id) ?? "").toLowerCase(),
+			name: n.name.toLowerCase(),
+			shown: this.itemName(n.id).toLowerCase(),
+			idl: n.id.toLowerCase()
+		}));
+	}
+	rows;
 };
 /** The last `k` segments of the path that holds `id` (`svc::a.b.C` → `a.b` for k = 2; a method's holder is its class),
 *  without companion `$`s; undefined when there are none. */

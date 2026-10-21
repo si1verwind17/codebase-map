@@ -10,8 +10,12 @@ async function start() {
   } catch {
     /* the system sans stands in; layout does not depend on the face */
   }
-  const raw = document.getElementById("code-map")?.textContent?.trim() ?? "";
-  const initial = raw && !raw.startsWith("/*") ? raw : null;
+  // the map's text leaves the page as it is read, and App takes it once: after parsing only the model holds the map
+  const el = document.getElementById("code-map");
+  let raw: string | null = el?.textContent?.trim() ?? "";
+  if (el) el.textContent = "";
+  if (!raw || raw.startsWith("/*")) raw = null;
+  const initial = () => { const t = raw; raw = null; return t; };
   mount(App, { target: document.getElementById("app")!, props: { initial } });
 }
 

@@ -15,9 +15,55 @@ def test_render_inlines_and_escapes_script_end():
     assert page.count('<script id="code-map"') == 1
 
 
+def _body(page: str) -> str:
+    return page.split('application/json">')[1].split("</script>")[0]
+
+
 def test_render_leaves_big_maps_for_the_file_picker():
-    page, inlined = view.render("x" * (view.INLINE_LIMIT + 1), VIEWER)
+    text = json.dumps({"x": "y" * (view.INLINE_LIMIT + 1)})
+    page, inlined = view.render(text, VIEWER)
     assert not inlined and view.MARKER in page
+
+
+def test_render_inlines_the_map_minified():
+    text = json.dumps({"meta": {"a": [1, 2, {"b": "c d"}]}, "nodes": []}, indent=2)
+    page, inlined = view.render(text, VIEWER)
+    body = _body(page)
+    assert inlined and "\n" not in body and ": " not in body
+    assert json.loads(body) == json.loads(text)
+
+
+def test_render_escapes_non_ascii_and_lt():
+    text = '{\n  "name": "Café <b> 駐車場 🚗"\n}'
+    body = _body(view.render(text, VIEWER)[0])
+    assert body == '{"name":"Caf\\u00e9 \\u003cb> \\u99d0\\u8eca\\u5834 \\ud83d\\ude97"}'
+    assert body.isascii() and json.loads(body) == json.loads(text)
+    # a lone surrogate (valid JSON, not encodable as UTF-8) stays an escape
+    text = '{"lone": "\\ud800 <x>", "name": "Café"}'
+    page, inlined = view.render(text, VIEWER)
+    body = _body(page)
+    assert inlined and "<" not in body and body.isascii()
+    assert json.loads(body) == json.loads(text)
+
+
+def test_render_inlines_a_map_too_deep_to_read_as_is():
+    text = "[" * 100_000 + "]" * 100_000
+    page, inlined = view.render(text, VIEWER)
+    assert inlined and _body(page) == text
+
+
+def test_render_limit_counts_the_minified_text():
+    pad = "y" * (view.INLINE_LIMIT - 100)
+    text = json.dumps({"x": pad, "z": list(range(10))}, indent=4) + " " * 200
+    assert len(text.encode()) > view.INLINE_LIMIT
+    page, inlined = view.render(text, VIEWER)
+    assert inlined and json.loads(_body(page))["x"] == pad
+
+
+def test_render_inlines_non_json_as_is():
+    text = "not json <here>\n  spaced: yes"
+    page, inlined = view.render(text, VIEWER)
+    assert inlined and _body(page) == text.replace("<", "\\u003c")
 
 
 def test_render_refuses_a_viewer_without_marker():

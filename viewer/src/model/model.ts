@@ -101,10 +101,53 @@ export class Model {
    *  shortest run of parent segments that tells them apart. Never cut. `label` stays the map's own name. */
   itemName(id: string): string {
     if (id.startsWith(DOOR)) return this.itemName(doorAnchor(id));
-    this.floorNames ??= this.uniqueNames();
-    return this.floorNames.get(id) ?? this.baseName(id);
+    const c = this.homeFloor(id);
+    return c === undefined ? this.baseName(id) : this.namesOn(c).get(id)!;
   }
-  private floorNames?: Map<string, string>;
+
+  /** The floor whose names an item wears: the first, in sorted order, that lists it. Found without naming anything, so
+   *  a name asks for one floor's clash rules, not every floor's. */
+  private homeFloor(id: string): string | undefined {
+    if (!this.firstFloor) {
+      this.firstFloor = new Map();
+      for (const c of Object.keys(this.map.layout.containers).sort())
+        for (const item of Object.keys(this.map.layout.containers[c].items ?? {}))
+          if (!this.firstFloor.has(item)) this.firstFloor.set(item, c);
+    }
+    return this.firstFloor.get(id);
+  }
+  private firstFloor?: Map<string, string>;   // item id -> the first container in sorted order listing it
+
+  /** Each item's name on one floor, clashes told apart (rules on `itemName`); worked out once per floor. */
+  private namesOn(c: string): Map<string, string> {
+    let name = this.floorNames.get(c);
+    if (name) return name;
+    const items = Object.keys(this.map.layout.containers[c].items ?? {}).sort();
+    name = new Map(items.map((id) => [id, this.baseName(id)]));
+    const clashes = () => {
+      const by = new Map<string, string[]>();
+      for (const [id, n] of name!) by.set(n, [...(by.get(n) ?? []), id]);
+      return [...by.values()].filter((ids) => ids.length > 1);
+    };
+    // a companion object beside its class or trait
+    for (const ids of clashes())
+      for (const id of ids) if (id.endsWith("$") && ids.includes(id.slice(0, -1))) name.set(id, `${name.get(id)} (object)`);
+    // overloads: the arity (and the scanner's own tie-break) from the id
+    for (const ids of clashes())
+      for (const id of ids) { const sig = /#([^#]+\/[^#/]+)$/.exec(this.twinOf(id) ?? id)?.[1]; if (sig) name.set(id, sig); }
+    // anything else: the fewest parent segments that tell the clashing items apart
+    for (const ids of clashes()) {
+      const base = new Map(ids.map((id) => [id, name.get(id)!]));
+      for (let k = 1; k <= 12; k++) {
+        const cand = ids.map((id) => { const p = lastSegments(this.twinOf(id) ?? id, k); return p ? `${p}.${base.get(id)}` : base.get(id)!; });
+        if (new Set(cand).size === ids.length || k === 12) { ids.forEach((id, i) => name!.set(id, cand[i])); break; }
+      }
+    }
+    for (const ids of clashes()) for (const id of ids) name.set(id, `${name.get(id)} (${this.codes.get(id) ?? id})`);   // last resort
+    this.floorNames.set(c, name);
+    return name;
+  }
+  private floorNames = new Map<string, Map<string, string>>();   // container -> its items' names
 
   /** An item's own name, before any floor clash: implementations qualified by the class that holds them. */
   baseName(id: string): string {
@@ -118,36 +161,6 @@ export class Model {
     if (anon) return `${ownerName || (lastSegments(id, 1) ?? "")}.${anon[1]} (impl)`.replace(/^\./, "");
     if (n.implements?.length && ownerName) return `${ownerName}.${n.name}`;
     return n.name;
-  }
-
-  private uniqueNames(): Map<string, string> {
-    const out = new Map<string, string>();
-    for (const c of Object.keys(this.map.layout.containers).sort()) {
-      const items = Object.keys(this.map.layout.containers[c].items ?? {}).sort();
-      const name = new Map(items.map((id) => [id, this.baseName(id)]));
-      const clashes = () => {
-        const by = new Map<string, string[]>();
-        for (const [id, n] of name) by.set(n, [...(by.get(n) ?? []), id]);
-        return [...by.values()].filter((ids) => ids.length > 1);
-      };
-      // a companion object beside its class or trait
-      for (const ids of clashes())
-        for (const id of ids) if (id.endsWith("$") && ids.includes(id.slice(0, -1))) name.set(id, `${name.get(id)} (object)`);
-      // overloads: the arity (and the scanner's own tie-break) from the id
-      for (const ids of clashes())
-        for (const id of ids) { const sig = /#([^#]+\/[^#/]+)$/.exec(this.twinOf(id) ?? id)?.[1]; if (sig) name.set(id, sig); }
-      // anything else: the fewest parent segments that tell the clashing items apart
-      for (const ids of clashes()) {
-        const base = new Map(ids.map((id) => [id, name.get(id)!]));
-        for (let k = 1; k <= 12; k++) {
-          const cand = ids.map((id) => { const p = lastSegments(this.twinOf(id) ?? id, k); return p ? `${p}.${base.get(id)}` : base.get(id)!; });
-          if (new Set(cand).size === ids.length || k === 12) { ids.forEach((id, i) => name.set(id, cand[i])); break; }
-        }
-      }
-      for (const ids of clashes()) for (const id of ids) name.set(id, `${name.get(id)} (${this.codes.get(id) ?? id})`);   // last resort
-      for (const [id, n] of name) if (!out.has(id)) out.set(id, n);
-    }
-    return out;
   }
 
   kindOf(id: string): string {
@@ -584,14 +597,23 @@ export class Model {
     const t = text.trim().toLowerCase();
     if (!t) return [];
     const hits: [number, string][] = [];
-    for (const n of this.map.nodes) {
-      const code = (this.codes.get(n.id) ?? "").toLowerCase();
-      const names = [n.name.toLowerCase(), this.itemName(n.id).toLowerCase()];   // the map's name and the one the floor shows
-      const score = code === t ? 0 : names.some((x) => x === t) ? 1 : names.some((x) => x.startsWith(t)) ? 2 : names.some((x) => x.includes(t)) ? 3 : n.id.toLowerCase().includes(t) ? 4 : -1;
-      if (score >= 0) hits.push([score, n.id]);
+    for (const r of this.searchRows()) {
+      const score = r.code === t ? 0 : r.name === t || r.shown === t ? 1 : r.name.startsWith(t) || r.shown.startsWith(t) ? 2
+        : r.name.includes(t) || r.shown.includes(t) ? 3 : r.idl.includes(t) ? 4 : -1;
+      if (score >= 0) hits.push([score, r.id]);
     }
     return hits.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1])).slice(0, limit).map((h) => h[1]);
   }
+
+  /** Each node's code, map name, shown name (`itemName`) and id, lowercased once: built on the first search, so a map
+   *  nobody searches never names every node. */
+  private searchRows(): readonly { id: string; code: string; name: string; shown: string; idl: string }[] {
+    return this.rows ??= this.map.nodes.map((n) => ({
+      id: n.id, code: (this.codes.get(n.id) ?? "").toLowerCase(), name: n.name.toLowerCase(),
+      shown: this.itemName(n.id).toLowerCase(), idl: n.id.toLowerCase(),
+    }));
+  }
+  private rows?: readonly { id: string; code: string; name: string; shown: string; idl: string }[];
 }
 
 /** The last `k` segments of the path that holds `id` (`svc::a.b.C` → `a.b` for k = 2; a method's holder is its class),

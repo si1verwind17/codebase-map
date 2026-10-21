@@ -26,7 +26,8 @@
   import { Pins, defaultTitle, type ShownPin } from "./trace/pins";
   import type { PinDirection } from "./model/types";
 
-  let { initial }: { initial: string | null } = $props();
+  /** The page's own map text (main.ts): given once, then forgotten, so the page keeps no copy of it. */
+  let { initial }: { initial: () => string | null } = $props();
 
   let model = $state<Model | null>(null);
   let error = $state<string | null>(null);
@@ -74,9 +75,10 @@
     requestAnimationFrame(() => scene?.resize());
   }
   // the trace pane (spec §3): what it traces, where it is drawn, the divider's place and whether it fills the screen
+  // the trace graph is built on the first trace, not on load: this line alone reads it, and only once `trace` is set
   let graph = $derived(model ? new TraceGraph(model) : null);
   let trace = $state.raw<TraceState | null>(null);
-  let traceView = $derived(model && graph && trace ? layoutTrace(model, graph, trace) : null);
+  let traceView = $derived(model && trace && graph ? layoutTrace(model, graph, trace) : null);
   let split = $state(loadSplit(safeStorage()));
   let maximized = $state(false);
   let pins = $state.raw<Pins | null>(null);
@@ -123,7 +125,8 @@
 
   onMount(async () => {
     if (!loadGuideSeen(safeStorage())) { guideNote = true; saveGuideSeen(safeStorage()); }
-    if (initial) open(initial);
+    const raw = initial();
+    if (raw) open(raw);
     if (model) await mountScene();
   });
 

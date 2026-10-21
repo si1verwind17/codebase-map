@@ -1,5 +1,5 @@
-// The Model's walks as they were before its caches and indexes (commit 694efe3), copied verbatim as the reference the
-// cached ones must equal (model_cache.test.ts). `this` is a Reference: its own copies of the walks, and the Model's
+// The Model's walks as they were before its caches and indexes (commit 694efe3; names and search: 657fd48), copied
+// verbatim as the reference the cached ones must equal (model_cache.test.ts). `this` is a Reference: its own copies of the walks, and the Model's
 // unchanged methods for the rest.
 import { DRAW_ORDER, RUNTIME, SITE, type Bundle, type Door, type Model, type Outward } from "../../src/model/model";
 import type { LayerBundle } from "../../src/model/layers";
@@ -162,6 +162,69 @@ export class Reference {
     }
     return false;
   }
+
+  // names and search as they were before names on demand and the search index (commit 657fd48)
+  private twinOf(id: string): string | undefined { return this.m.twinOf(id); }
+  private baseName(id: string): string { return this.m.baseName(id); }
+  private get codes(): Map<string, string> { return this.m.codes; }
+
+  itemName(id: string): string {
+    if (id.startsWith("door:")) return this.itemName(id.slice("door:".length));
+    this.floorNames ??= this.uniqueNames();
+    return this.floorNames.get(id) ?? this.baseName(id);
+  }
+  private floorNames?: Map<string, string>;
+
+  private uniqueNames(): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const c of Object.keys(this.map.layout.containers).sort()) {
+      const items = Object.keys(this.map.layout.containers[c].items ?? {}).sort();
+      const name = new Map(items.map((id) => [id, this.baseName(id)]));
+      const clashes = () => {
+        const by = new Map<string, string[]>();
+        for (const [id, n] of name) by.set(n, [...(by.get(n) ?? []), id]);
+        return [...by.values()].filter((ids) => ids.length > 1);
+      };
+      // a companion object beside its class or trait
+      for (const ids of clashes())
+        for (const id of ids) if (id.endsWith("$") && ids.includes(id.slice(0, -1))) name.set(id, `${name.get(id)} (object)`);
+      // overloads: the arity (and the scanner's own tie-break) from the id
+      for (const ids of clashes())
+        for (const id of ids) { const sig = /#([^#]+\/[^#/]+)$/.exec(this.twinOf(id) ?? id)?.[1]; if (sig) name.set(id, sig); }
+      // anything else: the fewest parent segments that tell the clashing items apart
+      for (const ids of clashes()) {
+        const base = new Map(ids.map((id) => [id, name.get(id)!]));
+        for (let k = 1; k <= 12; k++) {
+          const cand = ids.map((id) => { const p = lastSegments(this.twinOf(id) ?? id, k); return p ? `${p}.${base.get(id)}` : base.get(id)!; });
+          if (new Set(cand).size === ids.length || k === 12) { ids.forEach((id, i) => name.set(id, cand[i])); break; }
+        }
+      }
+      for (const ids of clashes()) for (const id of ids) name.set(id, `${name.get(id)} (${this.codes.get(id) ?? id})`);   // last resort
+      for (const [id, n] of name) if (!out.has(id)) out.set(id, n);
+    }
+    return out;
+  }
+
+  search(text: string, limit = 30): string[] {
+    const t = text.trim().toLowerCase();
+    if (!t) return [];
+    const hits: [number, string][] = [];
+    for (const n of this.map.nodes) {
+      const code = (this.codes.get(n.id) ?? "").toLowerCase();
+      const names = [n.name.toLowerCase(), this.itemName(n.id).toLowerCase()];   // the map's name and the one the floor shows
+      const score = code === t ? 0 : names.some((x) => x === t) ? 1 : names.some((x) => x.startsWith(t)) ? 2 : names.some((x) => x.includes(t)) ? 3 : n.id.toLowerCase().includes(t) ? 4 : -1;
+      if (score >= 0) hits.push([score, n.id]);
+    }
+    return hits.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1])).slice(0, limit).map((h) => h[1]);
+  }
+}
+
+function lastSegments(id: string, k: number): string | undefined {
+  const q = id.includes("::") ? id.slice(id.indexOf("::") + 2) : id;
+  const hash = q.indexOf("#");
+  const segs = (hash >= 0 ? q.slice(0, hash) : q).split(/[./]/).filter(Boolean).map((s) => s.replace(/\$+$/, ""));
+  const holder = hash >= 0 ? segs : segs.slice(0, -1);
+  return holder.length ? holder.slice(-k).join(".") : undefined;
 }
 
 const byCode = (model: Model, ids: string[]): string[] =>

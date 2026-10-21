@@ -15,6 +15,11 @@ import type { StoreLegend } from "../factory/machines";
 import type { Piece } from "../factory/tiles";
 import type { BadgeSpot, PxRect } from "../factory/clear";
 import type { FloorLayer, LayerBundle, LayerId } from "../model/layers";
+import { Lru } from "./lru";
+
+/** Floor plans kept per scene: far above the floors planned ahead around one floor (MAX_NEARBY), so the shown floor and
+ *  its neighbours stay while a long session's other floors leave (and are planned again if visited). */
+export const PLAN_CACHE = 50;
 
 /** A floor's plan and the messaging worked out from it on its first draw (flight paths, the routes they replace, label
  *  obstacles, placed labels, legend examples): kept per container and model. */
@@ -102,7 +107,7 @@ export interface SceneState {
   geo: FloorGeometry | null;
   routes: Route[];
   tf: TileFloor | null;
-  plans: Map<string, FloorPlan>;   // planFloor is slow on busy floors: once per container and model
+  plans: Lru<string, FloorPlan>;   // planFloor is slow on busy floors: once per container and model, the last PLAN_CACHE used
   plansFor: Model | null;
   chimneys: { id: string; x: number; y: number }[];
   windows: Map<string, { lit: Graphics; dark: Graphics }>;
@@ -207,7 +212,7 @@ export function createState(events: SceneEvents): SceneState {
     geo: null,
     routes: [],
     tf: null,
-    plans: new Map(),
+    plans: new Lru(PLAN_CACHE),
     plansFor: null,
     chimneys: [],
     windows: new Map(),

@@ -2,11 +2,13 @@
 """Write OUT/index.html: the prebuilt viewer with this map built in. (The field guide is on the project's site.)
 
 Usage: view.py REPO [--out-dir docs/viz-code]
-Maps over 8 MB are not built in: the page asks for code-map.json instead.
+The map is built in minified; a map whose minified text is over 8 MB is not built in: the page asks for
+code-map.json instead.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -19,14 +21,27 @@ MARKER = "/*CODE_MAP*/"
 INLINE_LIMIT = 8 * 1024 * 1024
 
 
+def minified(map_text: str) -> str:
+    """The map without indentation or spaces (a smaller page to load and parse), non-ASCII written as `\\uXXXX`
+    escapes: an all-ASCII text stays a one-byte string in the browser, half the memory of a two-byte one. Text that
+    is not JSON, or nested too deep to read here, is left as it is."""
+    try:
+        data = json.loads(map_text)
+    except (ValueError, RecursionError):
+        return map_text
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=True)
+
+
 def render(map_text: str, viewer_html: str) -> tuple[str, bool]:
-    """(page, inlined). The map goes inside a <script type="application/json">: every `<` becomes `\\u003c`
-    (only possible inside JSON strings, so it stays valid JSON) and no `</script>` or `<!--` can reach the parser."""
+    """(page, inlined). The map goes minified inside a <script type="application/json">: every `<` becomes `\\u003c`
+    (only possible inside JSON strings, so it stays valid JSON) and no `</script>` or `<!--` can reach the parser.
+    INLINE_LIMIT counts the minified text."""
     if MARKER not in viewer_html:
         raise ValueError("viewer.html has no map marker; rebuild the viewer")
-    if len(map_text.encode()) > INLINE_LIMIT:
+    text = minified(map_text)
+    if len(text.encode()) > INLINE_LIMIT:
         return viewer_html, False
-    return viewer_html.replace(MARKER, map_text.replace("<", "\\u003c"), 1), True
+    return viewer_html.replace(MARKER, text.replace("<", "\\u003c"), 1), True
 
 
 def with_header(page: str, file: str) -> str:
@@ -38,7 +53,7 @@ def write_page(out: Path) -> str:
     """Write OUT/index.html from OUT/code-map.json; returns the line to report."""
     page, inlined = render((out / "code-map.json").read_text(encoding="utf-8"), VIEWER.read_text(encoding="utf-8"))
     (out / "index.html").write_text(with_header(page, "index.html"), encoding="utf-8")
-    return f"{out / 'index.html'}" + ("" if inlined else "  (map over 8 MB: open it from the page)")
+    return f"{out / 'index.html'}" + ("" if inlined else "  (map over 8 MB minified: open it from the page)")
 
 
 def main(argv: list[str] | None = None) -> int:

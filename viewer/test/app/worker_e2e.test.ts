@@ -11,6 +11,7 @@ import type { CodeMap } from "../../src/model/types";
 import { planFloor } from "../../src/factory/plan";
 import { coveredKeys, flightPaths } from "../../src/factory/flights";
 import { MAX_NEARBY, nextFloors } from "../../src/floor/precompute";
+import { PLAN_CACHE } from "../../src/floor/state";
 import { GL_ARGS } from "../gl";
 
 const CHROMIUM = process.env.VIZ_CHROMIUM ?? "";
@@ -76,6 +77,47 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("the layout worker in a browser
       expect(Object.keys(want).length, "the floor has lines").toBeGreaterThan(0);
       for (const [k, ts] of Object.entries(want)) expect(got[k]?.slice(0, ts.length), k).toEqual(ts);   // a rail's yard link and siding follow its own tiles
       expect(Object.keys(got).filter((k) => !(k in want)), "no line node does not route").toEqual([]);
+    } finally {
+      await browser.close();
+    }
+    expect(errors).toEqual([]);
+  }, 120_000);
+
+  it("the page lets the map text go after parsing; floors still open, and entered floors fill the plan cache to at most PLAN_CACHE", async () => {
+    const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
+    const model = new Model(JSON.parse(map) as CodeMap);
+    const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
+    const file = join(mkdtempSync(join(tmpdir(), "viz-")), "index.html");
+    writeFileSync(file, html);
+    // three floors F0's queue leaves alone (past MAX_NEARBY), each reached through a node on it
+    const ahead = new Set(nextFloors(model, SITE));
+    const cold = nextFloors(model, SITE, undefined, Infinity).filter((c) => !ahead.has(c) && model.map.nodes.some((n) => model.floorOf(n.id) === c)).slice(0, 3);
+    expect(cold.length).toBe(3);
+    const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
+    const errors: string[] = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto("file://" + file);
+      await page.waitForSelector("canvas");
+      const attr = (n: string) => page.locator("canvas").getAttribute(n);
+      const settled = () => page.waitForFunction(() => document.querySelector("canvas")?.getAttribute("data-plans-queued") === "0", null, { timeout: 60_000 });
+      await settled();
+      expect(await page.evaluate(() => document.getElementById("code-map")?.textContent), "the map text is gone from the page").toBe("");
+      let plans = Number(await attr("data-plans"));
+      for (const c of cold) {
+        const inside = model.map.nodes.find((n) => model.floorOf(n.id) === c)!;
+        await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(inside.id)!);
+        await page.locator(".rail .list button").first().click();
+        await page.waitForFunction((f) => document.querySelector("canvas")?.getAttribute("data-floor") === f, c, { timeout: 15_000 });
+        await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });
+        await settled();
+        const now = Number(await attr("data-plans"));
+        expect(now, `entering ${c} planned it`).toBeGreaterThan(plans);
+        expect(now).toBeLessThanOrEqual(PLAN_CACHE);
+        plans = now;
+      }
+      expect(await attr("data-planner")).toBe("worker");
     } finally {
       await browser.close();
     }
