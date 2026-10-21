@@ -5,8 +5,8 @@
   "rules_version": 4,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "b7413dda9a43b5c6d359bdd83fb52fc0fdf9e4d0",
-  "scanned_at": "2026-10-20T20:46:15Z",
+  "commit": "ecbec5ee1376b204a4f95b49029697362d944178",
+  "scanned_at": "2026-10-21T04:16:54Z",
   "languages": [
    "python",
    "scala"
