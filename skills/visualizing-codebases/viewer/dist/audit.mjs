@@ -1,6 +1,6 @@
 // audit-inputs: 81590b0af12330570b0cb561b06373932c9ba6eb4f3f7583d570f95777de3e35
 import { readFileSync } from "node:fs";
-//#region src/model/model.ts
+// src/model/model.ts
 var SITE = "site";
 var RUNTIME = [
 	"request",
@@ -669,8 +669,7 @@ function flowOf$1(b, lift) {
 	}
 	return fwd && back ? "both" : fwd ? "a→b" : "b→a";
 }
-//#endregion
-//#region src/factory/tiles.ts
+// src/factory/tiles.ts
 /** n, e, s, w: index (i + 2) % 4 is the opposite direction. */
 var DIRS = [
 	"n",
@@ -724,8 +723,7 @@ function dirInto(r, x, y) {
 }
 /** The edge a junction piece's branch leaves by (split) or joins through (merge). */
 var joinEdge = (p) => p.join === "merge" ? OPP[p.in] : p.out;
-//#endregion
-//#region src/floor/names.ts
+// src/floor/names.ts
 /** Longest dotted (or path) prefix shared by at least two names, ending at a separator. */
 function commonPrefix(names) {
 	if (names.length < 2) return "";
@@ -798,8 +796,7 @@ function shownName(model, id, prefix) {
 	if (model.kindOf(id) === "table") full = full.replace(/^public\./, "");
 	return stripShared(full, prefix);
 }
-//#endregion
-//#region src/factory/fit.ts
+// src/factory/fit.ts
 var PLATE_FONT = 10.5;
 /** A label's width at `size`, estimated (never measured, so placement cannot depend on font loading): Archivo bold
 *  averages under 0.56 em a letter on these words (measured: "group notifier ×2" is 82 px at 10.5, estimated 100),
@@ -1029,8 +1026,7 @@ var NAME_MIN_PX = 9 * Math.exp(-.4);
 /** Zoom under which a name of `minName` px would render under NAME_MIN_PX: the floor shows codes instead. One switch for
 *  the whole floor, from the smallest name drawn on it (14 px names alone would switch at about 6/14). */
 var codeZoom = (minName) => NAME_MIN_PX / minName;
-//#endregion
-//#region src/factory/messaging.ts
+// src/factory/messaging.ts
 /** The short label each flight's plate shows (owner decision: short words). */
 var FLIGHT_LABEL = {
 	produce: "produce",
@@ -1161,8 +1157,7 @@ function replicasOf(model, id) {
 		cur = n.parent ?? void 0;
 	}
 }
-//#endregion
-//#region src/factory/layout.ts
+// src/factory/layout.ts
 /** Tiles a zone's label needs: its upper-case name at 9.5 px (a generous 7.5 px a letter) plus a margin. */
 var labelTiles = (name) => Math.ceil((name.length * 7.5 + 12) / 24);
 var M = 2;
@@ -1744,8 +1739,7 @@ function queueStacks(tf, topicOf) {
 	}
 	return out;
 }
-//#endregion
-//#region src/factory/batch.ts
+// src/factory/batch.ts
 var byStr$2 = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 var byJob = (p, q) => byStr$2(p.job, q.job) || byStr$2(p.relation, q.relation);
 /** `bundles` is taken for symmetry with messaging(); a scheduler's jobs on itself and an inner yard's jobs never form
@@ -2651,8 +2645,7 @@ function railEnds(tf) {
 	});
 	return out;
 }
-//#endregion
-//#region src/factory/pads.ts
+// src/factory/pads.ts
 /** A receiving dock's length along its side, tiles. */
 var DOCK = 3;
 var ROLE = {
@@ -3046,8 +3039,7 @@ function webhookDocks(model, tf, bundles, routes) {
 		notes
 	};
 }
-//#endregion
-//#region src/factory/clear.ts
+// src/factory/clear.ts
 var ZONE_FONT = 9.5;
 /** A zone name's size in world px at scale 1, estimated (never measured, so layout cannot depend on font loading): a
 *  bold capital is at most 0.72 em wide, and the line box is 13 px tall. The drawn text is never larger. */
@@ -3357,8 +3349,7 @@ function laneLabelPlan(l, w, blocked) {
 		maxK: Math.max(1, Math.min(tall, spot.room / w))
 	};
 }
-//#endregion
-//#region src/factory/router.ts
+// src/factory/router.ts
 var TURN = 3;
 var UNDER = 6;
 var MAX_UNDER = 4;
@@ -4118,8 +4109,7 @@ var Heap = class {
 		return top;
 	}
 };
-//#endregion
-//#region src/factory/plan.ts
+// src/factory/plan.ts
 var WIDEN = 2;
 var MAX_START = 3;
 var MAX_EXTRA = 6;
@@ -4341,14 +4331,12 @@ function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
 		routes
 	} : best;
 }
-//#endregion
-//#region src/factory/plan-job.ts
+// src/factory/plan-job.ts
 /** Floor `container`'s plan: its bundles (`b`, when the caller has them already), then `planFloor` over them. */
 function planJob(model, container, b = model.bundles(container)) {
 	return planFloor(model, container, b.doors, b.bundles, b.layered);
 }
-//#endregion
-//#region src/audit/lines.ts
+// src/audit/lines.ts
 /** A line's possible ends, by id: its key's two boxes (or lanes), for a rail the rail yards and stations, and for an
 *  inbound webhook its service's receiving dock (the belt plugs into the dock, not the wall). */
 function endRects(tf, r) {
@@ -4761,8 +4749,7 @@ function failedViolations(routes) {
 	if (routes.length >= 100 && failed.length <= routes.length * .01) return [];
 	return [{ detail: `${failed.length} of ${routes.length} routes failed: ${failed.map((r) => r.key).join(", ")}` }];
 }
-//#endregion
-//#region src/factory/boxname.ts
+// src/factory/boxname.ts
 var NAME_FITS = {
 	name: fitName,
 	chest: chestFit
@@ -4805,8 +4792,7 @@ function boxNameFit(model, ctx, b, fits = NAME_FITS) {
 		door: false
 	};
 }
-//#endregion
-//#region src/factory/subline.ts
+// src/factory/subline.ts
 /** The factory's sub line: the shape and the role tag already say the kind and role, so only the count of what is inside. */
 function factorySubOf(model, floorBundles, m) {
 	if ([
@@ -4837,8 +4823,7 @@ function subline(model, floorBundles, m) {
 	const children = model.map.nodes.filter((x) => x.parent === real).length;
 	return `${n?.role ? `${n.role} · ` : ""}${m.kind}${children ? ` · ${children} inside` : ""}`;
 }
-//#endregion
-//#region src/factory/flights.ts
+// src/factory/flights.ts
 var DOT = 4;
 var centre = (r) => ({
 	x: (r.x + r.w / 2) * 24,
@@ -5218,8 +5203,7 @@ function messagingLabels(model, tf, paths, clear, inside) {
 		plates: placePlates(paths, clear, bounds)
 	};
 }
-//#endregion
-//#region src/factory/rail-place.ts
+// src/factory/rail-place.ts
 /** The key a yard is selected by (and its views fade with): its rails' ends grouped as in the router. */
 var yardKey = (source) => yardId(source);
 /** A box's short code on its own floor: the code without the floor's own code in front (`S7·P1·F11` on S7·P1 reads
@@ -5377,8 +5361,7 @@ function placeBox(key, text, spots, clear, bounds) {
 		};
 	}
 }
-//#endregion
-//#region src/model/layers.ts
+// src/model/layers.ts
 /** The floor's extra layers, one per heavily used item with a line, in `floor.hubs` order. Empty on most floors (no
 *  layers button). Pure: from the model alone. */
 function floorLayers(model, container) {
@@ -5399,8 +5382,7 @@ function floorLayers(model, container) {
 	}
 	return out;
 }
-//#endregion
-//#region src/floor/lane.ts
+// src/floor/lane.ts
 /** x positions where a vertical run crosses, or ends on, the lane band at `y` (± half its height). */
 function crossings(routes, y, half) {
 	const xs = /* @__PURE__ */ new Set();
@@ -5439,8 +5421,7 @@ function laneCrossings(l, routes, paths) {
 function moverSpeed(kind, length) {
 	return flies(kind) ? Math.max(60, length / 5) : kind === "train" ? Math.max(60, length / 3) : 60;
 }
-//#endregion
-//#region src/audit/text.ts
+// src/audit/text.ts
 /** The fitting functions the drawing uses; a test may pass others to prove the check sees a cut. */
 var FITS = {
 	name: fitName,
@@ -5699,8 +5680,7 @@ function narrowZoneViolations(plan) {
 	}
 	return out;
 }
-//#endregion
-//#region src/floor/fitscale.ts
+// src/floor/fitscale.ts
 /** Floor bounds `w`×`h` px in a `screenW`×`screenH` canvas, `bottomInset` px kept clear at the bottom. Inside floors keep
 *  a 120 px pad round them; every floor keeps 60 px for its title and a 0.94 margin. Unclamped. */
 function fitScale(w, h, screenW, screenH, site, bottomInset = 0) {
@@ -5715,8 +5695,7 @@ var clampFit = (s) => Math.max(FIT_MIN, Math.min(FIT_MAX, s));
 function fitZoom(w, h, screenW, screenH, site, bottomInset = 0) {
 	return clampFit(fitScale(w, h, screenW, screenH, site, bottomInset));
 }
-//#endregion
-//#region src/audit/floor.ts
+// src/audit/floor.ts
 /** The longest a moving item may take over one line, seconds (audit row 25): a train over its rail, a drone over its
 *  flight (drones fly slower, so a floor's flights stay readable). */
 var TRIP_MAX = {
@@ -5853,8 +5832,7 @@ function measure(plan, model, container) {
 		switchZoom: codeZoom(minNameSize(model, container, plan))
 	};
 }
-//#endregion
-//#region src/audit/types.ts
+// src/audit/types.ts
 /** The row of the owner's audit each check comes from. */
 var ROW = {
 	"lines.failed": "9",
@@ -5875,8 +5853,7 @@ var ROW = {
 	"floor.wide": "46",
 	"plan.crashed": "—"
 };
-//#endregion
-//#region src/audit/run.ts
+// src/audit/run.ts
 var firstLine = (e) => (String(e instanceof Error ? e.message : e).split("\n")[0] || "error").trim();
 /** The base's lines and each layer's, with the suffix a violation names its view by. */
 var views = (plan) => [["", plan.routes], ...Object.entries(plan.layers ?? {}).map(([id, l]) => [` (layer ${id})`, l.routes])];
@@ -5990,8 +5967,7 @@ function auditMap(map, budget = BUDGET) {
 	}
 	return out;
 }
-//#endregion
-//#region src/audit/cli.ts
+// src/audit/cli.ts
 var args = process.argv.slice(2);
 var path = args.find((a) => !a.startsWith("--"));
 var map;
@@ -6010,5 +5986,4 @@ try {
 	process.exit(2);
 }
 process.stdout.write(`${JSON.stringify(report)}\n`);
-//#endregion
 export {};
