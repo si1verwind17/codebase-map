@@ -221,7 +221,9 @@ problems. Which files you may read, and how:
   - JSON: `jq -r 'paths(scalars) | map(tostring) | join(".")' FILE`
 
   `grep KEY .env`, `cat`, `head` or a read of the file print the values: not
-  allowed on these files.
+  allowed on these files. A command that reads many files at once (a loop or
+  glob over `git ls-files`, `cat */*`, `grep -r`) reaches them too: leave these
+  files out of its list first.
 - **Other config files** (YAML, TOML, JSON, INI, `.properties`): list the keys
   first, with the commands above. When no key names a credential (`password`,
   `secret`, `token`, `api_key`, `private_key`, `credentials`, or a DSN,

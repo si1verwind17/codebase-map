@@ -1,12 +1,12 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.10.0",
+  "scanner_version": "0.11.0",
   "rules_version": 4,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "ecbec5ee1376b204a4f95b49029697362d944178",
-  "scanned_at": "2026-10-21T04:16:54Z",
+  "commit": "05c835f435c0b970b222134bf7cff81cdaae1657",
+  "scanned_at": "2026-10-21T05:54:07Z",
   "languages": [
    "python",
    "scala"
@@ -770,6 +770,9 @@
    "metrics": {
     "loc": 20,
     "methods": 2
+   },
+   "ctor": {
+    "method": "analytics_loader/app::app.warehouse.BayEventsTable#__init__/0"
    }
   },
   {
@@ -941,6 +944,32 @@
    "metrics": {
     "loc": 28,
     "methods": 4
+   },
+   "ctor": {
+    "params": [
+     {
+      "name": "repo",
+      "type": "InvoiceRepo",
+      "refs": [
+       "billing::city.parking.billing.InvoiceRepo"
+      ]
+     },
+     {
+      "name": "stripe",
+      "type": "StripeCharger",
+      "refs": [
+       "billing::city.parking.billing.StripeCharger"
+      ]
+     },
+     {
+      "name": "receipts",
+      "type": "ReceiptStore",
+      "refs": [
+       "billing::city.parking.billing.ReceiptStore"
+      ]
+     }
+    ],
+    "line": 16
    },
    "implements": [
     "billing::city.parking.billing.BillingService"
@@ -1359,6 +1388,18 @@
    "metrics": {
     "loc": 23,
     "methods": 4
+   },
+   "ctor": {
+    "params": [
+     {
+      "name": "db",
+      "type": "Jdbc",
+      "refs": [
+       "common::city.parking.common.Jdbc"
+      ]
+     }
+    ],
+    "line": 20
    },
    "implements": [
     "billing::city.parking.billing.InvoiceRepo"
@@ -2373,6 +2414,15 @@
     "loc": 33,
     "methods": 4
    },
+   "ctor": {
+    "params": [
+     {
+      "name": "ds",
+      "type": "DataSource"
+     }
+    ],
+    "line": 33
+   },
    "implements": [
     "common::city.parking.common.Jdbc"
    ]
@@ -2573,6 +2623,15 @@
     "loc": 6,
     "methods": 1
    },
+   "ctor": {
+    "params": [
+     {
+      "name": "producer",
+      "type": "Producer"
+     }
+    ],
+    "line": 23
+   },
    "implements": [
     "common::city.parking.common.EventProducer"
    ]
@@ -2645,6 +2704,9 @@
    "metrics": {
     "loc": 19,
     "methods": 5
+   },
+   "ctor": {
+    "method": "common_py/common_py::common_py.cache.SharedCache#__init__/0"
    }
   },
   {
@@ -2878,6 +2940,9 @@
    "metrics": {
     "loc": 17,
     "methods": 2
+   },
+   "ctor": {
+    "method": "common_py/common_py::common_py.mailer.Mailer#__init__/0"
    }
   },
   {
@@ -2952,6 +3017,9 @@
    "metrics": {
     "loc": 11,
     "methods": 2
+   },
+   "ctor": {
+    "method": "common_py/common_py::common_py.pubsub.Publisher#__init__/0"
    }
   },
   {
@@ -3009,6 +3077,9 @@
    "metrics": {
     "loc": 14,
     "methods": 3
+   },
+   "ctor": {
+    "method": "common_py/common_py::common_py.pubsub.Puller#__init__/1"
    }
   },
   {
@@ -3103,6 +3174,9 @@
    "metrics": {
     "loc": 11,
     "methods": 2
+   },
+   "ctor": {
+    "method": "common_py/common_py::common_py.sms.SmsClient#__init__/0"
    }
   },
   {
@@ -3186,6 +3260,9 @@
    "metrics": {
     "loc": 21,
     "methods": 2
+   },
+   "ctor": {
+    "method": "enforcement_worker/app::app.fines.FinesClient#__init__/0"
    }
   },
   {
@@ -4307,6 +4384,9 @@
    "metrics": {
     "loc": 19,
     "methods": 2
+   },
+   "ctor": {
+    "method": "occupancy/app::app.grpc_server.OccupancyFeedService#__init__/0"
    }
   },
   {
@@ -4408,6 +4488,9 @@
    "metrics": {
     "loc": 17,
     "methods": 2
+   },
+   "ctor": {
+    "method": "occupancy/app::app.overstay.OverstayWatcher#__init__/0"
    }
   },
   {
@@ -5108,6 +5191,32 @@
     "loc": 26,
     "methods": 3
    },
+   "ctor": {
+    "params": [
+     {
+      "name": "repo",
+      "type": "TariffRepo",
+      "refs": [
+       "pricing::city.parking.pricing.TariffRepo"
+      ]
+     },
+     {
+      "name": "cache",
+      "type": "SharedCache",
+      "refs": [
+       "pricing::city.parking.pricing.SharedCache"
+      ]
+     },
+     {
+      "name": "geo",
+      "type": "Geocoder",
+      "refs": [
+       "pricing::city.parking.pricing.Geocoder"
+      ]
+     }
+    ],
+    "line": 14
+   },
    "implements": [
     "pricing::city.parking.pricing.PricingService"
    ]
@@ -5633,6 +5742,18 @@
    "metrics": {
     "loc": 26,
     "methods": 4
+   },
+   "ctor": {
+    "params": [
+     {
+      "name": "db",
+      "type": "Jdbc",
+      "refs": [
+       "common::city.parking.common.Jdbc"
+      ]
+     }
+    ],
+    "line": 22
    },
    "implements": [
     "pricing::city.parking.pricing.TariffRepo"
@@ -6227,6 +6348,19 @@
     "loc": 10,
     "methods": 1
    },
+   "ctor": {
+    "params": [
+     {
+      "name": "client",
+      "type": "Client"
+     },
+     {
+      "name": "base",
+      "type": "String"
+     }
+    ],
+    "line": 21
+   },
    "implements": [
     "reservations::city.parking.reservations.PricingClient"
    ]
@@ -6743,6 +6877,18 @@
     "loc": 57,
     "methods": 7
    },
+   "ctor": {
+    "params": [
+     {
+      "name": "db",
+      "type": "Jdbc",
+      "refs": [
+       "common::city.parking.common.Jdbc"
+      ]
+     }
+    ],
+    "line": 25
+   },
    "implements": [
     "reservations::city.parking.reservations.ReservationRepo"
    ]
@@ -7062,6 +7208,39 @@
    "metrics": {
     "loc": 41,
     "methods": 4
+   },
+   "ctor": {
+    "params": [
+     {
+      "name": "repo",
+      "type": "ReservationRepo",
+      "refs": [
+       "reservations::city.parking.reservations.ReservationRepo"
+      ]
+     },
+     {
+      "name": "pricing",
+      "type": "PricingClient",
+      "refs": [
+       "reservations::city.parking.reservations.PricingClient"
+      ]
+     },
+     {
+      "name": "cache",
+      "type": "QuoteCache",
+      "refs": [
+       "reservations::city.parking.reservations.QuoteCache"
+      ]
+     },
+     {
+      "name": "stripe",
+      "type": "StripeGateway",
+      "refs": [
+       "reservations::city.parking.reservations.StripeGateway"
+      ]
+     }
+    ],
+    "line": 17
    },
    "implements": [
     "reservations::city.parking.reservations.ReservationService"

@@ -20,6 +20,9 @@ def test_scala_nodes():
     assert n["shop::io.demo.shop.repo.PgOrderRepo#load/2"]["visibility"] == "private"
     assert n["shop::io.demo.shop.repo.PgOrderRepo#load/2"]["signature"]["returns"] == "Option[String]"
     assert "shop::io.demo.shop.repo.PgOrderRepo$#live/0" in n          # companion object gets $
+    # a class that is no case class is built from its class parameters
+    pg = n["shop::io.demo.shop.repo.PgOrderRepo"]
+    assert pg["ctor"] == {"params": [{"name": "table", "type": "String"}], "line": pg["line"]}
     top = n["shop::io.demo.shop.repo/OrderRepo.scala#helper/1"]
     assert n[top["parent"]]["kind"] == "file"
 

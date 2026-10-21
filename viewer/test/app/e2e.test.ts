@@ -360,6 +360,93 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(errors).toEqual([]);
   }, 60_000);
 
+  it("inspector: a class lists what it needs and what needs it, and the links lead there", async () => {
+    const demo = JSON.parse(readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8")) as CodeMap;
+    const live = "billing::city.parking.billing.BillingService.Live", repo = "billing::city.parking.billing.InvoiceRepo";
+    // a twin of the class on another service's floor: selected through its twin id, it shows its real class's rows
+    const host = demo.nodes.find((n) => n.id === "svc:feature-store")!;
+    host.twins = [...(host.twins ?? []), live];
+    demo.layout.containers["svc:feature-store"].items[`twin:${live}`] = { region: "line", col: 2, row: 0 };
+    // the forms the demo does not reach: an untyped parameter and one of two constructors; an implementation in another
+    // service (which makes ReservationRepo.Live needed through two interfaces); two classes needing one interface; a
+    // class others implement that has parameters (an abstract class): never built as itself
+    const node = (id: string) => demo.nodes.find((n) => n.id === id)!;
+    const client = "reservations::city.parking.reservations.PricingClient.Live", resRepo = "reservations::city.parking.reservations.ReservationRepo.Live";
+    const charger = "billing::city.parking.billing.StripeCharger", pricing = "pricing::city.parking.pricing.PricingService.Live";
+    node(client).ctor = { ...node(client).ctor!, params: node(client).ctor!.params!.map((p) => (p.name === "base" ? { ...p, type: null } : p)), of: 2 };
+    node(resRepo).implements = [...node(resRepo).implements!, repo];
+    node(pricing).ctor!.params!.push({ name: "stripe", type: "StripeCharger", refs: [charger] });
+    node(repo).ctor = { params: [{ name: "stripe", type: "StripeCharger", refs: [charger] }], line: 1 };
+    const model = new Model(demo);
+    const code = (id: string) => `${model.codes.get(id)} ${model.itemName(id)}`;
+    const map = JSON.stringify(demo);
+    const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
+    const file = join(mkdtempSync(join(tmpdir(), "viz-")), "index.html");
+    writeFileSync(file, html);
+    const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
+    const errors: string[] = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto("file://" + file);
+      await page.waitForSelector("canvas");
+      const needsOfLive = async () => {
+        await page.waitForSelector(".insp .needs", { timeout: 10_000 });
+        await expect(page.locator(".insp .needs h3").textContent()).resolves.toBe("Needs (3)");
+        const links = await page.locator(".insp .needs .type .link").allTextContents();
+        expect(links).toEqual(["InvoiceRepo", "StripeCharger", "ReceiptStore"].map((n) => `${model.codes.get(`billing::city.parking.billing.${n}`)} ${n}`));
+        await expect(page.locator(".insp .needs .src").textContent()).resolves.toBe("from class parameters · billing/src/main/scala/city/parking/billing/BillingService.scala:16");
+        await expect(page.locator(".insp .needs li").first().textContent()).resolves.toContain(`interface · implemented by ${model.codes.get(`${repo}.Live`)}`);
+      };
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(live)!);
+      await page.locator(".rail .list button").first().click();
+      await needsOfLive();
+      await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });   // the move to the floor has ended
+      await page.locator(".insp .needs .type .link").first().click();                // reveal: on to what it needs
+      await page.waitForFunction(() => document.querySelector(".insp h2")?.textContent === "InvoiceRepo", null, { timeout: 15_000 });
+      await expect(page.locator(".insp .needed-by h3").textContent()).resolves.toBe("Needed by (1)");
+      await expect(page.locator(".insp .needed-by button.link").allTextContents()).resolves.toEqual([`${model.codes.get(live)} BillingService.Live`]);
+      await expect(page.locator(".insp .needs").count(), "an interface is not built: no Needs row, parameters or not").resolves.toBe(0);
+      // the twin, from its host's floor list
+      await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get("features::features/")!);
+      await page.locator(".rail .list button").first().click();
+      await page.waitForFunction(() => /feature-store/.test(document.querySelector(".floors button[aria-current=page]")?.textContent ?? ""), null, { timeout: 15_000 });
+      await page.locator("#rail-floor button", { hasText: "BillingService.Live" }).click();
+      await page.waitForFunction(() => document.querySelector(".insp .twin"), null, { timeout: 10_000 });
+      await needsOfLive();
+      const words = (s: string | null) => (s ?? "").replace(/\s+/g, " ").trim();
+      const show = async (id: string) => {
+        await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });
+        await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(id)!);
+        await page.locator(".rail .list button").first().click();
+        await page.waitForFunction((name) => document.querySelector(".insp h2")?.textContent === name && !document.querySelector(".insp .twin"), model.itemName(id), { timeout: 15_000 });
+      };
+      // an untyped parameter reads `—`, a library type plain text; one of two constructors
+      await show(client);
+      expect((await page.locator(".insp .needs li").allTextContents()).map(words)).toEqual(["client Client", "base —"]);
+      await expect(page.locator(".insp .needs .type .link").count(), "library types are not links").resolves.toBe(0);
+      await expect(page.locator(".insp .needs .src").textContent()).resolves.toBe("from class parameters · reservations/src/main/scala/city/parking/reservations/PricingClient.scala:21 (of 2 constructors)");
+      // an implementation in another service: after the local ones, with its service
+      await show(live);
+      await expect(page.locator(".insp .needs li .by").first().textContent().then(words)).resolves.toBe(`interface · implemented by ${code(`${repo}.Live`)}; +1 in other services: ${code(resRepo)} (reservations)`);
+      await show(repo);
+      await expect(page.locator(".insp .impl p").allTextContents().then((t) => t.map(words))).resolves.toEqual([code(`${repo}.Live`), `+1 in other services: ${code(resRepo)} (reservations)`]);
+      // needed through different interfaces: each says which
+      await show(resRepo);
+      await expect(page.locator(".insp .needed-by p").allTextContents().then((t) => t.map(words))).resolves.toEqual([`${code(live)} (through ${code(repo)}), ${code("reservations::city.parking.reservations.ReservationService.Live")} (through ${code("reservations::city.parking.reservations.ReservationRepo")})`]);
+      await expect(page.locator(".insp .needed-by button.link").count(), "each interface a link").resolves.toBe(4);
+      // two through one interface (InvoiceRepo, never built, not among them), three through one
+      await show(`${charger}.live$impl`);
+      await expect(page.locator(".insp .needed-by p.other").textContent().then(words)).resolves.toBe(`both through ${code(charger)}`);
+      await show("common::city.parking.common.Jdbc.JdbcLive");
+      await expect(page.locator(".insp .needed-by p.other").textContent().then(words)).resolves.toBe(`through ${code("common::city.parking.common.Jdbc")}`);
+    } finally {
+      await browser.close();
+    }
+    expect(errors).toEqual([]);
+  }, 120_000);
+
   it("factory view: drones fly a selected worker's flights, and Still motion stops them", async () => {
     const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
     const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));

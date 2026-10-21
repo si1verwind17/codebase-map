@@ -6,6 +6,7 @@
   import type { Relation } from "../model/types";
   import type { RailLine } from "../factory/rail-place";
   import { entryPoints, methodsIn, traceable } from "../trace/entries";
+  import { neededBy, needsOf, serviceOf, splitByService } from "../model/needs";
 
   let {
     model, container, target, comments, version, onChange, onReveal, onEnter, railLine, onTrace, traced,
@@ -42,6 +43,10 @@
   // where a trace can start from this node: itself, its entry points (a service or library) or its methods
   let entries = $derived(node && (node.kind === "service" || node.kind === "library") ? entryPoints(model, node.id) : []);
   let methods = $derived(node && (node.kind === "package" || node.kind === "file" || node.kind === "class") ? methodsIn(model, node.id) : []);
+  // what the class is built from and what is built from it (its constructor fact)
+  let needs = $derived(real && node?.kind === "class" ? needsOf(model, real) : null);
+  let users = $derived(real && node?.kind === "class" ? neededBy(model, real) : []);
+  let throughs = $derived([...new Set(users.map((u) => u.through))]);
   let notes = $derived(version >= 0 && comments ? comments.for(key) : []);
   let floorCounts = $derived.by(() => {
     const f = model.floor(container);
@@ -108,10 +113,42 @@
       </section>
     {/if}
     {#if node.summary}<section><h3 class="tab">Summary</h3><p>{node.summary}</p></section>{/if}
+    {#if !model.implementersOf(node.id).length && (needs?.needs.length || users.length)}
+      <!-- an interface or a class others implement is not built: no Needs row, only what needs it -->
+      <section class="needs">
+        {#if needs?.needs.length}
+          <h3 class="tab">Needs ({needs.needs.length})</h3>
+          <ul>
+            {#each needs.needs as p}
+              <li>
+                <span class="mono param">{p.name}</span>
+                <span class="type">{#if p.refs.length}{#each p.refs as r, i}{i ? ", " : ""}{@render link(r)}{/each}{:else if p.type}<span class="mono">{p.type}</span>{:else}<span class="none">—</span>{/if}</span>
+                {#each p.refs.filter((r) => model.implementersOf(r).length) as r}
+                  <span class="by">interface · implemented by {@render split(model.implementersOf(r))}</span>
+                {/each}
+              </li>
+            {/each}
+          </ul>
+          <p class="mono src">from {needs.from}{needs.file ? ` · ${needs.file}${needs.line ? ":" + needs.line : ""}` : ""}{needs.of ? ` (of ${needs.of} constructors)` : ""}</p>
+        {:else}
+          <h3 class="tab">Needs</h3>
+          <p class="none">—</p>
+        {/if}
+      </section>
+    {/if}
+    {#if users.length}
+      <section class="needed-by">
+        <h3 class="tab">Needed by ({users.length})</h3>
+        <p>{#each users as u, i}{i ? ", " : ""}{@render link(u.id)}{#if throughs.length > 1 && u.through}{" (through "}{@render link(u.through)}){/if}{/each}</p>
+        {#if throughs.length === 1 && throughs[0]}<p class="other">{users.length === 2 ? "both through" : "through"} {@render link(throughs[0])}</p>{/if}
+      </section>
+    {/if}
     {#if model.implementersOf(node.id).length}
+      {@const impl = splitByService(model, model.implementersOf(node.id), node.id)}
       <section class="impl">
         <h3 class="tab">Implemented by</h3>
-        <p>{#each model.implementersOf(node.id) as id, i}{i ? ", " : ""}<button class="link" onclick={() => onReveal(id)}>{model.codes.get(id) ?? ""} {model.itemName(id)}</button>{/each}</p>
+        {#if impl.here.length}<p>{#each impl.here as id, i}{i ? ", " : ""}{@render link(id)}{/each}</p>{/if}
+        {#if impl.other.length}<p class="other">{@render elsewhere(impl.other)}</p>{/if}
       </section>
     {/if}
     {#if model.implementedBy(node.id).length}
@@ -199,6 +236,11 @@
   </section>
 </aside>
 
+{#snippet link(id: string)}<button class="link" onclick={() => onReveal(id)}>{model.codes.get(id) ?? ""} {model.itemName(id)}</button>{/snippet}
+<!-- the implementations in another service than the selection's, each with its service -->
+{#snippet elsewhere(ids: string[])}+{ids.length} in other services: {#each ids as id, i}{i ? ", " : ""}{@render link(id)} ({model.label(serviceOf(model, id)!)}){/each}{/snippet}
+{#snippet split(ids: string[])}{@const s = splitByService(model, ids, real!)}{#each s.here as id, i}{i ? ", " : ""}{@render link(id)}{/each}{s.here.length && s.other.length ? "; " : ""}{#if s.other.length}{@render elsewhere(s.other)}{/if}{/snippet}
+
 <style>
   .insp { height: 100%; overflow: auto; background: var(--paper); }
   header { padding: 14px 14px 10px; border-bottom: 1px solid var(--ink); }
@@ -230,7 +272,14 @@
   .k-event, .k-hand-off { background: var(--green); color: var(--paper); border-color: var(--green); }
   .k-ext-call { background: var(--yellow); }
   .rels p { margin: 2px 0 0; }
-  .impl p { margin: 0; }
+  .impl p, .needed-by p { margin: 0; }
+  .needs ul { list-style: none; margin: 0; padding: 0; }
+  .needs li { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: baseline; padding: 3px 0; border-top: 1px solid var(--rule); }
+  .needs li:first-child { border-top: 0; }
+  .needs .param { color: var(--slate); }
+  .needs .by { grid-column: 2; color: var(--slate); font-size: 12px; }
+  .needs .src { margin: 6px 0 0; color: var(--slate); font-size: 11px; overflow-wrap: anywhere; }
+  p.other { margin: 4px 0 0; color: var(--slate); font-size: 12px; }
   .jobs ul { list-style: none; margin: 0; padding: 0; }
   .jobs li { padding: 2px 0; overflow-wrap: anywhere; }
   .meta { color: var(--slate); font-size: 12px; }

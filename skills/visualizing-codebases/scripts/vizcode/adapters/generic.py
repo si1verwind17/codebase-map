@@ -412,11 +412,13 @@ def _param(p, spec: LangSpec, marked: bool) -> list[dict]:
     return out
 
 
-def _params(fn, spec: LangSpec) -> list[dict]:
-    plist = _first(fn, spec.params[0])
+def _params(fn, spec: LangSpec, keys: tuple[tuple[str, ...], tuple[str, ...]] | None = None) -> list[dict]:
+    """The parameters of the list `keys` names (default: `spec.params`)."""
+    keys = keys or spec.params
+    plist = _first(fn, keys[0])
     if plist is None:
         return []
-    if plist.type in spec.params[1]:
+    if plist.type in keys[1]:
         return _param(plist, spec, False)          # a lone parameter (JS `x => x`)
     out, marked, typ = [], False, None
     for i, p in enumerate(plist.children):
@@ -426,12 +428,25 @@ def _params(fn, spec: LangSpec) -> list[dict]:
         elif field == "name":     # C# `params int[] rest` sits in the list itself
             out.append({"name": ("*" if marked else "") + text(p), "type": _type(typ)})
             marked = False
-        elif p.type in spec.params[1]:
+        elif p.type in keys[1]:
             out += _param(p, spec, marked)
             marked = False
         elif p.type not in spec.comments and any(d.type in spec.variadic for d in walk(p)):
             marked = True         # Kotlin `vararg`, C# `params`: a marker before the parameter
     return out
+
+
+def _keyword_before(decl, name_node, words, spec: LangSpec) -> bool:
+    """Is one of `words` a keyword before the declaration's name (annotations left out): a value class
+    (`spec.value_classes`), a class's own initializer (`spec.class_inits`)?"""
+    stack = [c for c in decl.children if c.end_byte <= name_node.start_byte]
+    while stack:
+        n = stack.pop()
+        if not n.is_named and n.type in words:
+            return True
+        if n.type not in spec.annotations:
+            stack.extend(n.children)
+    return False
 
 
 def _string(src: bytes, n, spec: LangSpec) -> str | None:
@@ -476,7 +491,7 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
     root = _parser(spec.grammar).parse(src).root_node
     pkg, pkg_node = _package(root, spec, rel_file, module)
     res = new_result(pkg, root.has_error)
-    res["annotations"], res["attached"] = [], []
+    res["annotations"], res["attached"], res["values"], res["class_inits"] = [], [], [], []
     if spec.declared_package and (declared := _declared(root, spec, rel_file)) is not None:
         res["package_declared"] = declared
     mid = module["id"]
@@ -515,6 +530,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         fid = reg.claim(ids.method_id(parent["id"], _name(name_node), len(params)))
         node = declare(decl, name_node, fid, "method", parent["id"])
         node["signature"] = {"params": params, "returns": _type(_first(fn, spec.returns))}
+        if decl.type in spec.class_inits and _keyword_before(decl, name_node, (spec.class_inits[decl.type],), spec):
+            res["class_inits"].append(fid)
         if tps := declared_type_params(fn):
             res["type_params"][fid] = tps
         parent["metrics"]["methods"] += 1
@@ -587,6 +604,12 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
             node["metrics"]["methods"] = 0
             if found_fields := fields.read(spec.lang, n):
                 node["fields"] = found_fields
+            if spec.value_classes and _keyword_before(n, name_node, spec.value_classes, spec):
+                res["values"].append(cid)
+            elif spec.class_params[0] and (plist := _first(n, spec.class_params[0])) is not None:
+                node["ctor"] = {"params": _params(n, spec, spec.class_params), "line": plist.start_point[0] + 1}
+                if tps := declared_type_params(n):
+                    res["type_params"][cid] = tps
             if found_supers := _supers(src, n, spec):
                 supers.setdefault(cid, []).extend(found_supers)
             nxt = (node, cq, None, in_str, in_annot)

@@ -8,8 +8,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import (SCANNER_VERSION, SCHEMA_VERSION, facts, generated, gitsrc, ids, proto, queue_use, readme, routes, stack,
-               typelinks, unscanned)
+from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
+               routes, stack, typelinks, unscanned)
 from .adapters import generic
 from .adapters import python as py_adapter
 from .adapters import scala as scala_adapter
@@ -736,6 +736,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     _go_implements(nodes)
     names = _module_names(modules, results, file_mod, build_names)
     internal = _internal(results, file_mod, mod_by_id, names, protos, aliases)
+    constructors.mark(nodes, {cid for r in results.values() for cid in r.get("values", [])},
+                      {fid for r in results.values() for fid in r.get("class_inits", [])})
     typelinks.link(nodes, results, file_mod, lambda f, t: _relative_file(f, t, results), _family, internal)
 
     grpc_keys: dict[str, list[str]] = {}

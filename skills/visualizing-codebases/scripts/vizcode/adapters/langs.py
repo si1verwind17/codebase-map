@@ -71,6 +71,13 @@ names_extend  an import's names continue its target (`a.b` + `C` = `a.b.C`); Fal
               exports (JS `import {a} from "x"`), and the target alone names the library
 aliases       node type -> name key of a type alias that is no class (`type Id = string`, `typealias`, C#
               `using X = A.B;`): FileResult `aliases`, names a type link never resolves in that file
+class_params  (keys of a class's own parameter list, node types that count as one parameter): a class written with
+              one (Kotlin's primary constructor) is built from it, recorded as its `ctor`
+value_classes keywords before a class's name (annotations left out) making it a value whose own parameters are its
+              fields (Kotlin `data`, a Java or C# `record`, a Java `enum`): FileResult `values`; it gets no `ctor`,
+              whatever constructors it declares
+class_inits   function node type -> keyword before its name making it the class's own one-time initializer, not a
+              constructor (C# `static Orders()`): FileResult `class_inits`, never a class's `ctor`
 test_only     regex over an annotation before an item marking it test-only code (Rust `#[cfg(test)]`): the item
               and everything in it are left out. "" = off
 """
@@ -128,6 +135,9 @@ class LangSpec:
     names_extend: bool = True
     class_when: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
+    class_params: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
+    value_classes: tuple[str, ...] = ()
+    class_inits: dict[str, str] = field(default_factory=dict)
     test_only: str = ""
 
 
@@ -153,6 +163,7 @@ JAVA = LangSpec(
     types=("type_identifier", "generic_type", "scoped_type_identifier", "integral_type", "floating_point_type",
            "boolean_type", "array_type"),
     supers=("superclass", "interfaces", "extends_interfaces"),
+    value_classes=("record", "enum"),
 )
 
 KOTLIN_TYPES = ("user_type", "nullable_type", "function_type")
@@ -179,6 +190,8 @@ KOTLIN = LangSpec(
                          "interpolation_expression_end"),
     types=KOTLIN_TYPES,
     supers=("delegation_specifier",),
+    class_params=(("primary_constructor",), ("class_parameter",)),
+    value_classes=("data", "value", "enum", "annotation"),
 )
 
 CSHARP = LangSpec(
@@ -203,6 +216,8 @@ CSHARP = LangSpec(
     interpolations=("interpolation",),
     interpolation_marks=("interpolation_brace",),
     supers=("base_list",),
+    value_classes=("record",),
+    class_inits={"constructor_declaration": "static"},
     public_in=("interface_declaration",),
     member_access=r"\b(public|internal|protected|private)\b",
 )

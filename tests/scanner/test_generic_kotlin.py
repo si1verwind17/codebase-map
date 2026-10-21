@@ -77,6 +77,9 @@ def test_kotlin_nodes():
     assert n[f"{SVC}#place order/1"]["signature"]["returns"] is None
     assert n[f"{SVC}#make/0"]["signature"] == {"params": [], "returns": "List<Order>"}
     assert n[FILE_ID]["metrics"]["methods"] == 1
+    # a class is built from its primary constructor's parameters; a data class has none
+    assert n[SVC]["ctor"] == {"params": [{"name": "repo", "type": "OrderRepo"}], "line": 21}
+    assert "ctor" not in n[f"{P}.Order"]
     assert res["supers"] == [(f"{P}.Order", ["Base", "Comparable"]), (SVC, ["OrderApi"])]
 
 

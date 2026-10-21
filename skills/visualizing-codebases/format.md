@@ -33,8 +33,9 @@ commit, 40 hex), `scanned_at`, `rules_version` (optional integer: the meaning ru
 Fields: `id`, `kind`, `parent`, `name`, plus `lang`, `file`, `line`,
 `visibility` (`public`/`private`), `metrics`, `signature`
 (`{params: [{name, type, refs, optional}], returns, returns_refs}`; `refs` and `returns_refs` only where a type names a
-repo class; `optional: true` on a parameter a call may leave out, recorded for Python and Scala) on methods, `fields` on a class that declares fields (both: § Fields and type links), `modules` on services and
-libraries (`defaulted: true` marks a library `assemble.py` created for an
+repo class; `optional: true` on a parameter a call may leave out, recorded for Python and Scala) on methods, `fields`
+on a class that declares fields, `ctor` on a class (all three: § Fields and type links), `modules` on services
+and libraries (`defaulted: true` marks a library `assemble.py` created for an
 unclaimed module), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
 body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::city.parking.billing.InvoiceRepo"]`;
 in Go, every repo interface whose methods it has, by name and arity; `calls` counts a trait method and its
@@ -123,6 +124,18 @@ method or a declaration around it declares (`<TEvent>`, `[T any]`, `impl<T>`, a 
 the file imports (Go `log.Logger`, Python `logging.Logger`) never links a repo class in a folder of the same name; a
 Python standard-library module is a library unless the repo has a top-level package or module of that name. Scala objects and anonymous
 implementations are never targets. An unresolved name stays only in the type text.
+
+`ctor`: the class's constructor or factory, what builds it, so a reader sees what the class needs. `{method}` names the
+method that does: Python `__init__`, Ruby `initialize`, PHP `__construct`, TypeScript and JavaScript `constructor`,
+Java and C# a method named as the class (not a C# `static` constructor), Rust `new` (whatever it returns), and Go a
+top-level `New…` function in the type's folder whose return type names it unqualified (`*Store`, `(*Store, error)`;
+not `[]*Store`, `map[string]*Store` or another package's `http.Handler`), unless the type is an interface a class
+implements. With several, it is the one with the most parameters (the first by line on a tie) and `of` counts them.
+Scala class parameters (not a case class's) and a Kotlin primary constructor (not a `data`, `value`, `enum` or
+`annotation` class's) are no method: `{params, line}` holds them, each parameter as on a signature, `refs` included. A
+Java or C# record and a Java enum have none, whatever constructors they declare. A Kotlin secondary constructor and a
+C# primary constructor (`class Orders(IRepo repo)`) are not read.
+A class with none of these has no `ctor` key.
 
 Fingerprints of data types and entry points are computed from `fields` and signatures by
 `scripts/vizcode/fingerprint.py` (a class's fields; a handler's signature plus the fields of the classes in its

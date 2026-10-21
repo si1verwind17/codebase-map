@@ -1,4 +1,5 @@
-"""Type links (spec: traces §1.2): each type in a method signature resolved to repo class ids.
+"""Type links (spec: traces §1.2): each type in a method signature, or a class's own constructor parameters,
+resolved to repo class ids.
 
 `signature.params[i].refs` and `signature.returns_refs` list the class ids a type text names, in the order the
 names first appear; the key is left out when nothing resolves. Every name in the type text is tried
@@ -105,7 +106,8 @@ def names_import(qname: str, name: str, path: str, short: bool = True) -> bool:
 def link(nodes: list[dict], results: dict[str, dict], file_mod: dict[str, str],
          relative_file: Callable[[str, str], str | None], family: Callable[[str], str],
          internal_names: dict[str, set[str]] | None = None) -> None:
-    """Set `refs` on each parameter and `returns_refs` on each method signature whose type names repo classes.
+    """Set `refs` on each parameter and `returns_refs` on each method signature whose type names repo classes, and
+    `refs` on the parameters of a class's own constructor (`ctor`).
     `results`: the per-file parse results (`imports` with `names`, `renames`, `as`; `package`, `aliases`);
     `relative_file(file, target)`: the scanned file a relative import names, or None; `family(lang)`: the languages
     whose classes name each other's; `internal_names`: language -> import prefixes naming the repo's own code
@@ -256,8 +258,8 @@ def link(nodes: list[dict], results: dict[str, dict], file_mod: dict[str, str],
         return None
 
     for n in nodes:
-        sig = n.get("signature") if n["kind"] == "method" else None
-        if not sig:
+        sig = n.get("signature") if n["kind"] == "method" else n.get("ctor")
+        if not sig or "params" not in sig:           # a constructor that names its method has no params of its own
             continue
         f, lang = n.get("file") or "", n.get("lang") or ""
         params = frozenset((results.get(f) or {}).get("type_params", {}).get(n["id"], ()))

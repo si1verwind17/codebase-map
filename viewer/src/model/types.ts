@@ -4,6 +4,11 @@ export type NodeKind =
   | "service" | "library" | "datastore" | "external" | "topic" | "in-process-queue"
   | "package" | "class" | "file" | "method" | "table";
 
+export interface Param { name: string; type: string | null; refs?: string[] }
+
+/** On a class: what it is built from, a constructor method or inline class parameters (format.md). */
+export interface ConstructorFact { method?: string; of?: number; params?: Param[]; line?: number }
+
 export interface MapNode {
   id: string;
   kind: NodeKind;
@@ -15,12 +20,13 @@ export interface MapNode {
   visibility?: "public" | "private";
   metrics?: { methods?: number; loc?: number };
   fields?: Field[];   // on a class: its declared fields (scanner)
-  signature?: { params: { name: string; type: string | null; refs?: string[] }[]; returns: string | null; returns_refs?: string[] };
+  signature?: { params: Param[]; returns: string | null; returns_refs?: string[] };
   role?: "entry" | "logic" | "outbound" | "storage" | "model";
   summary?: string;
   defaulted?: boolean;
   twins?: string[];            // on a service: root packages of another service's module it also deploys
   implements?: string[];       // on a class: the class/trait ids it implements (scanner, Scala)
+  ctor?: ConstructorFact;      // on a class: what it is built from (scanner)
   delivery?: "fan-out" | "queue";          // on a topic or an in-process queue
   dead_letter_of?: string;                 // on a topic: the topic whose failures land here
   replicas?: number;                       // on a service: instances running

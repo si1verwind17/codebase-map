@@ -120,20 +120,23 @@ def test_scala_relative_package_import_is_local(make_repo):
 
 # re-pinned for SCANNER_VERSION 0.10.0: the version string, `visibility` on the fields of the Scala case classes, and
 # the `unscanned` report; then for the demo's features/ and forecast/ moving from Flyte to Airflow DAGs; then for
-# interpolated table names (`{table('x')}`) no longer read as tables
-DEMO_STRUCTURE_SHA256 = "9d3f2e5edc3304ec847c79b8defe7dd36ec749b99b1ae827fe25132c56ed92b3"
-# the hash with the trace keys (`fields` on classes, `refs` and `returns_refs` in signatures) taken out: the value from
-# before those keys existed, with the `queues` fact of 0.6.0, and the version strings, callees, lines and `optional`
-# of 0.7.0, the version string, `generated` list and proto `messages` of 0.8.0, the version strings of 0.9.0 and
-# 0.10.0, the `unscanned` report, the demo's features/ and forecast/ as Airflow DAGs, and no interpolated table
-# names. If it moves, the scanner changed something besides the trace keys
-DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "c469975ca3207a94f0524055f6bfa1112210f92957ecef8ac1294632362b1e70"
+# interpolated table names (`{table('x')}`) no longer read as tables; then for SCANNER_VERSION 0.11.0: the version
+# string and `ctor` on classes
+DEMO_STRUCTURE_SHA256 = "125092a42323dcc1b2302e059e73c3d88714a237229dcc1f7764be02f64cdbf6"
+# the hash with the trace keys (`fields` and `ctor` on classes, `refs` and `returns_refs` in signatures) taken
+# out: the value from before those keys existed, with the `queues` fact of 0.6.0, and the version strings, callees,
+# lines and `optional` of 0.7.0, the version string, `generated` list and proto `messages` of 0.8.0, the version
+# strings of 0.9.0 and 0.10.0, the `unscanned` report, the demo's features/ and forecast/ as Airflow DAGs, no
+# interpolated table names, and the version string of 0.11.0. If it moves, the scanner changed something besides the
+# trace keys
+DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "34b12196f36b1876afacae0c7dac7850796bb38807b36d2775be8db8b31aeb53"
 
 
 def _without_trace_keys(s: dict) -> dict:
     s = copy.deepcopy(s)
     for n in s["nodes"]:
         n.pop("fields", None)
+        n.pop("ctor", None)
         if sig := n.get("signature"):
             sig.pop("returns_refs", None)
             for p in sig["params"]:
@@ -162,6 +165,6 @@ def test_demo_structure_identity(tmp_path):
     s["meta"].pop("commit")
     s["stats"].pop("seconds")
     assert _digest(_without_trace_keys(s)) == DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS, \
-        "demo structure.json changed beyond fields/refs/returns_refs"
+        "demo structure.json changed beyond fields/ctor/refs/returns_refs"
     got = _digest(s)
     assert got == DEMO_STRUCTURE_SHA256, f"demo structure.json changed: new hash {got}"

@@ -1,5 +1,6 @@
 // Review comments on nodes and lines: kept in browser storage, exported as export-comment.md for the agent.
 import { doorAnchor, type Model } from "../model/model";
+import { serviceOf } from "../model/needs";
 
 export const EXPORT_NAME = "export-comment.md";
 export const EXPORT_HEADER =
@@ -99,13 +100,12 @@ export class Comments {
         `read a file at the map commit with \`git -C REPO show ${meta.commit.slice(0, 12)}:./<path>\`.`,
       "",
     ];
-    const serviceOf = (id: string): string => {
+    const groupOf = (id: string): string => {
       const first = id.split("|")[0];
-      const path = m.path(m.floorOf(first) ?? "site");
-      return path[1] ?? (m.nodes.get(first)?.parent ? "site" : first);
+      return serviceOf(m, first) ?? m.path(m.floorOf(first) ?? "site")[1] ?? (m.nodes.get(first)?.parent ? "site" : first);
     };
     const groups = new Map<string, Comment[]>();
-    for (const c of this.list) groups.set(serviceOf(c.target), [...(groups.get(serviceOf(c.target)) ?? []), c]);
+    for (const c of this.list) groups.set(groupOf(c.target), [...(groups.get(groupOf(c.target)) ?? []), c]);
     for (const [svc, list] of [...groups.entries()].sort()) {
       lines.push(`## ${svc === "site" ? "Whole system" : m.label(svc)}`, "");
       for (const c of list) {

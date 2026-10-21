@@ -88,15 +88,15 @@ def _anonymous(node):
         stack.extend(reversed(n.named_children))
 
 
-def _params(fn) -> list[dict]:
-    """Every parameter list's parameters; `optional` marks one a call may leave out: a default value, a later
-    (curried) list, a `using` or `implicit` list."""
+def _params(fn, field: str = "parameters", kind: str = "parameter") -> list[dict]:
+    """Every parameter list's parameters (a class's: `class_parameters`, `class_parameter`); `optional` marks one a
+    call may leave out: a default value, a later (curried) list, a `using` or `implicit` list."""
     out = []
-    lists = [p for p in fn.children_by_field_name("parameters") if p.type != "type_parameters"]
+    lists = [p for p in fn.children_by_field_name(field) if p.type != "type_parameters"]
     for i, plist in enumerate(lists):
         given = re.match(r"\(\s*(?:using|implicit)\b", text(plist)) is not None
         for p in plist.named_children:
-            if p.type != "parameter":
+            if p.type != kind:
                 continue
             name, typ = p.child_by_field_name("name"), p.child_by_field_name("type")
             out.append({"name": text(name) if name else "_", "type": text(typ) if typ else None})
@@ -208,6 +208,13 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                 n["metrics"]["methods"] = 0
                 if found_fields := fields.scala(c):
                     n["fields"] = found_fields
+                if c.type == "class_definition" and not any(k.type == "case" for k in c.children) \
+                        and (plist := c.child_by_field_name("class_parameters")) is not None:
+                    # a class that is no case class: its parameters are what it is built from
+                    n["ctor"] = {"params": _params(c, "class_parameters", "class_parameter"),
+                                        "line": plist.start_point[0] + 1}
+                    if tps := declared_type_params(c):
+                        res["type_params"][cid] = tps
                 res["nodes"].append(n)
                 if supers := _type_names(c.child_by_field_name("extend")):
                     res["supers"].append((cid, supers))
