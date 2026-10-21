@@ -5,8 +5,8 @@
 # are imports entries, which win: Ktor's `client` is http-out, its `server.routing` http-in).
 # routes: Spring MVC/WebFlux, JAX-RS, Micronaut (`form: annotated`, the Java pack's entries: Kotlin annotations
 # have the same names; a client interface, `skip_class`, gives none); Ktor's routing DSL (regex: `get("/x") {`;
-# `route("/v1") {` is a mount, a nested prefix the agent composes). tables: JPA (as in the Java pack) and Exposed
-# `object X : Table("x")` (no argument: the object's name), defined on the object.
+# `route("/v1") {` is a mount, a nested prefix joined to the routes in its block). tables: JPA (as in the Java
+# pack) and Exposed `object X : Table("x")` (no argument: the object's name), defined on the object.
 # queues: in-process queue creation sites (coroutine `Channel`, `MutableSharedFlow`, `java.util.concurrent` blocking queues): candidates the agent confirms (SKILL.md § In-process queues).
 kotlin:
   ignore: [kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,

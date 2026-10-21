@@ -133,7 +133,7 @@ def test_the_schema_holds_the_pin_contract(shop_repo):
 
 def test_versions_bumped_for_the_new_format(shop_repo):
     from vizcode import SCANNER_VERSION, SCHEMA_VERSION
-    assert (SCHEMA_VERSION, SCANNER_VERSION) == (3, "0.7.0")
+    assert (SCHEMA_VERSION, SCANNER_VERSION) == (3, "0.10.0")
     cmap = assemble(structure.build(shop_repo, "docs/viz-code"), copy.deepcopy(MEANING))
     assert cmap["meta"]["schema_version"] == 3
 
@@ -159,7 +159,7 @@ def test_a_map_in_the_old_format_gets_a_full_rescan(shop_repo):
     extract.main([str(shop_repo)])
     diff_cli.main([str(shop_repo)])
     stale = json.loads((out / "stale.json").read_text(encoding="utf-8"))
-    assert stale["mode"] == "full" and stale["reason"] == "scanner or schema version changed"
+    assert stale["mode"] == "full" and stale["reason"] == "schema version changed: 2 → 3"
 
 
 def test_malformed_pins_and_examples_are_refused_cleanly(shop_repo, capsys):
@@ -206,7 +206,9 @@ def test_a_changed_field_type_flags_the_type_and_the_entry_that_refers_to_it(typ
     commit_all(typed_repo, "total in cents")
     stale, meaning = rescan(typed_repo)
     assert stale["mode"] == "incremental"
-    assert stale["stale_examples"] == [{"type": ORDER}, {"entry": CREATE, "key": "POST /orders"}]
+    assert stale["stale_examples"] == [{"type": ORDER, "why": "its fields changed"},
+                                       {"entry": CREATE, "key": "POST /orders",
+                                        "why": "its handler's signature, or a type it takes or returns, changed"}]
     assert meaning["examples"]["types"][ORDER]["stale"] is True
     assert meaning["examples"]["entries"][0]["stale"] is True
     capsys.readouterr()
@@ -231,14 +233,14 @@ def test_a_removed_class_flags_its_type_example(typed_repo):
                                                  "class Invoice:\n    id: str\n"})
     commit_all(typed_repo, "order is gone")
     stale, meaning = rescan(typed_repo)
-    assert {"type": ORDER} in stale["stale_examples"]
+    assert {"type": ORDER, "why": "the class is gone"} in stale["stale_examples"]
     assert meaning["examples"]["types"][ORDER]["stale"] is True
 
 
 def test_a_full_rescan_flags_examples_in_the_previous_meaning(typed_repo, capsys):
     scan_typed(typed_repo)
     write_files(typed_repo, {
-        "docker-compose.yml": "services:\n  orders: {build: .}\n# a deployable change: full rescan\n",
+        "docker-compose.yml": "services:\n  orders: {build: .}\n  billing: {build: ./billing}\n",   # a full rescan
         "orders/models.py": (typed_repo / "orders/models.py").read_text().replace("total: float", "total: int")})
     commit_all(typed_repo, "deploy and type change")
     capsys.readouterr()

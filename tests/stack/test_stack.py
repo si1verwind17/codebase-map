@@ -1,5 +1,9 @@
 """stack.py: packs plus stack.yaml, path readers, route patterns."""
+import hashlib
+import json
+
 import pytest
+import yaml
 
 from vizcode import stack
 
@@ -127,6 +131,8 @@ def test_stack_adds_import_and_covers(tmp_path):
     ("scala:\n  routes:\n    - {name: tapir-client, path: literal, method: GET, regex: '(?P<path>x)'}\n",
      "clashes with a built-in rule"),
     ("python:\n  effects: [Task]\n", "python.effects: effects are Scala only for now"),
+    ("exclude: gen/*\n", "exclude: must be a list of globs"),
+    ("exclude: ['']\n", "exclude: must be a list of globs"),
 ])
 def test_load_errors(tmp_path, text, expect):
     with pytest.raises(stack.StackError) as e:
@@ -147,10 +153,19 @@ def test_no_stack_file(tmp_path):
         assert all(src == "pack" for es in st.imports.values() for _, _, src in es)
 
 
-def test_digest_is_sha256_of_bytes(tmp_path):
-    import hashlib
+def content_digest(path):
+    return hashlib.sha256(json.dumps(yaml.safe_load(path.read_text()), sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=False).encode()).hexdigest()
+
+
+def test_digest_is_sha256_of_parsed_content(tmp_path):
     p = write(tmp_path, "python: {}\n")
-    assert stack.load(p).digest == hashlib.sha256(p.read_bytes()).hexdigest()
+    assert stack.load(p).digest == content_digest(p)
+    q = tmp_path / "commented.yaml"
+    q.write_text("# a note\npython:   {}   # none yet\n\n")
+    assert stack.load(q).digest == stack.load(p).digest
+    q.write_text("python: {ignore: [a]}\n")
+    assert stack.load(q).digest != stack.load(p).digest
 
 
 def test_effect_names(tmp_path):
@@ -167,6 +182,14 @@ def test_normalise():
     assert stack.normalise("/a/:id") == "/a/{id}"
     assert stack.normalise("/a/{id}") == "/a/{id}"
     assert stack.normalise("/") == "/" and stack.normalise("") == "/"
+
+
+@pytest.mark.parametrize("raw", ["/items/{id:int}", "/items/{id?}", "/items/{id:minlength(1)}", "/items/{id:[0-9]+}",
+                                 "/items/{id:int:min(1)}", "/items/{*id}", "/items/{**id}", "/items/{id...}",
+                                 "/items/:id?", "/items/:id(\\d+)", "/items/<path:id>"])
+def test_normalise_drops_constraints_and_markers(raw):
+    # one key per route whatever the framework writes around a parameter's name
+    assert stack.normalise(raw) == "/items/{id}"
 
 
 def test_read_path_segments():
@@ -255,8 +278,6 @@ def test_invalid_utf8_is_stack_error(tmp_path):
 
 # --- the scanner reads the Stack (fixtures: flask_repo, http4s_repo) -------------------------------------------
 
-import hashlib
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -287,7 +308,7 @@ def test_flask_routes_with_stack(flask_repo):
     r = roles.package_roles(s["nodes"], s["files"], s["facts"])
     assert r["shopfront::shopfront/"] == "entry"
     assert {x["source"] for f in s["facts"].values() for x in f["routes"]} == {"stack.yaml"}
-    assert s["stack"]["digest"] == hashlib.sha256((flask_repo / "docs/viz-code/stack.yaml").read_bytes()).hexdigest()
+    assert s["stack"]["digest"] == content_digest(flask_repo / "docs/viz-code/stack.yaml")
 
 
 def test_handler_falls_back_to_file(flask_repo):
@@ -342,7 +363,7 @@ def test_extract_adds_header(flask_repo):
     assert p.returncode == 0, p.stderr
     assert path.read_text().startswith(stack.HEADER)
     s = json.loads((flask_repo / "docs/viz-code/structure.json").read_text())
-    assert s["stack"]["digest"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert s["stack"]["digest"] == content_digest(path)
 
 
 def stack_section(md):

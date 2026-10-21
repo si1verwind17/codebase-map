@@ -116,7 +116,7 @@ def test_absolute_out_dir_inside_repo_is_normalised(shop_repo):
     assert extract.main([str(shop_repo), "--out-dir", str(shop_repo / "out" / "map")]) == 0
     (shop_repo / "out/map/meaning.json").write_text(json.dumps(MEANING))
     assert assemble_cli.main([str(shop_repo), "--out-dir", str(shop_repo / "out" / "map") + "/"]) == 0
-    assert "out/map/code-map.json linguist-generated=true -diff" in (shop_repo / ".gitattributes").read_text().splitlines()
+    assert "code-map.json linguist-generated=true -diff" in (shop_repo / "out/map/.gitattributes").read_text().splitlines()
 
 
 def test_out_dir_outside_repo_is_rejected(shop_repo, tmp_path, capsys):

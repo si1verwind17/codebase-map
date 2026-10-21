@@ -29,9 +29,10 @@ def test_readme_rows_cover_gitignore():
     rows = {f: committed for f, _, _, committed in readme.FILES}
     for name in vassemble.GITIGNORE:
         assert rows.get(name) is False, name
-    for name in ("code-map.json", "stack.yaml", "map-notes.md", "README.md"):
+    committed = {"code-map.json", "stack.yaml", "map-notes.md", "README.md", ".gitignore", ".gitattributes"}
+    for name in committed:
         assert rows[name] is True
-    assert set(rows) == set(vassemble.GITIGNORE) | {"code-map.json", "stack.yaml", "map-notes.md", "README.md"}
+    assert set(rows) == set(vassemble.GITIGNORE) | committed
 
 
 def test_readme_table_has_every_file(shop_repo):

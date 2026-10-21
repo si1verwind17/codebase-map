@@ -1,7 +1,7 @@
 // The text and zone checks of the map audit: names, sub lines and signatures cut from the front; labels the plan places
-// over a line tile or a machine box, in the base and in each layer view; zones narrower than their label. Each is pure
-// and returns its violations ([] when the rule holds). No Pixi here: the words and spots come from the same functions
-// the drawing uses (fit.ts, subline.ts, clear.ts, flights.ts, rail-place.ts), never from a copy.
+// and lane names over a line tile or a machine box, in the base and in each layer view; zones narrower than their
+// label. Each is pure and returns its violations ([] when the rule holds). No Pixi here: the words and spots come from
+// the same functions the drawing uses (fit.ts, subline.ts, clear.ts, flights.ts, rail-place.ts), never from a copy.
 import type { Bundle, Model } from "../model/model";
 import type { FloorPlan } from "../factory/plan";
 import type { TileRoute } from "../factory/router";
@@ -12,10 +12,12 @@ import { boxNameFit, nameContext } from "../factory/boxname";
 import { factorySubOf } from "../factory/subline";
 import { padReserve } from "../factory/pads";
 import { floorPrefix, shownName } from "../floor/names";
-import { Clearance, badgeBox, badgeSize, labelBox, layerTileRects, placeBadges, planZoneLabel, type BadgeSpot, type PxRect } from "../factory/clear";
+import { Clearance, badgeBox, badgeSize, labelBox, laneLabelPlan, laneNameWidth, layerTileRects, placeBadges, planZoneLabel, type BadgeSpot, type PxRect } from "../factory/clear";
 import { coveredKeys, flightPaths, messagingLabels, messagingObstacles, type FlightPath, type MessagingLabels } from "../factory/flights";
 import { railLabels, type RailLabels } from "../factory/rail-place";
 import { floorLayers } from "../model/layers";
+import { laneCrossings, pointPaths } from "../floor/lane";
+import type { Pt } from "../route/types";
 import type { Violation } from "./types";
 
 /** The fitting functions the drawing uses; a test may pass others to prove the check sees a cut. */
@@ -80,8 +82,7 @@ interface Label { what: string; boxes: PxRect[]; inside?: string }
 /** The labels the plan places, as factory-draw.ts places them and in its order (each joins the floor's clear room, so
  *  the order decides the spots): the zone names, the messaging labels, the rail labels (placed only so the badges see
  *  the room they take: not checked here), then the `used by N` badges, beside their machines, clear of every layer's
- *  lines. Lane labels are not checked: the drawing sizes them from the measured text (ground.ts `paintLane`), so the
- *  plan has no spot for them, and an estimate could report a false overlap or miss a real one. */
+ *  lines. Lane names are `laneLabelRects`: they take no clear room. */
 export function labelRects(model: Model, container: string, plan: AuditPlan, bundles: Bundle[]): Label[] {
   const { tf, routes } = plan;
   let msg = plan.msg;
@@ -118,10 +119,35 @@ export function labelRects(model: Model, container: string, plan: AuditPlan, bun
   return out;
 }
 
+/** Each lane's name plate as the drawing places it (ground.ts `paintLane`, clear.ts `laneLabelPlan`, between the base's
+ *  lines and the `paths` crossing the lane), at its estimated width: at scale 1 and at its largest. A store's lane
+ *  shows its label, a busy item's lane the item's name as the floor list shows it. */
+export function laneLabelRects(model: Model, plan: FloorPlan, paths: Pt[][]): Label[] {
+  const { tf, routes } = plan;
+  const prefix = floorPrefix(model, [...tf.boxes.values()].filter((b) => b.kind !== "door").map((b) => b.id));
+  return tf.lanes.map((l) => {
+    const name = tf.boxes.has(l.id) && model.kindOf(l.id) !== "datastore" ? shownName(model, l.id, prefix) : l.label;
+    const p = laneLabelPlan(l, laneNameWidth(name), laneCrossings(l, routes, paths));
+    const box = (k: number) => ({ x0: p.x, y0: p.y, x1: p.x + p.w * k, y1: p.y + p.h * k });
+    return { what: `lane '${name}' name`, boxes: [box(1), box(p.maxK)] };
+  });
+}
+
+/** A path drawn point to point (a drone line, a flight) as squares along each segment, `half` px either side. */
+const pathRects = (pts: Pt[], half: number): PxRect[] => pts.slice(1).flatMap((b, i) => {
+  const a = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / half));
+  return Array.from({ length: n + 1 }, (_, k) => {
+    const x = a.x + ((b.x - a.x) * k) / n, y = a.y + ((b.y - a.y) * k) / n;
+    return { x0: x - half, y0: y - half, x1: x + half, y1: y + half };
+  });
+});
+const PATH_HALF = 2;   // half a dotted drone or flight path's width
+
 /** Every label the plan places (`labelRects`) that overlaps a line tile on top or a machine box: in the base view
  *  against the base's lines, and in each layer view against that layer's lines (a layer shows over the base). A consumer
  *  tag placed inside its machine's free band is not over that machine. Flight paths are not tiles: a plate stands on its
- *  own flight by design. */
+ *  own flight by design. A lane's name (`laneLabelRects`) is checked against the same line tiles and against the drone
+ *  and flight paths too: it sits where tiles cross the lane, so a path or the lane's end is what it can run into. */
 export function overLineViolations(model: Model, container: string, plan: AuditPlan, bundles: Bundle[]): Violation[] {
   const { tf } = plan;
   const tiles = (routes: TileRoute[]) => routes.flatMap((r) => r.pieces.filter((p) => !p.under)
@@ -130,6 +156,18 @@ export function overLineViolations(model: Model, container: string, plan: AuditP
     ...Object.entries(plan.layers ?? {}).map(([id, l]): [string, ReturnType<typeof tiles>] => [` (layer ${id})`, tiles(l!.routes)])];
   const boxes = [...tf.boxes.values()].map((b) => ({ id: b.id, rect: { x0: b.x * T, y0: b.y * T, x1: (b.x + b.w) * T, y1: (b.y + b.h) * T } }));
   const out: Violation[] = [];
+  const flights = plan.msg?.flights ?? flightPaths(tf), covered = plan.msg?.covered ?? coveredKeys(flights, bundles);
+  const paths = [...plan.routes.filter((r) => r.kind === "drone" && !covered.has(r.key)), ...flights]
+    .map((q) => ({ key: q.key, rects: pathRects(q.points, PATH_HALF) }));
+  for (const l of laneLabelRects(model, plan, pointPaths(plan.routes, flights, covered))) {
+    const at = tileAt(l.boxes[0].x0, l.boxes[0].y0);
+    for (const [view, ts] of views) {
+      const t = ts.find((q) => l.boxes.some((r) => hit(r, q.rect)));
+      if (t) out.push({ detail: `${l.what} over a ${t.word}${view}`, at });
+    }
+    const q = paths.find((q) => q.rects.some((a) => l.boxes.some((r) => hit(r, a))));
+    if (q) out.push({ detail: `${l.what} over the path of ${q.key}`, at });
+  }
   for (const l of labelRects(model, container, plan, bundles)) {
     const at = tileAt(l.boxes[0].x0, l.boxes[0].y0);
     const box = boxes.find((b) => b.id !== l.inside && l.boxes.some((r) => hit(r, b.rect)));

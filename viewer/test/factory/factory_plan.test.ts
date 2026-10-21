@@ -13,7 +13,8 @@ import { bodyFor, factoryOps, tileArms } from "../../src/factory/pieces";
 import { CODE_BAND, NAME_MIN_PX, codeZoom, codesMode, subShown, bigCodeHeight, nameSpec } from "../../src/factory/machines";
 import { fitName } from "../../src/factory/fit";
 import { Clearance, floorObstacles, labelBox, planZoneLabel, ZONE_FONT, type PxRect } from "../../src/factory/clear";
-import { laneLabelSpot, MIN_PX } from "../../src/factory/ground";
+import { MIN_PX } from "../../src/factory/ground";
+import { laneLabelSpot } from "../../src/factory/clear";
 import { LANE_H } from "../../src/factory/tiles";
 import { checkRails, checkTrunks, plugged } from "./factory_trunks";
 import { createHash } from "node:crypto";
@@ -136,9 +137,9 @@ describe("floor plan", () => {
     want!.rowGaps.forEach((g, j) => expect(second.aisles!.rows[j].h, `row ${j}`).toBe(first.aisles!.rows[j].h + g));
     const r2 = routeTiles(second, bundles), failed = (rs: TileRoute[]) => rs.filter((r) => r.failed).length;
     const taken = failed(r2) <= failed(r1) && crossings(r2) < crossings(r1);
-    // the first pass crosses 43, the widened one 44 (rail yards and stations, reservations-redis's chest and
-    // payments-webhook's receiving dock all reserved): the widened pass must cross strictly less, so the first is kept
-    expect([crossings(r1), crossings(r2), taken]).toEqual([43, 44, false]);
+    // the first pass crosses 42, the widened one 34 (rail yards and stations, reservations-redis's chest and
+    // payments-webhook's receiving dock all reserved): the widened pass crosses strictly less, so it is kept
+    expect([crossings(r1), crossings(r2), taken]).toEqual([42, 34, true]);
     const p = planFloor(demo, SITE, doors, bundles);
     expect(p.tf).toEqual(taken ? second : first);
     expect(p.routes.filter((r) => r.failed)).toHaveLength(0);
@@ -281,6 +282,8 @@ describe("floor plan", () => {
     const w = laneLabelSpot(0, 500, 100, [100, 340], 3);   // no gap holds 300: the widest (108..334) wins
     expect([w.x, w.room]).toEqual([108, 226]);
     expect(laneLabelSpot(0, 1000, 100, [], 3)).toEqual({ x: 6, room: 988 });
+    // a line past the lane's end (a belt beside a short lane) bounds no gap: the name never grows over it
+    expect(laneLabelSpot(0, 144, 64, [12, 156], 3)).toEqual({ x: 20, room: 118 });
   });
 
   // Floors with no hub lay out and route exactly as before pads existed: digests of every such floor's plan, taken at
@@ -307,7 +310,7 @@ describe("floor plan", () => {
   };
   it("a floor with no hub plans exactly as before: fixture and demo", () => {
     expect(noHubDigest(new Model(shop as unknown as CodeMap))).toBe("18 081d757a9c92391e");
-    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 eff5a0c9f38f355c");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
+    expect(noHubDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("101 0267a951809ed4ad");   // demo re-pinned at rules 3 (requests one way), the graded end cost, lanes off it (straight drops) and short lanes' names
   });
   it.runIf(BIG && existsSync(BIG))("a map with no topics plans every floor exactly as before (the big map)", () => {
     expect(noHubDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 8095edabe5f0f113");
@@ -560,8 +563,8 @@ describe("floor plan", () => {
     return `${n} ${h.digest("hex").slice(0, 16)}`;
   };
   it("a floor with no implements pair plans exactly as before: fixture and demo", () => {
-    expect(noPairDigest(new Model(shop as unknown as CodeMap))).toBe("24 13822fa1208f31fa");
-    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 4214ebecaa2f8518");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
+    expect(noPairDigest(new Model(shop as unknown as CodeMap))).toBe("24 47e23a65bbbf559a");   // re-pinned when lanes left the graded end cost (straight drops) and short lanes' names
+    expect(noPairDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("126 bd5a650cf4307707");   // demo re-pinned at rules 3 (requests one way), the graded end cost, lanes off it (straight drops) and short lanes' names
   });
   it.runIf(BIG && existsSync(BIG))("a floor with no implements pair plans exactly as before (the big map)", () => {
     expect(noPairDigest(new Model(JSON.parse(readFileSync(BIG, "utf8"))))).toBe("371 3d5be224c7fe339d");
@@ -588,8 +591,8 @@ describe("floor plan", () => {
   const noBatch = (map: CodeMap): CodeMap => ({ ...map, relations: map.relations.filter((r) => r.kind !== "batch") });
   const noStore = (map: CodeMap): CodeMap => ({ ...map, nodes: map.nodes.map(({ store: _s, ...n }) => n) });
   it("a floor with no rail yard plans exactly as before: fixture (its batch relation stripped) and demo", () => {
-    expect(noBatchDigest(new Model(noStore(noBatch(shop as unknown as CodeMap))))).toBe("25 f1a12bd2f50d1ec1");
-    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 ace6bb414400d730");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
+    expect(noBatchDigest(new Model(noStore(noBatch(shop as unknown as CodeMap))))).toBe("25 a5f14a34968615be");   // re-pinned when lanes left the graded end cost (straight drops) and short lanes' names
+    expect(noBatchDigest(new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap))).toBe("130 f58a09e8deceb62e");   // demo re-pinned at rules 3 (requests one way), the graded end cost, lanes off it (straight drops) and short lanes' names
   });
   it("demo and fixture: every rail yard and station has its place, and every rail runs from its yard to its station", () => {
     const demo = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
@@ -614,8 +617,8 @@ describe("floor plan", () => {
     }
     console.log(`rails: ${yards} yards, ${stations} stations, ${rails} rails from a platform to a station, on ${floors} floors`);
     expect(rails, "a routed rail per station").toBe(stations);
-    // 30 stations at platforms, and 3 yard-less: demand-forecast's reference task coming in by its door to the features
-    // floors (svc:feature-store, features/, features.workflows)
+    // 30 stations at platforms, and 3 yard-less: demand-forecast's cross-project trigger coming in by its door to the features
+    // floors (svc:feature-store, features/, features.zone_features)
     expect([floors, yards, stations]).toEqual([20, 22, 33]);
   });
 
@@ -624,7 +627,7 @@ describe("floor plan", () => {
     const plan = (c: string) => { const { bundles, doors } = demo.bundles(c); return planFloor(demo, c, doors, bundles); };
     const site = plan(SITE), r = site.tf.rails!;
     const yard = (rs: typeof r, s: string) => rs.yards.find((y) => y.source === s)!;
-    // the reference task: a 4x1 yard (one platform row, no header) beside demand-forecast, its sign beside it
+    // the cross-project trigger: a 4x1 yard (one platform row, no header) beside demand-forecast, its sign beside it
     const df = yard(r, "svc:demand-forecast");
     expect(df).toMatchObject({ machine: "svc:demand-forecast", w: 4, h: 1, platforms: [{ dest: "svc:feature-store" }] });
     expect(df.sign).not.toBeNull();
@@ -648,22 +651,22 @@ describe("floor plan", () => {
     const dags = plan("jobs/dags::dags/"), dy = dags.tf.rails!.yards[0];
     expect([dy.machine, dy.w, dy.h, dy.platforms.length, dags.tf.rails!.stations.length]).toEqual(["door:svc:nightly-jobs", 5, 10, 10, 10]);
     expect(dags.routes.filter((q) => q.kind === "rail" && q.pieces.some((p) => p.join === "split")).length, "rails split off a shared trunk").toBeGreaterThan(0);
-    // demand-forecast's floor: the reference task's platform goes to feature-store's door; its station stands against the door
+    // demand-forecast's floor: the cross-project trigger's platform goes to feature-store's door; its station stands against the door
     const dff = plan("svc:demand-forecast"), ds = dff.tf.rails!.stations.find((s) => s.dest === "door:svc:feature-store")!;
     expect(dff.tf.boxes.get(ds.dest)!.kind).toBe("door");
     expect(dff.tf.rails!.yards[0].machine).toBe("door:svc:demand-forecast");
-    // no bundle carries the reference task here (both ends lie off this floor): a stand-in rail runs to the door's station
+    // no bundle carries the cross-project trigger here (both ends lie off this floor): a stand-in rail runs to the door's station
     expect(ds.track).toMatch(/^rail:/);
     const ref = dff.routes.find((q) => q.key === ds.track)!;
     expect([ref.kind, !!ref.failed]).toEqual(["rail", false]);
     expect(dff.tf.rails!.shells.map((b) => [b.key, b.kind, b.b])).toEqual([[ds.track, "batch", "door:svc:feature-store"]]);
-    // the features floor (S6·P1): the reference task comes in by demand-forecast's door, with no yard there, and ends on a
-    // station at workflows.py beside the one feature-store's own yard feeds
+    // the features floor (S6·P1): the cross-project trigger comes in by demand-forecast's door, with no yard there, and ends on a
+    // station at zone_features.py beside the one feature-store's own yard feeds
     const fe = plan("features::features/"), rs = fe.tf.rails!;
     const ys = rs.stations.find((s) => s.door === "door:svc:demand-forecast")!;
-    expect(ys).toMatchObject({ source: "door:svc:demand-forecast", dest: "features::features.workflows", track: "door:svc:demand-forecast|features::features.workflows" });
+    expect(ys).toMatchObject({ source: "door:svc:demand-forecast", dest: "features::features.zone_features", track: "door:svc:demand-forecast|features::features.zone_features" });
     expect(rs.yards.some((y) => y.machine === ys.door)).toBe(false);
-    expect(ys.platform!.jobs.map((j) => j.job)).toEqual(["reference_task features/compute_zone_features"]);
+    expect(ys.platform!.jobs.map((j) => j.job)).toEqual(["refresh_zone_features"]);
     const inRail = fe.routes.find((q) => q.key === ys.track)!, end = inRail.pieces[inRail.pieces.length - 1];
     expect([end.x, end.y, end.out]).toEqual([ys.entry.x, ys.entry.y, ys.entry.d]);
     expect(rs.stations.map((s) => s.source).sort()).toEqual(["door:svc:demand-forecast", "features::features/"]);

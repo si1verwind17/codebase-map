@@ -116,11 +116,11 @@ describe("entry points agree with the Python checklist", () => {
     expect(examplesFor(m, h, "GET /orders")).toEqual([{ kind: "entry", title: "GET /v1/orders", request: [1, 2], response: "ok" }]);
   });
 
-  it("the demo map has the 27 entry points the Python checklist reports", () => {
+  it("the demo map has the 26 entry points the Python checklist reports", () => {
     const demo = JSON.parse(readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8")) as CodeMap;
     const dm = new Model(demo);
     const nodes = new Set<string>();
     for (const n of demo.nodes) if (n.kind === "service" || n.kind === "library") for (const e of entryPoints(dm, n.id)) nodes.add(e.node);
-    expect(nodes.size).toBe(27);
+    expect(nodes.size).toBe(26);
   });
 });

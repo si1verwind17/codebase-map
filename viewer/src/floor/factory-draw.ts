@@ -4,7 +4,7 @@ import { Container, Graphics, Rectangle, Text } from "pixi.js";
 import type { Bundle, Model } from "../model/model";
 import { SITE } from "../model/model";
 import type { FloorGeometry } from "../route/types";
-import { crossings } from "./lane";
+import { laneCrossings, pointPaths } from "./lane";
 import { C, PICKED_RING } from "./palette";
 import type { TileFloor } from "../factory/layout";
 import { freeBand, paintBox, storeLegend, type Store } from "../factory/machines";
@@ -47,9 +47,10 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   st.covered = msg.covered;
   const clear = new Clearance(msg.obstacles, tf.cols + 8);
   for (const z of tf.zones) st.layers.lanes.addChild(paintZone(z, clear, st.zoomLabels));
+  const paths = pointPaths(routes, msg.flights, msg.covered);   // a lane's name keeps off them as off the tiles crossing it
   for (const l of tf.lanes) {
     const name = tf.boxes.has(l.id) && model.kindOf(l.id) !== "datastore" ? shortName(st, model, l.id) : l.label;
-    st.layers.lanes.addChild(paintLane(l, name, crossings(routes, (l.y + 1.5) * 24, 36), st.zoomLabels));
+    st.layers.lanes.addChild(paintLane(l, name, laneCrossings(l, routes, paths), st.zoomLabels));
   }
   // trait ↔ implementation first: a straight dotted line beneath every belt and pipe and under the machines,
   // not a belt (the drone toggle leaves it alone)

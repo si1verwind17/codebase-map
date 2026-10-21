@@ -4,7 +4,8 @@
 // machine leave as one trunk and split off it; lines into one machine merge onto one.
 import { flies, type Bundle } from "../model/model";
 import type { Pt, Route } from "../route/types";
-import type { TileFloor, TileLane } from "./layout";
+import { laneGaps, type TileFloor, type TileLane } from "./layout";
+import { laneNameTiles } from "./clear";
 import { reservedRects, webhookDockId } from "./pads";
 import { RUN, railEnds, stationId, yardId, type RailEnd } from "./yards";
 import { DIRS, LANE_H, OPP, STEP, T, dirInto, type Box, type Dir, type Piece, type Rect } from "./tiles";
@@ -26,6 +27,7 @@ const RIDE = 0.3;      // a tile shared with a trunk costs less than a fresh one
 const EDGE = 1;        // a tile on a broker airfield's edge column costs a little more: its name grows along its row into them
 const BADGE = 2;       // a tile of the room right of a heavily used item, where its `used by N` badge grows to read at Fit
 const BADGE_ROOM = { w: 7, h: 2 };   // tiles: a `used by 10` badge at about 2.2x
+const NAME = 3;        // crossing or ending on a short lane where its name sits: about a turn, so a line goes a little way round for it
 
 export function lineKind(b: Bundle, tap: boolean): LineKind {
   if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
@@ -85,11 +87,21 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
   for (const z of tf.zones) if (z.airfield) for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = EDGE;
   // a zone's label row (its bottom row, which the layout keeps for its name): a line runs along it only where it must
   for (const z of tf.zones) for (let x = z.x; x < z.x + z.w; x++) if (ok(x, z.y + z.h - 1)) edge[at(x, z.y + z.h - 1)] = EDGE;
+  // the rows of a lane gap next to its lanes, where their taps end and their underground runs come up: a line along a
+  // gap of three or more rows keeps to its inner rows where it can, clear of those stubs
+  for (const g of laneGaps(tf)) if (g.y1 - g.y0 > 2) for (const y of [g.y0, g.y1 - 1]) for (let x = g.x0; x < g.x1; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], EDGE);
   // a heavily used item's badge room, right of it and ending above its middle row (left free for a line to plug in
   // there): lines pass elsewhere where they can, so the badge reads at Fit
   for (const b of tf.boxes.values()) if (b.region === "hubs") {
     const y0 = b.y + Math.floor(b.h / 2) - BADGE_ROOM.h;
     for (let y = y0; y < y0 + BADGE_ROOM.h; y++) for (let x = b.x + b.w; x < b.x + b.w + BADGE_ROOM.w; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], BADGE);
+  }
+
+  // a short lane's name tiles (clear.ts `laneNameTiles`): a line passing under them or ending on them costs NAME
+  const named = new Uint8Array(cols * rows);
+  for (const l of tf.lanes) {
+    const n = laneNameTiles(l, l.label);
+    if (n) for (let y = l.y; y < l.y + LANE_H; y++) for (let x = n[0]; x < n[1]; x++) if (ok(x, y)) named[at(x, y)] = 1;
   }
 
   // the machines beside each tile (up to two; MANY when more), for the cost of hugging a machine a line does not touch
@@ -106,7 +118,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
     }
   }
 
-  type Job = { b: Bundle; src: Box; dst: Rect; kind: LineKind; reverse: boolean; tap?: string; est: number; to: string; rail?: RailEnd;
+  type Job = { b: Bundle; src: Box; dst: Rect; kind: LineKind; reverse: boolean; tap?: string; est: number; to: string; rail?: RailEnd; lane?: boolean;
     /** the only way the line may run into `dst`: a webhook dock is entered on its open side, toward its machine */ into?: Dir };
   const jobs: Job[] = [];
   const out: TileRoute[] = [];
@@ -138,7 +150,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
       const store = laneBox.kind === "datastore";
       const kind = lineKind(b, store);
       const fromLane = store ? kind === "tapR" : lb ? b.flow === "b→a" : b.flow === "a→b";
-      jobs.push({ b, src: box, dst: band(lane), kind, reverse: fromLane, tap: store ? lane.id : undefined, est: Math.abs(box.y - lane.y), to: laneBox.id });
+      jobs.push({ b, src: box, dst: band(lane), kind, reverse: fromLane, tap: store ? lane.id : undefined, est: Math.abs(box.y - lane.y), to: laneBox.id, lane: true });
       continue;
     }
     const hook = hooks.get(b.key);
@@ -279,7 +291,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
     const closed: [number, number][] = [];
     try {
       for (let n = 0; n < 4; n++) {
-        const cells = search(j.src, j.dst, maxUnder, j.to, j.rail, j.into);
+        const cells = search(j.src, j.dst, maxUnder, j.to, j.rail, j.into, j.lane);
         if (!cells) return null;
         const seen = new Set<number>();
         const again = cells.find((p) => { if (p.under) return false; const t = at(p.x, p.y); if (seen.has(t)) return true; seen.add(t); return false; });
@@ -342,7 +354,7 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
   /** A* from any side of `src` to any tile beside `dst` (with `entry`, only running into it that way); null when walled in. A rail (`rail`) starts only on its own
    *  platform's exit, or on another exit of its yard where a trunk it rides starts, and ends only on an end of its
    *  station, running into it along the destination's wall. */
-  function search(src: Box, dst: Rect, maxUnder: number, dstId?: string, rail?: RailEnd, entry?: Dir): Piece[] | null {
+  function search(src: Box, dst: Rect, maxUnder: number, dstId?: string, rail?: RailEnd, entry?: Dir, lane = false): Piece[] | null {
     const mine = [index.get(src.id), dstId === undefined ? undefined : index.get(dstId)];
     curEnds = cur ? flowEnds(cur) : null;
     meSrc = me ? index.get(me.src.id) ?? NaN : NaN; meTo = me ? index.get(me.to) ?? NaN : NaN;
@@ -411,7 +423,8 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
       const leaves = !(riding && !dstMode) || canLeave(here);   // a rider may split off here
       const lock = lead !== null && lead.get(here) === di ? di : -1;   // still on a free-standing yard's exit run
       if (into && (only < 0 || into === DIRS[only]) && leaves) {
-        const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into)) : 0;   // plugging into a trunk's tile is free: its first tile was centred
+        const end = next(here, dirIdx(into));
+        const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into), lane) + (end >= 0 && named[end] ? NAME : 0) : 0;   // plugging into a trunk's tile is free: its first tile was centred
         if (off === 0) return build(k, into);
         if (!goaled[k]) { goaled[k] = 1; heap.push(g[k] + off, GOAL + k); }
       }
@@ -448,13 +461,15 @@ export function routeTiles(tf: TileFloor, bundles: Bundle[], base?: TileRoute[])
           if (ni !== di || riding) continue;   // straight on, under another line or a lane, to the next free tile
           if (prev[k] >= 0 && occ[prev[k] >> 2] >= 0) continue;   // the tile a branch steps onto from its junction is a plain piece, not a housing
           let hidden = mateAlong(at(nx, ny), ni);   // never run lengthwise under a line it shares an end with
+          let name = named[nt];
           for (let s = 2; s <= maxUnder + 1 && !hidden; s++) {
             const tx = x + dx * s, ty = y + dy * s;
             if (!ok(tx, ty)) break;
             const tv = eff(at(tx, ty));
             if (tv === BOX) break;
-            if (tv === FREE) { relax(key(tx, ty, ni), g[k] + s + UNDER, k, tx, ty); break; }
+            if (tv === FREE) { relax(key(tx, ty, ni), g[k] + s + UNDER + (name ? NAME : 0), k, tx, ty); break; }
             hidden = mateAlong(at(tx, ty), ni);
+            name |= named[at(tx, ty)];
           }
         }
       }
@@ -497,9 +512,11 @@ function cornerTile(b: Rect, d: Dir, off: number): boolean {
   return n >= 3 && off === (n - 1) / 2;
 }
 
-/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. */
-function endCost(b: Rect, d: Dir, off: number): number {
-  return Math.max(off * OFF, cornerTile(b, d, off) ? CORNER : 0);
+/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. A lane
+ *  (`lane`) runs under every machine above it: no tile of its side is better than another, so a line drops straight
+ *  onto it and only its outermost tile costs CORNER. */
+function endCost(b: Rect, d: Dir, off: number, lane = false): number {
+  return Math.max(lane ? 0 : off * OFF, cornerTile(b, d, off) ? CORNER : 0);
 }
 
 /** Tiles just outside one side of a box, with each tile's distance from the middle of that side. */

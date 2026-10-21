@@ -1,6 +1,6 @@
 // Clear floor space (pure geometry, world px): where a zone name may grow to stay readable when the floor is zoomed out.
 // Everything drawn on the floor is an obstacle; a label takes only room no obstacle touches, inside its own zone.
-import type { TileFloor, Zone } from "./layout";
+import type { TileFloor, TileLane, Zone } from "./layout";
 import type { TileRoute } from "./router";
 import { reservedRects } from "./pads";
 import { LANE_H, T } from "./tiles";
@@ -166,4 +166,46 @@ export function placeBadges(items: BadgeItem[], clear: Clearance, layerTiles: Px
 /** Every layer's lines as drawn: the tiles of their top pieces, and drone or failed lines point to point. */
 export function layerTileRects(layers: Partial<Record<string, { routes: TileRoute[] }>> | undefined): PxRect[] {
   return Object.values(layers ?? {}).flatMap((l) => l!.routes.flatMap((r) => routeRects(r, true)));
+}
+
+/** Where a lane's name sits: from the left, the first gap between crossing lines wide enough for the name scaled to
+ *  `kWant`; else the widest gap. `room` is that gap's width from the name's left edge. A line past the lane's end
+ *  bounds no gap: the last one ends at the lane's end. Pure, for the test. */
+export function laneLabelSpot(x0: number, x1: number, w: number, blocked: number[], kWant: number, pad = 6): { x: number; room: number } {
+  const gaps: { s: number; e: number }[] = [];
+  let start = x0 + pad;
+  for (const b of blocked.filter((b) => b > x0 && b < x1).sort((p, q) => p - q)) {
+    if (b - pad > start) gaps.push({ s: start, e: b - pad });
+    start = Math.max(start, b + pad + 2);   // clear of the line (2 px half-width) plus padding
+  }
+  gaps.push({ s: start, e: x1 - pad });
+  const g = gaps.find((q) => q.e - q.s >= w * kWant) ?? gaps.reduce((best, q) => (q.e - q.s > best.e - best.s ? q : best));
+  return { x: g.s, room: g.e - g.s };
+}
+
+/** The lane name's scale the spot is chosen for: 3x its size is readable down to a zoom of 0.25. */
+const LANE_WANT = 3;
+export const LANE_FONT = 12;
+const LANE_LABEL_H = 17;
+const LANE_CHAR = 0.56;   // a bold letter of a lane's name, in em: fit.ts's estimate, a little wider than drawn
+
+/** A lane's name plate width at scale 1, estimated (the drawing measures the text): for the router and the audit. */
+export const laneNameWidth = (name: string) => Math.ceil(name.length * LANE_FONT * LANE_CHAR) + 10;
+
+/** The tiles at a short lane's start where its name sits, as [x0, x1): a lane too short to hold its name twice over,
+ *  so a line crossing it or ending on it there leaves the name no room (the router keeps lines off them where it can);
+ *  undefined on a longer lane, whose name finds a gap between the lines. */
+export function laneNameTiles(l: TileLane, name: string): [number, number] | undefined {
+  const w = laneNameWidth(name), PAD = 6;
+  if ((l.x1 - l.x0) * T >= 2 * (w + 2 * PAD + 2)) return undefined;
+  return [l.x0, Math.min(l.x1, l.x0 + Math.ceil((w + 2 * PAD + 2) / T))];
+}
+
+/** A lane's name plate, `w` px wide at scale 1 (its text plus 10): its top-left corner, its height, and the largest
+ *  scale its spot holds. Pure, for the map audit (text.ts), which estimates `w` where the drawing measures it. */
+export function laneLabelPlan(l: TileLane, w: number, blocked: number[]): { x: number; y: number; w: number; h: number; maxK: number } {
+  const tall = Math.max(1, (LANE_H * T - 6) / LANE_LABEL_H);
+  // the spot is chosen for the label as it will be drawn zoomed out (up to LANE_WANT times its size), not at scale 1
+  const spot = laneLabelSpot(l.x0 * T, l.x1 * T, w, blocked, Math.min(tall, LANE_WANT));
+  return { x: spot.x, y: l.y * T + 4, w, h: LANE_LABEL_H, maxK: Math.max(1, Math.min(tall, spot.room / w)) };
 }

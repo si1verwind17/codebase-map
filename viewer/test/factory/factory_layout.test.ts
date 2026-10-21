@@ -90,6 +90,14 @@ describe("factory layout", () => {
     }
   });
 
+  it("gives a lane gap the extra rows asked for (`laneGaps`): the lanes below move down, the ones above stay", () => {
+    const demo = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    const base = layoutTiles(demo, SITE, demo.bundles(SITE).doors);
+    const wider = layoutTiles(demo, SITE, demo.bundles(SITE).doors, { laneGaps: [0, 1, 0, 0] });
+    expect(base.lanes.length).toBe(4);
+    expect(wider.lanes.map((l, i) => l.y - base.lanes[i].y)).toEqual([0, 0, 1, 1]);
+  });
+
   it("survives a floor with nothing on it", () => {
     const tiny = new Model({
       meta: { schema_version: 2, repo: "t", commit: "c", scanned_at: "", languages: [] },

@@ -7,7 +7,7 @@ final case class Tariff(zoneId: String, centsPerHour: Long, currency: String)
 final case class Zone(id: String, name: String, address: String, lat: Option[Double], lng: Option[Double])
 
 /** Read-only view of reference data: tariffs, zones, and the demand forecast
-  * written nightly by the demand-forecast Flyte workflow.
+  * written nightly by the demand-forecast Airflow DAG.
   */
 trait TariffRepo:
   def tariff(zoneId: String): Task[Option[Tariff]]

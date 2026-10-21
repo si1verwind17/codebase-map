@@ -166,6 +166,19 @@ def test_rust_imports(make_repo):
     assert uses(s) == {("mod:api", "mod:core")}
 
 
+def test_rust_lib_name_is_the_crate_name(make_repo):
+    # a `[lib] name` renames the library crate: a binary imports it by that name, not the package's
+    s = structure.build(make_repo({
+        "Cargo.toml": '[workspace]\nmembers = ["api", "core"]\n',
+        "core/Cargo.toml": '[package]\nname = "shop-core"\n\n[lib]\nname = "shopcore"\npath = "src/lib.rs"\n',
+        "core/src/lib.rs": "pub fn place() {}\n",
+        "api/Cargo.toml": '[package]\nname = "shop-api"\n',
+        "api/src/main.rs": "use shopcore::place;\nfn main() { place(); }\n",
+    }), "docs/viz-code")
+    assert unrec(s) == set()
+    assert uses(s) == {("mod:api", "mod:core")}
+
+
 def test_ruby_imports(make_repo):
     s = structure.build(make_repo({
         "gems/core/Gemfile": "", "gems/core/lib/core.rb": "module Core; end\n",

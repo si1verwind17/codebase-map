@@ -35,7 +35,7 @@ def test_a_parser_crash_skips_the_file_and_the_scan_goes_on(make_repo, monkeypat
 def test_a_pattern_crash_skips_the_file_too(make_repo, monkeypatch):
     repo = make_repo({"go.mod": "module shop\n", "a.go": "package shop\nfunc A() {}\n", "b.go": "package shop\n"})
 
-    def boom(st, lang, data, r, module):
+    def boom(st, lang, data, r, module, imports):
         if r["nodes"]:
             raise KeyError("k")
         return []
@@ -126,7 +126,8 @@ def test_relative_paths_are_posix():
 def test_root_node_modules_excluded():
     assert structure.excluded("node_modules/react/index.js", structure.DEFAULT_EXCLUDES)
     assert structure.excluded("web/node_modules/react/index.js", structure.DEFAULT_EXCLUDES)
-    assert not structure.excluded("node_modules/x.py", structure.DEFAULT_EXCLUDES)   # Python keeps its excludes
+    assert structure.excluded("node_modules/x.py", structure.DEFAULT_EXCLUDES)   # vendored, in every language
+    assert not structure.excluded("build/x.py", structure.DEFAULT_EXCLUDES)   # a Python package may be named build
 
 
 # --- 7. Rust `Self::` -------------------------------------------------------------------------------------

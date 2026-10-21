@@ -1,5 +1,5 @@
-"""Application code shared by two Flyte projects.
+"""Application code shared by two Airflow projects.
 
-This module is registered into both the `features` and the `forecast` project
-(see deploy/register.sh), so two services deploy the same code.
+Both the `features` and the `forecast` registration sync this package into
+the DAG bucket (see deploy/register.sh), so two services deploy the same code.
 """

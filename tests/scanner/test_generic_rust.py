@@ -170,3 +170,14 @@ def test_rust_impl_of_an_unnamed_type_attaches_to_the_file():
         (FILE_ID, f"{P}/"), (f"{FILE_ID}#a/0", FILE_ID), (f"{FILE_ID}#b/0", FILE_ID), (f"{FILE_ID}#c/0", FILE_ID),
         (f"{P}.repo.Wrapper#d/0", f"{P}.repo.Wrapper"), (f"{P}.repo.Named#e/0", f"{P}.repo.Named")]
     assert sorted(a["name"] for a in res["attached"]) == ["Named", "Wrapper"]
+
+
+def test_rust_cfg_test_items_are_left_out():
+    """`#[cfg(test)]` marks test-only code inside a source file: the item under it (a `mod tests`, a function) is
+    neither a node nor a source of imports, calls or strings."""
+    r = parse("use crate::db::Pool;\n\npub fn place() -> u32 { 1 }\n\n#[cfg(test)]\n// unit tests\nmod tests {\n"
+              "    use claims::assert_ok;\n    #[test]\n    fn places() { super::place(); assert_ok!(\"x\"); }\n}\n\n"
+              "#[cfg(test)]\nfn fixture() -> u32 { place() }\n")
+    assert [n["name"] for n in r["nodes"]] == ["repo.rs", "place"]
+    assert [i["target"] for i in r["imports"]] == ["crate::db::Pool"]
+    assert r["calls"] == [] and r["strings"] == []

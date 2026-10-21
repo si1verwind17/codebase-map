@@ -2,7 +2,8 @@
 """Structure pass over the committed HEAD of a repo.
 
 Usage: extract.py REPO [--out-dir docs/viz-code] [--exclude GLOB ...]
-Writes <REPO>/<out-dir>/structure.json and summary.md.
+Writes <REPO>/<out-dir>/structure.json and summary.md. Each --exclude glob is added to <out-dir>/stack.yaml's
+`exclude` list, which every later run applies.
 """
 from __future__ import annotations
 
@@ -24,7 +25,10 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         out_dir = gitsrc.rel_out_dir(a.repo, a.out_dir)
-        if (stack_file := a.repo / out_dir / "stack.yaml").is_file():
+        stack_file = a.repo / out_dir / "stack.yaml"
+        if a.exclude:   # kept in stack.yaml: a rescan without the flag leaves the same files out
+            stack.add_excludes(stack_file, a.exclude)
+        if stack_file.is_file():
             stack.ensure_header(stack_file)
         s = structure.build(a.repo, out_dir, a.exclude)
     except (gitsrc.GitError, ValueError, OSError) as e:

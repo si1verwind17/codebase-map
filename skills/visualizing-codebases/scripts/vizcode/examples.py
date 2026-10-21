@@ -249,21 +249,26 @@ def _field_diff(cls: dict | None, value) -> dict:
 def flag_stale(examples: dict | None, nodes: dict[str, dict]) -> tuple[dict, list[dict]]:
     """The previous map's examples against a new structure's `nodes`: each whose class or handler is gone (or the class
     lost its fields), or whose stored fingerprint differs from the one recomputed now, gets `stale: true`. Returns
-    (examples, what was flagged: `{"type": class id}` or `{"entry": node, "key": key}`, types first)."""
+    (examples, what was flagged: `{"type": class id}` or `{"entry": node, "key": key}`, each with `why`, types
+    first)."""
     ex = examples or empty()
     flagged: list[dict] = []
     types = {}
     for cid, e in ex.get("types", {}).items():
         n = nodes.get(cid)
-        fresh = _class_with_fields(n) and type_fingerprint(n) == e.get("fingerprint") and not e.get("stale")
-        types[cid] = e if fresh else {**e, "stale": True}
-        if not fresh:
-            flagged.append({"type": cid, **_field_diff(n, e.get("value"))})
+        why = ("the class is gone" if n is None else "the class has no fields" if not _class_with_fields(n)
+               else "its fields changed" if type_fingerprint(n) != e.get("fingerprint")
+               else "still flagged" if e.get("stale") else None)
+        types[cid] = {**e, "stale": True} if why else e
+        if why:
+            flagged.append({"type": cid, **_field_diff(n, e.get("value")), "why": why})
     entries = []
     for e in ex.get("entries", []):
         n = nodes.get(e.get("node"))
-        fresh = _method(n) and entry_fingerprint(n, nodes) == e.get("fingerprint") and not e.get("stale")
-        entries.append(e if fresh else {**e, "stale": True})
-        if not fresh:
-            flagged.append({"entry": e.get("node"), "key": e.get("key")})
+        why = ("the handler is gone" if not _method(n)
+               else "its handler's signature, or a type it takes or returns, changed"
+               if entry_fingerprint(n, nodes) != e.get("fingerprint") else "still flagged" if e.get("stale") else None)
+        entries.append({**e, "stale": True} if why else e)
+        if why:
+            flagged.append({"entry": e.get("node"), "key": e.get("key"), "why": why})
     return {"types": types, "entries": entries}, flagged

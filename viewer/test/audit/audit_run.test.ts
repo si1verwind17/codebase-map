@@ -1,11 +1,11 @@
 // The audit runner (`auditMap`) and its plain-Node build (dist/audit.mjs): every known map reports no map limit beyond
-// the known ones, the time budget skips the floors it does not reach, a floor whose plan throws is one `plan.crashed`,
-// and the built file is fresh, free of Pixi and the DOM, and prints one line of JSON under plain `node`.
+// the known ones, the budget skips the floors it does not reach (the same ones on every run), a floor whose plan
+// throws is one `plan.crashed`, and the built file is fresh, free of Pixi and the DOM, and prints one line of JSON under plain `node`.
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { auditMap, type AuditReport } from "../../src/audit/run";
+import { auditMap, FLOOR_COST, type AuditReport } from "../../src/audit/run";
 import type { CodeMap } from "../../src/model/types";
 import { Model, SITE } from "../../src/model/model";
 import { auditDigest } from "../../scripts/audit-inputs.mjs";
@@ -56,7 +56,7 @@ describe("auditMap on the known maps", () => {
   });
 
   it.skipIf(!KNOWN.big)("the large real map (VIZ_BIG_MAP): every check passes but the known map limits", () => {
-    const r = auditMap(read(BIG), 600_000);
+    const r = auditMap(read(BIG), Infinity);
     expect(r.skipped).toEqual([]);
     expect(unknown("big", r)).toEqual([]);
     expect(stale("big", r)).toEqual([]);
@@ -67,7 +67,7 @@ describe("auditMap on the known maps", () => {
     expect(r.checked[0]).toBe(SITE);
     const site = r.results.filter((x) => x.floor === SITE);
     expect(site.map((x) => x.check)).toEqual(["lines.failed", "lines.plugged", "lines.trunks", "lines.under",
-      "lines.mid-side", "lines.plate-wall", "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long",
+      "lines.mid-side", "lines.plate-wall", "lines.lane-drop", "lines.gap-stub", "lines.lane-gap", "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long",
       "lost.relation", "floor.wide"]);
     expect(site.find((x) => x.check === "text.over-line")).toMatchObject({ code: "site", row: "7, 8, 45", ok: true });
     for (const x of r.results) if (x.at) expect(Object.keys(x.at).sort()).toEqual(["x", "y"]);
@@ -87,11 +87,11 @@ describe("auditMap on the known maps", () => {
 });
 
 describe("auditMap's budget and crashes", () => {
-  it("a clock that jumps 50 s after the first floor skips every later floor", () => {
+  it("a budget the site uses up skips every later floor, the same ones on every run", () => {
     const map = read(SHOP);
-    // the runner reads the clock once at the start and once before each floor: the third read is 50 s later
-    let calls = 0;
-    const r = auditMap(map, 45_000, () => (++calls >= 3 ? 50_000 : 0));
+    const siteCost = Object.keys(map.layout.containers[SITE].items ?? {}).length + FLOOR_COST;
+    const r = auditMap(map, siteCost);
+    expect(auditMap(map, siteCost)).toEqual(r);
     expect(r.checked).toEqual([SITE]);
     expect(r.skipped.length).toBe(Object.keys(map.layout.containers).length - 1);
     expect(r.results.every((x) => x.floor === SITE)).toBe(true);
@@ -111,13 +111,13 @@ describe("auditMap's budget and crashes", () => {
     expect(worker[0]).toMatchObject({ check: "plan.crashed", ok: false, row: "—" });
     expect(worker[0].detail).not.toContain("\n");
     expect(worker[0].detail.length).toBeGreaterThan(0);
-    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(13);
-    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 13 results
+    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(16);
+    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 16 results
     expect(r.skipped).toEqual([]);
     expect(r.checked).toHaveLength(Object.keys(map.layout.containers).length - r.skipped.length);
     const after = r.checked.slice(r.checked.indexOf("svc:worker") + 1).filter((c) => Object.keys(map.layout.containers[c].items ?? {}).length);
     expect(after.length).toBeGreaterThan(0);
-    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(13);
+    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(16);
   });
 
   it("an empty floor is checked with no results", () => {

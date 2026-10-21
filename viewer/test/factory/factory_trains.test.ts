@@ -129,7 +129,7 @@ describe("trains", () => {
     for (const r of s.runs) expect(r.period, "none is a blur").toBeGreaterThanOrEqual(PERIOD_MIN);
 
     const feat = paths("features::features/");
-    // the features floor: S6's yard to workflows.py, and the S4 door to its station on workflows.py
+    // the features floor: S6's yard to zone_features.py, and the S4 door to its station on zone_features.py
     expect(feat.length).toBe(2);
     expect(new Set(feat.map((p) => p.dest)).size).toBe(1);
     expect(feat.filter((p) => p.source.startsWith("door:")).length).toBe(1);

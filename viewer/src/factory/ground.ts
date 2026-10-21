@@ -1,7 +1,7 @@
 // The floor under everything: the tile grid, zones with their names in a clear corner, database lanes.
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import { C, F, FONT } from "../floor/palette";
-import { Clearance, planZoneLabel, ZONE_FONT } from "./clear";
+import { Clearance, LANE_FONT, laneLabelPlan, planZoneLabel, ZONE_FONT } from "./clear";
 import type { TileLane, Zone } from "./layout";
 import { LANE_H, T } from "./tiles";
 import { IN_PROCESS } from "./messaging";
@@ -10,8 +10,6 @@ import { IN_PROCESS } from "./messaging";
  *  its spot can hold (`maxK`), and hidden when even that is too small. `size` is its font size in world px. */
 export interface ZoomLabel { obj: Container; size: number; maxK: number; /** a zone's name, for the shown-names count */ zone?: string }
 export const MIN_PX = 9;
-/** The lane name's scale the spot is chosen for: 3x its size is readable down to a zoom of 0.25. */
-const LANE_WANT = 3;
 export function applyZoom(l: ZoomLabel, zoom: number) {
   const k = Math.min(l.maxK, Math.max(1, MIN_PX / (l.size * zoom)));
   l.obj.scale.set(k);
@@ -55,35 +53,19 @@ export function paintZone(z: Zone, clear: Clearance, labels: ZoomLabel[] = []): 
   return c;
 }
 
-/** Where a lane's name sits: from the left, the first gap between crossing lines wide enough for the name scaled to
- *  `kWant`; else the widest gap. `room` is that gap's width from the name's left edge. Pure, for the test. */
-export function laneLabelSpot(x0: number, x1: number, w: number, blocked: number[], kWant: number, pad = 6): { x: number; room: number } {
-  const gaps: { s: number; e: number }[] = [];
-  let start = x0 + pad;
-  for (const b of [...blocked].sort((p, q) => p - q)) {
-    if (b - pad > start) gaps.push({ s: start, e: b - pad });
-    start = Math.max(start, b + pad + 2);   // clear of the line (2 px half-width) plus padding
-  }
-  gaps.push({ s: start, e: x1 - pad });
-  const g = gaps.find((q) => q.e - q.s >= w * kWant) ?? gaps.reduce((best, q) => (q.e - q.s > best.e - best.s ? q : best));
-  return { x: g.s, room: g.e - g.s };
-}
-
 export function paintLane(l: TileLane, name: string, blocked: number[], labels: ZoomLabel[] = []): Container {
   const c = new Container();
   const x0 = l.x0 * T, x1 = l.x1 * T, y = l.y * T, h = LANE_H * T, cy = y + h / 2;
   const g = new Graphics().rect(x0, y, x1 - x0, h).fill(C.steel).stroke({ width: 1, color: C.ink });
   for (let x = x0 + 8; x < x1 - 8; x += 18) g.moveTo(x, cy).lineTo(Math.min(x + 10, x1 - 8), cy);   // dashed centre line
   g.stroke({ width: 2, color: C.slate });
-  const t = new Text({ resolution: 2, text: name, style: style(12, C.ink) });
-  const w = t.width + 10, tall = Math.max(1, (h - 6) / 17);
-  // the spot is chosen for the label as it will be drawn zoomed out (up to LANE_WANT times its size), not at scale 1
-  const spot = laneLabelSpot(x0, x1, w, blocked, Math.min(tall, LANE_WANT));
+  const t = new Text({ resolution: 2, text: name, style: style(LANE_FONT, C.ink) });
+  const plan = laneLabelPlan(l, t.width + 10, blocked);
   const lab = new Container();   // grows down and to the right from its top-left corner
-  lab.position.set(spot.x, y + 4);
+  lab.position.set(plan.x, plan.y);
   t.position.set(5, 1);
-  lab.addChild(new Graphics().rect(0, 0, w, 17).fill(C.steel), t);
-  labels.push({ obj: lab, size: 12, maxK: Math.max(1, Math.min(tall, spot.room / w)) });
+  lab.addChild(new Graphics().rect(0, 0, plan.w, plan.h).fill(C.steel), t);
+  labels.push({ obj: lab, size: LANE_FONT, maxK: plan.maxK });
   c.addChild(g, lab);
   return c;
 }

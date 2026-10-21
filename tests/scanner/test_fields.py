@@ -15,15 +15,21 @@ def f(*pairs):
     return [{"name": n, "type": t} for n, t in pairs]
 
 
+def fv(*triples):
+    """Fields of a language that says visibility by modifiers: (name, type, visibility)."""
+    return [{"name": n, "type": t, "visibility": v} for n, t, v in triples]
+
+
 def test_scala_case_class_parameters_are_fields():
-    src = ("package a.b\n\nfinal case class Reservation(id: BayId, at: Long = 0, tags: List[String], `type`: String)"
+    src = ("package a.b\n\nfinal case class Reservation(id: BayId, at: Long = 0, private val tags: List[String], "
+           "`type`: String)"
            "(implicit c: Ctx)\n\nclass Plain(x: Int)\n\ntrait Port\n\nobject Reservation\n")
     mod = {"id": "mod:svc", "path": "svc", "lang": "scala", "build": "sbt"}
     res = scala.parse(src.encode(), "svc/src/main/scala/a/b/R.scala", mod, ids.IdRegistry())
     got = {n["id"]: n.get("fields") for n in res["nodes"] if n["kind"] == "class"}
     # the first parameter list only; a backticked name without its backticks; plain classes and objects have none
-    assert got == {"svc::a.b.Reservation": f(("id", "BayId"), ("at", "Long"), ("tags", "List[String]"),
-                                             ("type", "String")),
+    assert got == {"svc::a.b.Reservation": fv(("id", "BayId", "public"), ("at", "Long", "public"),
+                                              ("tags", "List[String]", "private"), ("type", "String", "public")),
                    "svc::a.b.Plain": None, "svc::a.b.Port": None, "svc::a.b.Reservation$": None}
 
 
@@ -31,7 +37,7 @@ def test_scala_implicit_and_using_first_lists_are_not_fields():
     src = "package a\n\ncase class A(implicit c: Ctx)\n\ncase class B(using c: Ctx)\n\ncase class C(x: Int)(using c: Ctx)\n"
     mod = {"id": "mod:svc", "path": "svc", "lang": "scala", "build": "sbt"}
     got = fields_by_name(scala.parse(src.encode(), "svc/src/main/scala/a/A.scala", mod, ids.IdRegistry()))
-    assert got == {"A": None, "B": None, "C": f(("x", "Int"))}
+    assert got == {"A": None, "B": None, "C": fv(("x", "Int", "public"))}
 
 
 def test_python_class_level_annotated_attributes_are_fields():
@@ -68,8 +74,8 @@ def test_java_record_components_and_non_static_fields():
            "class Order {\n  private final String id;\n  static int COUNT;\n  int a, b;\n  @Id Long pk;\n"
            "  void f() {}\n}\n\ninterface Port { int X = 1; }\n")
     assert generic_fields("java", src, "svc/src/main/java/a/Order.java") == {
-        "Charge": f(("id", "String"), ("cents", "List<Long>")),
-        "Order": f(("id", "String"), ("a", "int"), ("b", "int"), ("pk", "Long")),
+        "Charge": fv(("id", "String", "public"), ("cents", "List<Long>", "public")),
+        "Order": fv(("id", "String", "private"), ("a", "int", "public"), ("b", "int", "public"), ("pk", "Long", "public")),
         "Port": None}
 
 
@@ -78,8 +84,9 @@ def test_kotlin_val_var_constructor_parameters_and_properties():
            "  val extra: Int = 1\n  var untyped = 2\n  fun f() {}\n}\n\nclass Svc(private val repo: Repo)\n\n"
            "interface Port\n")
     assert generic_fields("kotlin", src, "svc/src/main/kotlin/a/Charge.kt") == {
-        "Charge": f(("id", "String"), ("cents", "List<Long>"), ("bay", "Bay?"), ("extra", "Int"), ("untyped", None)),
-        "Svc": f(("repo", "Repo")),
+        "Charge": fv(("id", "String", "public"), ("cents", "List<Long>", "public"), ("bay", "Bay?", "public"),
+                     ("extra", "Int", "public"), ("untyped", None, "public")),
+        "Svc": fv(("repo", "Repo", "private")),
         "Port": None}
 
 
@@ -122,10 +129,10 @@ def test_go_struct_fields_and_embedded():
 def test_csharp_positional_record_parameters_and_properties():
     src = ("namespace A;\n\npublic record Charge(string Id, List<long> Cents);\n\n"
            "public class Order {\n  public string Id { get; set; }\n  private int _n;\n"
-           "  public static int K { get; }\n  public Bay? B { get; init; }\n  public int F() => 1;\n}\n")
+           "  public static int K { get; }\n  public Bay? B { get; init; }\n  int Seen { get; set; }\n  public int F() => 1;\n}\n")
     assert generic_fields("csharp", src, "svc/Order.cs") == {
-        "Charge": f(("Id", "string"), ("Cents", "List<long>")),
-        "Order": f(("Id", "string"), ("B", "Bay?"))}
+        "Charge": fv(("Id", "string", "public"), ("Cents", "List<long>", "public")),
+        "Order": fv(("Id", "string", "public"), ("B", "Bay?", "public"), ("Seen", "int", "private"))}
 
 
 def test_rust_named_and_tuple_struct_fields():
@@ -142,7 +149,8 @@ def test_php_typed_properties_and_promoted_constructor_parameters():
            "  public static int $k = 1;\n  public $untyped;\n"
            "  public function __construct(private readonly Money $total, int $n, protected $loose) {}\n}\n")
     assert generic_fields("php", src, "svc/src/Charge.php") == {
-        "Charge": f(("id", "string"), ("bay", "?Bay"), ("total", "Money"), ("loose", None))}
+        "Charge": fv(("id", "string", "public"), ("bay", "?Bay", "private"), ("total", "Money", "private"),
+                     ("loose", None, "private"))}
 
 
 def test_ruby_classes_have_no_fields():
@@ -153,7 +161,7 @@ def test_ruby_classes_have_no_fields():
 
 def test_java_record_varargs_component_is_a_field():
     assert generic_fields("java", "record R(String s, int... xs) {}\n", "svc/R.java") == {
-        "R": f(("s", "String"), ("xs", "int..."))}
+        "R": fv(("s", "String", "public"), ("xs", "int...", "public"))}
 
 
 def test_go_embedded_generic_field_is_named_by_its_type_without_arguments():

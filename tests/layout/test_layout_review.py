@@ -2,6 +2,8 @@
 topic lanes, event chains, the read-only bay, layout invariants and city-grid stickiness."""
 import copy
 
+import pytest
+
 from test_layout import MAIN_BUS, synthetic
 
 from vizcode import mapcheck, structure
@@ -31,6 +33,15 @@ def test_many_families_never_crash_and_fit():
     placed = [i for i in items if not i.startswith("grp:")] + [m for g in groups for m in g["members"]]
     assert sorted(placed) == sorted(by_id)
     assert len({g["id"] for g in groups}) == len(groups)
+
+
+@pytest.mark.parametrize("loose", [0, 1, 2])
+def test_twins_filling_the_floor_never_crash(loose):
+    twins = [f"twin:m{i:03d}" for i in range(GROUP_THRESHOLD + 5)]
+    by_id = {f"c{i}": {"id": f"c{i}", "kind": "class", "name": f"C{i}"} for i in range(loose)}
+    items, groups = group_children("pkg", twins + sorted(by_id), by_id, {k: 3 for k in by_id})
+    placed = [i for i in items if not i.startswith("grp:")] + [m for g in groups for m in g["members"]]
+    assert sorted(placed) == sorted(twins + list(by_id))
 
 
 def test_data_group_id_never_collides_with_a_family():

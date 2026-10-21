@@ -130,8 +130,11 @@ def test_flag_stale_by_fingerprint_and_by_gone_nodes():
     nodes(new)[ORDER]["fields"][1]["type"] = "int"                 # Order.total changed type
     new["nodes"] = [n for n in new["nodes"] if n["id"] not in (LINE, CONSUME)]   # Line and consume are gone
     got, flagged = examples.flag_stale(ex, nodes(new))
-    assert flagged == [{"type": ORDER, "value_lacks": ["id", "total"]}, {"type": LINE},
-                       {"entry": CREATE, "key": "POST /orders"}, {"entry": CONSUME, "key": "orders"}]
+    assert flagged == [{"type": ORDER, "value_lacks": ["id", "total"], "why": "its fields changed"},
+                       {"type": LINE, "why": "the class is gone"},
+                       {"entry": CREATE, "key": "POST /orders",
+                        "why": "its handler's signature, or a type it takes or returns, changed"},
+                       {"entry": CONSUME, "key": "orders", "why": "the handler is gone"}]
     assert got["types"][ORDER]["stale"] is True and got["entries"][0]["stale"] is True
     assert "stale" not in ex["types"][ORDER]   # the input is not changed
 
@@ -142,7 +145,8 @@ def test_a_stale_type_names_the_fields_its_value_lacks_and_the_keys_no_longer_fi
     new = copy.deepcopy(m)
     nodes(new)[ORDER]["fields"] = [{"name": "id", "type": "str"}, {"name": "renewals", "type": "int"}]
     _, flagged = examples.flag_stale(ex, nodes(new))
-    assert flagged == [{"type": ORDER, "value_lacks": ["renewals"], "value_extra": ["total"]}]
+    assert flagged == [{"type": ORDER, "value_lacks": ["renewals"], "value_extra": ["total"],
+                        "why": "its fields changed"}]
 
 
 def test_an_unflagged_example_stays_the_same_object_shape():
@@ -188,7 +192,7 @@ def test_an_implementation_with_another_arity_is_followed_when_it_is_the_only_on
 
 DEMO = Path(__file__).resolve().parents[2] / "demo/parking-city/docs/viz-code/code-map.json"
 # the same expectations as viewer/test/trace_seeds.test.ts: the viewer and this checklist seed a container alike
-FEATURE_STORE = ["features::features.workflows#compute_zone_features/1", "features::features.workflows#features_wf/1"]
+FEATURE_STORE = ["features::features.zone_features#zone_features/0"]
 COMMON = ["common::city.parking.common.Config$#env/1", "common::city.parking.common.EventProducer#publish/3",
           "common::city.parking.common.Jdbc#query/3", "common::city.parking.common.Jdbc#transaction/1",
           "common::city.parking.common.Jdbc#update/2"]

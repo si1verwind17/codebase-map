@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -97,6 +98,7 @@ class Stack:
     queues: list[QueuePattern] = field(default_factory=list)
     digest: str | None = None
     overrides: list[dict] = field(default_factory=list)
+    excludes: list[str] = field(default_factory=list)   # stack.yaml `exclude`: globs every scan leaves out
 
 
 def _fail(fname: str, where: str, name: str | None, reason: str) -> StackError:
@@ -362,6 +364,11 @@ def _read(st: Stack, fname: str, doc, source: str) -> None:
     if not isinstance(doc, dict):
         raise _fail(fname, "top level", None, "must be a mapping of language to groups")
     for lang, groups in doc.items():
+        if lang == "exclude":
+            if not isinstance(groups, list) or not all(isinstance(g, str) and g for g in groups):
+                raise _fail(fname, "exclude", None, "must be a list of globs")
+            st.excludes += [g for g in groups if g not in st.excludes]
+            continue
         if lang not in LANGS:
             raise _fail(fname, f"unknown language '{lang}'", None, f"the scanner parses {', '.join(LANGS)}")
         if groups is None:
@@ -403,11 +410,13 @@ def load(stack_file: Path | None) -> Stack:
             text = raw.removeprefix(b"\xef\xbb\xbf").decode().replace("\r\n", "\n")
         except UnicodeDecodeError as err:
             raise StackError(f"{Path(stack_file).name}: not valid UTF-8: {err}") from None
-        st.digest = hashlib.sha256(text.encode()).hexdigest()   # of the normalised text: a CRLF checkout digests the same
         try:
             doc = yaml.safe_load(text)
         except yaml.YAMLError as err:
             raise StackError(f"{Path(stack_file).name}: not valid YAML: {err}") from None
+        # of the parsed content: a comment, whitespace or line-ending edit digests the same
+        st.digest = hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                                              default=str).encode()).hexdigest()
         _read(st, Path(stack_file).name, doc, "stack.yaml")
     return st
 
@@ -431,6 +440,37 @@ def ensure_header(stack_file: Path) -> None:
         crlf = body.split(b"\n", 1)[0].endswith(b"\r")
         header = (HEADER.replace("\n", "\r\n") if crlf else HEADER).encode()
         Path(stack_file).write_bytes(bom + header + body)
+
+
+def add_excludes(stack_file: Path, globs: list[str]) -> list[str]:
+    """Add the globs stack.yaml's `exclude` list lacks (creating the file with HEADER when there is none), so a
+    rescan without `--exclude` leaves the same files out. The list is rewritten at the end of the file, one quoted
+    glob per line; the rest stays as written. Returns the globs added."""
+    path = Path(stack_file)
+    text = path.read_text(encoding="utf-8") if path.is_file() else HEADER
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError as err:
+        raise StackError(f"{path.name}: not valid YAML: {err}") from None
+    have = doc.get("exclude") if isinstance(doc, dict) and isinstance(doc.get("exclude"), list) else []
+    added = [g for g in dict.fromkeys(globs) if g not in have]
+    if not added:
+        return []
+    kept, inside = [], False
+    for line in text.splitlines(keepends=True):
+        if re.match(r"exclude\s*:", line):
+            inside = True
+        elif inside and (not line.strip() or line[0] in " \t-"):
+            continue
+        else:
+            inside = False
+            kept.append(line)
+    body = "".join(kept)
+    body += "" if not body or body.endswith("\n") else "\n"
+    quoted = ["'" + g.replace("'", "''") + "'" for g in [*have, *added]]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body + "exclude:\n" + "".join(f"  - {q}\n" for q in quoted), encoding="utf-8")
+    return added
 
 
 def sep(lang: str) -> str:
@@ -484,9 +524,40 @@ def effect_names(st: Stack, lang: str) -> tuple[tuple[str, ...], tuple[str, ...]
     return tuple(e.name for e in es), tuple(e.name for e in es if e.match == "both")
 
 
+HTTP_VERBS = ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "TRACE", "CONNECT")
+VERB_CONSTANT = re.compile(r"[A-Za-z_]\w*(?:(?:\.|::|\\|->)[A-Za-z_]\w*)+")
+
+
+def verb_of(text: str) -> str | None:
+    """The HTTP method a qualified constant names by its last part, case-insensitively, with a `Method` or `Http`
+    prefix dropped (`http.MethodHead` -> HEAD, `HttpMethod.GET` -> GET, `Method::POST` -> POST); else None."""
+    last = re.split(r"\.|::|\\|->", text.strip())[-1].upper()
+    for word in (last, re.sub(r"^(?:METHOD|HTTP)_?", "", last)):
+        if word in HTTP_VERBS:
+            return word
+    return None
+
+
+def _methods(text: str) -> list[str]:
+    """The methods a `methods` group lists: quoted words, and qualified constants naming a verb."""
+    return [m.group(1).upper() if m.group(1) else verb_of(m.group(0))
+            for m in re.finditer(rf"[\"'](\w+)[\"']|{VERB_CONSTANT.pattern}", text)
+            if m.group(1) or verb_of(m.group(0))]
+
+
+# a parameter's name inside `{}` with what frameworks write around it: a catch-all `*`/`**`, an optional `?`, a Go
+# wildcard `...`, a constraint after `:` (`{id:int}`, `{id:[0-9]+}`, `{id:minlength(1)}`)
+BRACED_PARAM = re.compile(r"\{\*{0,2}(\w+)(?:\?|\.\.\.|:(?:[^{}]|\{[^{}]*\})*)?\}")
+# `:id`, optionally `:id?` or `:id(\d+)` (a regex in parentheses)
+COLON_PARAM = re.compile(r"(?:(?<=/)|^):(\w+)(?:\?|\((?:[^()]|\([^()]*\))*\))?")
+
+
 def normalise(path: str) -> str:
+    """A route path in the key form: `/` first, no trailing `/`, each parameter as `{name}` (`<int:id>`, `:id`,
+    `{id:int}`, `{id?}`, `{*rest}` -> `{id}`, `{rest}`)."""
     path = re.sub(r"<(?:[^<>:]*:)?([^<>]+)>", r"{\1}", path.strip())
-    path = re.sub(r"(?:(?<=/)|^):(\w+)", r"{\1}", path)
+    path = COLON_PARAM.sub(r"{\1}", path)
+    path = BRACED_PARAM.sub(r"{\1}", path)
     return "/" + path.strip("/")
 
 
@@ -540,11 +611,12 @@ def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
 
 
 def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
-                file_id: str) -> list[dict]:
+                file_id: str, mounts: list[dict] | None = None) -> list[dict]:
     """Route facts from every pattern of the language that applies to the file (imports: import_names). A match
     of a pattern with a `handler` group carries the group's text as `handler_name` for structure to resolve; such
     a pattern names its handler in the call, so when the group is empty (an inline function) the handler is the
-    method around the match or the file, never the method below it (the rule for decorators)."""
+    method around the match or the file, never the method below it (the rule for decorators). The file's `mounts`
+    (find_mounts) compose onto the routes registered on them (compose)."""
     out = []
     for pat, m, text in _matches(st, lang, src, imports, False):
         groups = pat.regex.groupindex
@@ -557,33 +629,123 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
             param = (m.group("param") or "").strip() if "param" in groups else ""
             out += [{"method": method, "handler": handler, "line": line,
                      "path": normalise(base + (re.sub(r"(?<=/):id\b", ":" + param, suffix) if param else suffix)),
-                     "framework": pat.name, "source": pat.source}
+                     "framework": pat.name, "source": pat.source, "at": m.start()}
                     for action, pairs in pat.expand
                     if (only is None or action in only) and (exclude is None or action not in exclude)
                     for method, suffix in pairs]
             continue
-        methods = re.findall(r"[\"'](\w+)[\"']", m.group("methods") or "") if "methods" in groups else []
+        methods = _methods(m.group("methods") or "") if "methods" in groups else []
         if not methods and "method" in groups and m.group("method"):
-            methods = [m.group("method")]
+            methods = [verb_of(m.group("method")) or m.group("method")]
         methods = [x.upper() for x in methods] or ([pat.method] if pat.method else [])
         line = src.count("\n", 0, m.start()) + 1
         handler = _handler(spans, line, file_id, "handler" not in groups)
         named = m.group("handler") if "handler" in groups else None
         for method in methods:
             out.append({"method": method, "path": read_path(text, pat.path), "handler": handler,
-                        "line": line, "framework": pat.name, "source": pat.source,
+                        "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
                         **({"handler_name": named.strip()} if named and named.strip() else {})})
+    compose(src, out, mounts or [], lang)
     return out
 
 
 def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict]:
-    """Mount facts (nested prefixes) from the `mount: true` patterns that apply to the file."""
+    """Mount facts (nested prefixes) from the `mount: true` patterns that apply to the file. `at` and `call` (where
+    the match and the call holding its path start) are for compose, which removes them."""
     out = []
     for pat, m, text in _matches(st, lang, src, imports, True):
         target = m.group("target") if "target" in pat.regex.groupindex else None
         out.append({"path": read_path(text, pat.path), "target": (target or "").strip() or None,
-                    "line": src.count("\n", 0, m.start()) + 1, "framework": pat.name, "source": pat.source})
+                    "line": src.count("\n", 0, m.start()) + 1, "framework": pat.name, "source": pat.source,
+                    "at": m.start(), "call": src.rfind("(", m.start(), m.start("path"))})
     return out
+
+
+_LINE_STRINGS = r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\''
+C_COMMENTS = re.compile(_LINE_STRINGS + r"|`[^`]*`|(//[^\n]*|/\*[\s\S]*?\*/)")
+HASH_COMMENTS = re.compile(_LINE_STRINGS + r"|(#[^\n]*)")
+CHAIN_STEP = re.compile(r"\s*(?:\.|::|->|\?\.)\s*[A-Za-z_]\w*\s*(?=[(\[{])")
+HEAD = re.compile(r"@?\s*(\$?[A-Za-z_]\w*)\s*(?:\.|::|->)")
+HEAD_BEFORE = re.compile(r"(\$?[A-Za-z_]\w*)\s*$")
+BINDING = re.compile(r"(?<![\w.$])(\$?[A-Za-z_]\w*)\s*(?::\s*[\w.<>\[\], ]+?\s*)?(?::=|=(?![=>]))")
+BOUND_TO = re.compile(r"\s*(?:(?:new\s+)?[\w.$:]+\s*\(\s*\{?\s*)?")
+
+
+def _extent(src: str, mount: dict) -> int:
+    """Where the code a mount covers ends: its call's closing bracket, a trailing block on the same line
+    (`route("/v1") { }`), and, for a mount without a target (it returns the prefixed router), the calls chained on
+    it. -1 when its brackets do not balance."""
+    i = mount["call"]
+    if i < 0 or (end := _close(src, i)) < 0:
+        return -1
+    end += 1
+    if (m := re.match(r"[ \t]*\{", src[end:])) and (close := _close(src, end + m.end() - 1)) >= 0:
+        end = close + 1
+    while mount["target"] is None and (m := CHAIN_STEP.match(src, end)):
+        close = _close(src, m.end())
+        if close < 0:
+            break
+        end = close + 1
+    return end
+
+
+def _head(src: str, at: int) -> str | None:
+    """The variable a registration is called on: `v1` in `v1.GET(..)`, `api` in `api\n  .route(..)`."""
+    if src[at:at + 1] == ".":
+        m = HEAD_BEFORE.search(src, max(0, at - 200), at)
+        return m.group(1) if m else None
+    m = HEAD.match(src, at)
+    return m.group(1) if m else None
+
+
+def _blank_comments(src: str, lang: str) -> str:
+    """The source with its comments blanked to spaces (lines and offsets kept), so an apostrophe in one opens no
+    string when brackets are matched: `#` comments in Python and Ruby, `//` and `/* */` in the other languages."""
+    pat = HASH_COMMENTS if lang in ("python", "ruby") else C_COMMENTS
+    return pat.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)) if m.group(1) else m.group(0), src)
+
+
+def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") -> None:
+    """Join each mount's prefix onto the routes registered on it in the same file: inside its call or block, chained
+    on it, or called on a variable bound to it (`v1 := r.Group("/v1")`), nested mounts composing outward. Each
+    composing mount counts its routes in `composed`. Removes the `at` and `call` positions."""
+    src = _blank_comments(src, lang) if mounts else src
+    ends = [_extent(src, mt) for mt in mounts]
+    bound: dict[str, list[tuple[int, int]]] = {}       # variable -> (where it is bound, the mount)
+    for k, mt in enumerate(mounts):
+        if mt["target"] is not None or ends[k] < 0:
+            continue
+        start = mt["at"]
+        if src[start:start + 1] == "." and (m := HEAD_BEFORE.search(src, max(0, start - 200), start)):
+            start = m.start(1)
+        for b in BINDING.finditer(src, max(0, start - 200), start):
+            if BOUND_TO.fullmatch(src, b.end(), start):
+                bound.setdefault(b.group(1), []).append((b.start(), k))
+
+    def prefix(at: int, head: str | None, depth: int = 0) -> list[int]:
+        if depth > 20:
+            return []
+        inside = [k for k, mt in enumerate(mounts) if mt["at"] < at < ends[k]]
+        on = max(((b, k) for b, k in bound.get(head or "", []) if b < at and 0 <= ends[k] <= at),
+                 default=(0, None))[1]
+        if not inside and on is None:
+            return []
+        k = max(inside + ([on] if on is not None else []), key=lambda k: mounts[k]["at"])   # the nearest
+        return prefix(mounts[k]["at"], _head(src, mounts[k]["at"]), depth + 1) + [k]
+
+    for r in routes:
+        if "at" not in r:
+            continue
+        at = r.pop("at")
+        chain = prefix(at, _head(src, at))
+        if chain:
+            r["path"] = normalise("/".join(x.strip("/") for x in [*(mounts[k]["path"] for k in chain), r["path"]]
+                                           if x.strip("/")))
+            for k in chain:
+                mounts[k]["composed"] = mounts[k].get("composed", 0) + 1
+    for mt in mounts:
+        mt.pop("at", None)
+        mt.pop("call", None)
 
 
 def find_tables(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
@@ -880,7 +1042,8 @@ def annotated_routes(pat: AnnotatedPattern, annotations: list[dict], nodes: list
                 continue
             if (how := pat.verbs[verb[0]]) == FROM_ARG:
                 elems = verb[2].get(pat.method_arg or "method", [])
-                how = list(dict.fromkeys(_last(v).upper() for k, v in elems if k in ("str", "name") and v)) or ["ANY"]
+                how = list(dict.fromkeys(verb_of(v) or _last(v).upper()
+                                         for k, v in elems if k in ("str", "name") and v)) or ["ANY"]
             else:
                 how = [how]
             for pre in prefixes:

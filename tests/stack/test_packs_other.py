@@ -335,7 +335,7 @@ def test_laravel_service(make_repo):
     assert routes(s, "routes/api.php") == [
         ("GET", "/orders/{id}", f"{ctrl}#show/1", 6, "laravel", "pack"),
         ("POST", "/orders", f"{ctrl}#store/0", 7, "laravel", "pack"),
-        ("DELETE", "/orders/{id}", f"{ctrl}#destroy/1", 10, "laravel", "pack"),
+        ("DELETE", "/v1/orders/{id}", f"{ctrl}#destroy/1", 10, "laravel", "pack"),
         ("GET", "/sync", ".::routes/api.php", 8, "laravel-match", "pack"),
         ("POST", "/sync", ".::routes/api.php", 8, "laravel-match", "pack")]
     assert mounts(s, "routes/api.php") == [("/v1", None, 9, "laravel-prefix")]
@@ -351,7 +351,7 @@ def test_laravel_routes_file_without_a_use_line(make_repo):
     assert "use Illuminate" not in files["routes/api.php"]
     s = build(make_repo, files)
     assert [r[:2] for r in routes(s, "routes/api.php")] == [
-        ("GET", "/orders/{id}"), ("POST", "/orders"), ("DELETE", "/orders/{id}"), ("GET", "/sync"), ("POST", "/sync")]
+        ("GET", "/orders/{id}"), ("POST", "/orders"), ("DELETE", "/v1/orders/{id}"), ("GET", "/sync"), ("POST", "/sync")]
     assert mounts(s, "routes/api.php") == [("/v1", None, 8, "laravel-prefix")]
 
 
@@ -475,3 +475,21 @@ def test_stack_yaml_replaces_a_new_pack_entry(make_repo):
     s = structure.build(repo, "docs/viz-code")
     assert [(r["method"], r["path"]) for r in s["facts"]["app.rb"]["routes"]] == [("GET", "/orders/{id}")]
     assert {"lang": "ruby", "group": "routes", "name": "sinatra"} in s["stack"]["overrides"]
+
+
+def test_csharp_global_usings_reach_every_file_of_their_project(make_repo):
+    """`global using` in any file of a project, and `<Using Include>` in its .csproj, import the namespace in every
+    file of that project, so a pack's `when` holds there; another project does not get them."""
+    s = build(make_repo, {
+        "Data/Data.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <ItemGroup>\n"
+                            "    <Using Include=\"System.ComponentModel.DataAnnotations.Schema\" />\n"
+                            "  </ItemGroup>\n</Project>\n",
+        "Data/GlobalUsings.cs": "global using Microsoft.EntityFrameworkCore;\n",
+        "Data/OrderConfig.cs": "namespace Data;\n\nclass OrderConfig {\n"
+                               "  public void Configure(EntityTypeBuilder<Order> b) { b.ToTable(\"orders\"); }\n}\n",
+        "Data/Line.cs": "namespace Data;\n\n[Table(\"order_lines\")]\npublic class Line { public int Id { get; set; } }\n",
+        "Other/Other.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n",
+        "Other/Config.cs": "namespace Other;\n\nclass C {\n  void M(B b) { b.ToTable(\"audit\"); }\n}\n"})
+    assert [t["table"] for t in s["facts"]["Data/OrderConfig.cs"]["tables"]] == ["orders"]
+    assert [t["table"] for t in s["facts"]["Data/Line.cs"]["tables"]] == ["order_lines"]
+    assert "tables" not in s["facts"]["Other/Config.cs"]

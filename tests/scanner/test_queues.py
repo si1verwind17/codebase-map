@@ -96,3 +96,41 @@ def test_stack_yaml_adds_a_queue_pattern(make_repo):
     s = structure.build(repo, "docs/viz-code")
     assert s["facts"]["worker/bus.py"]["queues"][0]["delivery"] == "fan-out"
     assert "- python bus (stack.yaml): 1 queue in 1 file" in structure.summary_md(s)
+
+
+QUEUE_USES = {
+    "go.mod": "module example.com/shop\n\ngo 1.22\n",
+    "cmd/signals.go": "package main\n\nimport (\n\t\"os\"\n\t\"os/signal\"\n)\n\nfunc wait() {\n"
+                      "\tsigs := make(chan os.Signal, 1)\n\tsignal.Notify(sigs, os.Interrupt)\n\t<-sigs\n}\n",
+    "cmd/jobs.go": "package main\n\nfunc run(ids []int) {\n\tjobs := make(chan int, 8)\n"
+                   "\tgo func() {\n\t\tfor _, id := range ids {\n\t\t\tjobs <- id\n\t\t}\n\t}()\n"
+                   "\tfor id := range jobs {\n\t\thandle(id)\n\t}\n}\n\nfunc handle(id int) {}\n",
+    "cmd/pool.go": "package main\n\nfunc pool() {\n\twork := make(chan int)\n\tgo drain(work)\n\twork <- 1\n}\n\n"
+                   "func drain(c chan int) {\n\tfor range c {\n\t}\n}\n",
+    "Gemfile": "source 'https://rubygems.org'\n",
+    "app/checks.rb": "class Checks\n  def busy?(name)\n    Jobs::Queue.new(name).size > 10\n  end\n\n"
+                     "  def flush(name)\n    queue = Jobs::Queue.new(name)\n    queue.clear\n  end\n\n"
+                     "  def pump(items)\n    q = Queue.new\n    t = Thread.new { while (x = q.pop); puts x; end }\n"
+                     "    items.each { |i| q << i }\n  end\nend\n",
+    "tools/requirements.txt": "",
+    "tools/sizes.py": "import queue\n\n\ndef depth():\n    q = queue.Queue()\n    return q.qsize()\n\n\n"
+                      "def pipe(items, worker):\n    q = queue.Queue()\n    for i in items:\n        q.put(i)\n"
+                      "    worker(q)\n",
+}
+
+
+def test_a_queue_needs_items_put_on_it_and_taken_off_it_in_repo_code(make_repo):
+    """A channel only a library fills (OS signals), a handle used only to read a size or clear a queue elsewhere,
+    and a queue nothing takes from are no hand-offs; a queue filled and drained in the repo's code is a candidate,
+    also when it is passed to the repo's own function."""
+    s = structure.build(make_repo(QUEUE_USES), "docs/viz-code")
+    sites = {(f, q["line"]) for f, ff in s["facts"].items() for q in ff.get("queues", [])}
+    assert sites == {("cmd/jobs.go", 4), ("cmd/pool.go", 4), ("app/checks.rb", 12), ("tools/sizes.py", 10)}
+    assert all("use" not in q for ff in s["facts"].values() for q in ff.get("queues", []))
+
+
+def test_a_stack_yaml_queue_pattern_is_never_judged(make_repo):
+    repo = make_repo({"tools/requirements.txt": "", "tools/bus.py": "def make():\n    b = EventBus()\n    return 1\n"})
+    with_stack(repo, "python:\n  queues:\n    - {name: bus, delivery: fan-out, regex: '\\bEventBus\\(\\)'}\n")
+    commit_all(repo)
+    assert structure.build(repo, "docs/viz-code")["facts"]["tools/bus.py"]["queues"][0]["line"] == 2

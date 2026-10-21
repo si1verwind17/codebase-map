@@ -24,9 +24,34 @@ def _named(node, name: str) -> bool:
     return n is not None and text(n) == name
 
 
-def _field(name: str, typ) -> dict:
-    """One field; a quoted name (Scala, Kotlin backticks) without its quotes; `typ` a type node or None."""
-    return {"name": name.strip("`"), "type": _type(typ)}
+def _field(name: str, typ, visibility: str | None = None) -> dict:
+    """One field; a quoted name (Scala, Kotlin backticks) without its quotes; `typ` a type node or None; `visibility`
+    in the languages that say it by modifiers."""
+    out = {"name": name.strip("`"), "type": _type(typ)}
+    if visibility:
+        out["visibility"] = visibility
+    return out
+
+
+MODIFIERS = ("modifiers", "modifier", "visibility_modifier", "access_modifier")
+ACCESS = {"public", "protected", "private", "internal"}
+
+
+def _access(decl, implicit: str = "public") -> str:
+    """A member's visibility from its modifier keywords (annotations left out): `private` or `protected` make it
+    private; with no access keyword it is `implicit` (C# members are private by default)."""
+    words, stack = set(), [c for c in decl.children if c.type in MODIFIERS]
+    while stack:
+        n = stack.pop()
+        if "annotation" in n.type:
+            continue
+        if n.is_named:
+            stack.extend(n.children)
+        else:
+            words.add(n.type)
+    if words & {"private", "protected"}:
+        return "private"
+    return "public" if words & ACCESS else implicit
 
 
 # --- Scala, Python (own adapters) -------------------------------------------------------------------------
@@ -38,7 +63,7 @@ def scala(cls) -> list[dict]:
     lists = cls.children_by_field_name("class_parameters")
     if not lists or _tokens(lists[0]) & {"implicit", "using"}:
         return []
-    return [_field(text(p.child_by_field_name("name")), p.child_by_field_name("type"))
+    return [_field(text(p.child_by_field_name("name")), p.child_by_field_name("type"), _access(p))
             for p in lists[0].named_children
             if p.type == "class_parameter" and p.child_by_field_name("name") is not None]
 
@@ -65,12 +90,12 @@ def _java(cls) -> list[dict]:
     plist = cls.child_by_field_name("parameters") if cls.type == "record_declaration" else None
     for p in (plist.named_children if plist is not None else []):
         if p.type == "formal_parameter" and (name := p.child_by_field_name("name")) is not None:
-            out.append(_field(text(name), p.child_by_field_name("type")))
+            out.append(_field(text(name), p.child_by_field_name("type"), "public"))
         elif p.type == "spread_parameter":      # `int... xs`: the type is the first child, the name a declarator
             decl = next((k for k in p.named_children if k.type == "variable_declarator"), None)
             typ = next((k for k in p.named_children if k.type != "variable_declarator"), None)
             if decl is not None and typ is not None and (name := decl.child_by_field_name("name")) is not None:
-                out.append({"name": text(name), "type": text(typ) + "..."})
+                out.append({"name": text(name), "type": text(typ) + "...", "visibility": "public"})
     body = cls.child_by_field_name("body")
     if cls.type not in ("class_declaration", "record_declaration") or body is None:
         return out
@@ -80,7 +105,7 @@ def _java(cls) -> list[dict]:
             continue
         for d in f.children_by_field_name("declarator"):
             if (name := d.child_by_field_name("name")) is not None:
-                out.append(_field(text(name), f.child_by_field_name("type")))
+                out.append(_field(text(name), f.child_by_field_name("type"), _access(f)))
     return out
 
 
@@ -93,7 +118,7 @@ def _kotlin(cls) -> list[dict]:
                     name = next((k for k in p.named_children if k.type == "simple_identifier"), None)
                     typ = next((k for k in p.named_children if k.type in KOTLIN_TYPES), None)
                     if name is not None:
-                        out.append(_field(text(name), typ))
+                        out.append(_field(text(name), typ, _access(p)))
         elif c.type == "class_body":
             for prop in c.named_children:
                 if prop.type != "property_declaration":
@@ -102,7 +127,7 @@ def _kotlin(cls) -> list[dict]:
                 name = next((k for k in var.named_children if k.type == "simple_identifier"), None) if var else None
                 if name is not None:
                     typ = next((k for k in var.named_children if k.type in KOTLIN_TYPES), None)
-                    out.append(_field(text(name), typ))
+                    out.append(_field(text(name), typ, _access(prop)))
     return out
 
 
@@ -174,13 +199,14 @@ def _csharp(cls) -> list[dict]:
         plist = next((c for c in cls.named_children if c.type == "parameter_list"), None)
         for p in (plist.named_children if plist is not None else []):
             if p.type == "parameter" and (name := p.child_by_field_name("name")) is not None:
-                out.append(_field(text(name), p.child_by_field_name("type")))
+                out.append(_field(text(name), p.child_by_field_name("type"), "public"))
     body = cls.child_by_field_name("body")
+    implicit = "public" if cls.type == "interface_declaration" else "private"
     for m in (body.named_children if body is not None else []):
         if m.type == "property_declaration" and not any(
                 k.type == "modifier" and text(k) == "static" for k in m.named_children):
             if (name := m.child_by_field_name("name")) is not None:
-                out.append(_field(text(name), m.child_by_field_name("type")))
+                out.append(_field(text(name), m.child_by_field_name("type"), _access(m, implicit)))
     return out
 
 
@@ -205,12 +231,12 @@ def _php(cls) -> list[dict]:
                 and not any(k.type == "static_modifier" for k in m.named_children):
             for el in m.named_children:
                 if el.type == "property_element" and (name := el.child_by_field_name("name")) is not None:
-                    out.append(_field(text(name).lstrip("$"), m.child_by_field_name("type")))
+                    out.append(_field(text(name).lstrip("$"), m.child_by_field_name("type"), _access(m)))
         elif m.type == "method_declaration" and _named(m, "__construct"):
             params = m.child_by_field_name("parameters")
             for p in (params.named_children if params is not None else []):
                 if p.type == "property_promotion_parameter" and (name := p.child_by_field_name("name")) is not None:
-                    out.append(_field(text(name).lstrip("$"), p.child_by_field_name("type")))
+                    out.append(_field(text(name).lstrip("$"), p.child_by_field_name("type"), _access(p)))
     return out
 
 

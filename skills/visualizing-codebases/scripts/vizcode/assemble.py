@@ -16,6 +16,7 @@ SEMANTIC_KINDS = {"service", "library", "datastore", "table", "external", "topic
 GITIGNORE = ["structure.json", "summary.md", "meaning.json", "meaning.previous.json", "stale.json",
              "code-map.invalid.json",
              "index.html", "export-comment.md", "audit.md", "feedback.md"]
+GITATTRIBUTES = ["code-map.json linguist-generated=true -diff"]   # paths relative to the output folder
 
 
 def meaning_errors(meaning: dict, structure: dict) -> list[str]:
@@ -53,7 +54,8 @@ def meaning_errors(meaning: dict, structure: dict) -> list[str]:
             rid = ids.relation_id(r["kind"], r["from"], r["to"], r.get("key"))
             if rid in seen:
                 errors.append(f"relation {i} duplicates relation {seen[rid]} ({rid}): merge their evidence, "
-                              "or tell them apart by key")
+                              "or tell them apart by key (a job queue: key each enqueue by its job, "
+                              "SKILL.md § Queues in a store or a job system)")
             seen.setdefault(rid, i)
     errors += pins.errors(meaning)
     errors += examples.shape_errors(meaning.get("examples") or {})
@@ -220,12 +222,8 @@ def ensure_repo_files(repo: Path, out_dir: str) -> None:
     out = repo / out_dir
     out.mkdir(parents=True, exist_ok=True)
     readme.write(out)
-    gi = out / ".gitignore"
-    have = gi.read_text(encoding="utf-8").splitlines() if gi.exists() else []
-    if missing := [g for g in GITIGNORE if g not in have]:   # keep the user's own lines
-        gi.write_text("\n".join(have + missing) + "\n", encoding="utf-8")
-    line = f"{out_dir.strip('/')}/code-map.json linguist-generated=true -diff"
-    ga = repo / ".gitattributes"
-    existing = ga.read_text(encoding="utf-8").splitlines() if ga.exists() else []
-    if line not in existing:
-        ga.write_text("\n".join(existing + [line]) + "\n", encoding="utf-8")
+    for name, lines in ((".gitignore", GITIGNORE), (".gitattributes", GITATTRIBUTES)):
+        f = out / name
+        have = f.read_text(encoding="utf-8").splitlines() if f.exists() else []
+        if missing := [g for g in lines if g not in have]:   # keep the user's own lines
+            f.write_text("\n".join(have + missing) + "\n", encoding="utf-8")

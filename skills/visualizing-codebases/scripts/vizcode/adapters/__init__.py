@@ -17,11 +17,13 @@ tapir     {"vals": {qualname: {...}}, "bodies": [(method_id, line, body_text)], 
            "binds": [(method_id, endpoint as written, line)] server logic bound to an endpoint,
            "mentions"?: [dotted names] in a file importing an sttp client}  (Scala only)
 supers    [(class_id, [type name as written])]  what a class extends or an anonymous body implements (Scala, generic)
-bases     [(class_id, [base as written])]  a class's bases (Python only; used for gRPC servicers, not `implements`)
+bases     [(class_id, [base as written])]  a class's bases (Python only; gRPC servicers and `implements`)
 dags      [{framework, id, schedule, tasks, node, line}]  Airflow DAGs: `@dag` functions, `with DAG(...)` blocks (Python)
 workflows [{framework, id, node, line, launch_plans: [{name, schedule, line}]}]  Flyte workflows (Python)
 reference_tasks [{kind, project, domain, name, node, line}]  Flyte reference_task/workflow/launch_plan (Python)
 annotations [{node, text, line}]  annotations/decorators on class and method nodes (generic walker)
+nested    [{name, start, line, end, in, params}]  named functions inside a function (`in`), not nodes: structure makes
+          one a node when a route names it (start: its first decorator's line, else line)
 attached  [class node]  types this file's methods attach to (Go receivers, Rust `impl`) but no class here declares;
           structure.build counts them on the declared class, else adds the node (generic walker)
 package_declared  a declared package name other than the folder's last segment (Go), kept as is; absent when equal
@@ -97,7 +99,7 @@ def callee_text(callee: str) -> str:
 def new_result(package: str, parse_error: bool) -> dict:
     return {"nodes": [], "package": package, "imports": [], "calls": [], "strings": [],
             "env_keys": [], "routes": [], "includes": [], "tapir": {"vals": {}, "bodies": [], "root": False, "client": False}, "supers": [],
-            "aliases": [], "type_params": {}, "parse_error": parse_error}
+            "aliases": [], "type_params": {}, "nested": [], "parse_error": parse_error}
 
 
 TYPE_PARAM_LISTS = frozenset({"type_parameters", "type_parameter_list", "type_parameter"})   # Python's is the last

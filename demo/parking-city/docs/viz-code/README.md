@@ -10,6 +10,8 @@ How to read the map: the field guide at https://si1verwind17.github.io/codebase-
 | `stack.yaml` | libraries and route styles this repo uses that the scanner does not know built in | the agent; you may edit | yes |
 | `map-notes.md` | your standing notes on the map | you | yes |
 | `README.md` | this file | `assemble.py` | yes |
+| `.gitignore` | keeps the files not committed out of git | `assemble.py`; you may add lines | yes |
+| `.gitattributes` | marks `code-map.json` generated, so diffs fold it | `assemble.py`; you may add lines | yes |
 | `index.html` | the map viewer page | `assemble.py`, `view.py` | no |
 | `audit.md` | drawing and content checks, findings | `assemble.py`, `audit.py` | no |
 | `structure.json`, `summary.md` | the scanner's facts, and the digest the agent reads | `extract.py` | no |

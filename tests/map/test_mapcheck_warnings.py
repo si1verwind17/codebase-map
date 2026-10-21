@@ -163,3 +163,44 @@ def test_data_two_way_call():
         {"id": "r3", "kind": "stream", "from": "a", "to": "b", "data": "both"}]}
     got = [(w["node"], w["detail"].split()[1]) for w in mapcheck.warnings(m) if w["id"] == "data.two-way-call"]
     assert got == [("a", "r1")]                  # a two-way stream is fine; a call's reply is no flow back
+
+
+def test_external_unused():
+    m = copy.deepcopy(DEMO)
+    m["nodes"].append({"id": "3p:idle", "kind": "external", "name": "idle"})
+    used = next(n["id"] for n in m["nodes"] if n["kind"] == "external" and n["id"] != "3p:idle")
+    m["relations"] = [r for r in m["relations"] if used in (r["from"], r["to"])][:1]
+    got = [w for w in mapcheck.warnings(m) if w["id"] == "external.unused"]
+    assert sorted(w["node"] for w in got) == sorted(n["id"] for n in m["nodes"] if n["kind"] == "external"
+                                                    and n["id"] != used)
+    assert got[0]["detail"].startswith(f"external {got[0]['node']} has no relation")
+
+
+def _routes_map(problems=()):
+    nodes = [{"id": "f", "kind": "file", "name": "routes.js", "file": "src/routes.js", "line": 1},
+             {"id": "f#setup/1", "kind": "method", "name": "setup", "parent": "f", "file": "src/routes.js",
+              "line": 10, "metrics": {"loc": 10}},
+             {"id": "f#show/1", "kind": "method", "name": "show", "parent": "f", "file": "src/routes.js",
+              "line": 30, "metrics": {"loc": 3}}]
+    routes = [{"method": "GET", "path": "/a", "handler": "f", "line": 3},
+              {"method": "GET", "path": "/b", "handler": "f", "line": 4},
+              {"method": "GET", "path": "/c", "handler": "f#setup/1", "line": 11},
+              {"method": "GET", "path": "/d", "handler": "f#setup/1", "line": 12},
+              {"method": "GET", "path": "/e", "handler": "f#show/1", "line": 13},
+              {"method": "GET", "path": "/f", "handler": "f#show/1", "line": 30}]
+    return {"nodes": nodes, "relations": [], "files": {"src/routes.js": {"node": "f", "routes": routes}},
+            "problems": [{"text": t} for t in problems]}
+
+
+def test_route_handlers_that_are_a_file_or_a_setup_function():
+    got = [(w["id"], w["node"], w["detail"]) for w in mapcheck.warnings(_routes_map())
+           if w["id"].startswith("route.")]
+    assert got == [
+        ("route.file-handler", "f", "2 routes in src/routes.js have the file as handler (GET /a at src/routes.js:3; "
+         "GET /b at src/routes.js:4): no entry point, so no example or trace starts there. Point each at the "
+         "function that handles it in stack.yaml (a handler group), or say in problems why the file is right"),
+        ("route.setup-handler", "f#setup/1", "f#setup/1 registers 3 routes and is the handler of 2 of them (GET /c "
+         "at src/routes.js:11; GET /d at src/routes.js:12): a function that sets routes up is rarely what handles "
+         "them. Point each at its real handler in stack.yaml (a handler group), or say in problems why it is right")]
+    quiet = _routes_map(["the inline handlers at src/routes.js:3 and f#setup/1 are what the code has"])
+    assert [w for w in mapcheck.warnings(quiet) if w["id"].startswith("route.")] == []

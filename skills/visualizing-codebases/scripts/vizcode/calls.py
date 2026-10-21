@@ -105,6 +105,14 @@ def _param_type(method: dict, name: str) -> tuple[str, list[str]] | None:
     return None
 
 
+def _field_type(owner: dict | None, name: str) -> tuple[str, list[str]] | None:
+    """(outer type name, no refs) of the caller's class field called `name` that declares a type."""
+    for f in (owner or {}).get("fields") or []:
+        if f.get("name") == name and (outer := _outer_type(f.get("type"))):
+            return outer, []
+    return None
+
+
 def _ancestors(cid: str, by_id: dict[str, dict]) -> set[str]:
     """A class and every class it extends or implements in the repo."""
     out, todo = set(), [cid]
@@ -152,18 +160,32 @@ def _owner_names(node: dict, nodes: dict[str, dict]) -> set[str]:
 
 
 def _abstractions(by_id: dict[str, dict]) -> dict[str, str]:
-    """Method id -> the method it implements: a same-named method of a class or trait in `implements`
-    (followed upward, so a chain of implementations reaches the top). A trait method and its
-    implementations count as one call target, drawn to the trait method."""
+    """Method id -> the method it implements: a same-named method of a class or trait in `implements`, or of the
+    nearest class above one that declares it (an abstract class between them need not), followed upward, so a
+    chain of implementations reaches the top. A trait method and its implementations count as one call target,
+    drawn to the trait method."""
     methods: dict[str, dict[str, list[str]]] = {}
     for n in by_id.values():
         if n["kind"] == "method" and n.get("parent"):
             methods.setdefault(n["parent"], {}).setdefault(n["name"], []).append(n["id"])
+
+    def declared(sup: str, name: str) -> list[str]:
+        todo, seen = [sup], set()
+        while todo:
+            c = todo.pop(0)
+            if c in seen or c not in by_id:
+                continue
+            seen.add(c)
+            if found := methods.get(c, {}).get(name):
+                return found
+            todo += by_id[c].get("implements") or []
+        return []
+
     up: dict[str, str] = {}
     for n in by_id.values():
         for sup in n.get("implements") or []:
             for name, mine in methods.get(n["id"], {}).items():
-                theirs = methods.get(sup, {}).get(name, [])
+                theirs = declared(sup, name)
                 for m in mine:
                     arity = m.rsplit("/", 1)[-1]
                     same = [t for t in theirs if t.rsplit("/", 1)[-1] == arity] or theirs
@@ -268,6 +290,11 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             # a parameter with a declared type: only its outer type's methods; a library type has none of ours
             typed = (_param_type(by_id[caller], receiver)
                      if receiver and len(parts) == 2 and receiver not in SELF_RECEIVERS else None)
+            if typed is None and receiver and receiver not in SELF_RECEIVERS and receiver != "super" and (
+                    len(parts) == 2 or (len(parts) == 3 and parts[0] in SELF_RECEIVERS | {c.get("self")})):
+                # a field of the caller's class (`repo.save`, `this.repo.save`) typed with a repo class: as a parameter
+                field = _field_type(by_id.get(by_id[caller].get("parent") or ""), receiver)
+                typed = field if field is not None and field[0] in classes else None
             if typed is not None:
                 outer, refs = typed
                 # the repo classes the outer type names: its resolved ref, else every class of that name

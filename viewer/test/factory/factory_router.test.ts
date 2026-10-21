@@ -54,6 +54,33 @@ describe("tile router", () => {
     expect(rd.pieces[0].in).toBe("n");   // starts at the lane, travelling up
   });
 
+  it("drops a tap straight onto a long lane below its machine: no tile of a lane's side is better than another", () => {
+    // the lane runs far right of the machine: the graded end cost on a box side (OFF) would pull the tap to its middle
+    const lanes = [{ id: "db", label: "db", x0: 2, x1: 78, y: 10 }];
+    const tf = floorOf([box("svc", 5, 1, 5, 5), box("db", 0, 10, 2, 3, "datastore")], 80, 16, lanes);
+    const [w] = routeTiles(tf, [bundle("db", "svc", { "db-write": 1 })]);
+    plugged(tf, w);
+    expect(w.pieces.every((p) => p.in === "s" && p.out === "s" && p.x === 7)).toBe(true);
+  });
+
+  it("keeps a tap off the tiles where a short lane's name sits when a tile past them is about as near", () => {
+    // an 8-tile lane whose 12-letter name takes its first 5 tiles: the tap lands past them, not below the machine's middle
+    const lanes = [{ id: "db", label: "reservations", x0: 6, x1: 14, y: 10 }];
+    const tf = floorOf([box("svc", 6, 1, 8, 5), box("db", 2, 10, 4, 3, "datastore")], 20, 16, lanes);
+    const [w] = routeTiles(tf, [bundle("db", "svc", { "db-write": 1 })]);
+    plugged(tf, w);
+    expect(after(w.pieces)[0]).toBeGreaterThanOrEqual(11);
+  });
+
+  it("runs a line along a lane gap of three rows on its inner row, clear of the rows the lanes' stubs stand on", () => {
+    // lanes at rows 4-6 and 10-12 (gap 7-9); boxes whose middle row is the gap's top row, either side of the lanes
+    const lanes = [{ id: "L1", label: "L1", x0: 6, x1: 30, y: 4 }, { id: "L2", label: "L2", x0: 6, x1: 30, y: 10 }];
+    const tf = floorOf([box("A", 1, 6), box("B", 33, 6)], 40, 16, lanes);
+    const [r] = routeTiles(tf, [bundle("A", "B")]);
+    plugged(tf, r);
+    expect(r.pieces.filter((p) => p.x >= 6 && p.x < 30).every((p) => p.y === 8)).toBe(true);
+  });
+
   it("routes a line to a cache chest (a store box with no lane) as a tap, plugged at both ends", () => {
     const chest = { ...box("db", 7, 9, 2, 2, "datastore"), foot: "chest" as const, region: "chest" };
     const tf = floorOf([box("svc", 5, 1, 5, 5), chest], 20, 16);

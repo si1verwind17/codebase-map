@@ -1,3 +1,6 @@
+import re
+from pathlib import Path
+
 import pytest
 
 from vizcode.notes import KNOWN_CHECKS, Acceptance, parse_notes
@@ -35,8 +38,16 @@ def test_no_reason():
 
 
 def test_plan_crashed_is_known():
-    assert "plan.crashed" in KNOWN_CHECKS and len(KNOWN_CHECKS) == 13
+    assert "plan.crashed" in KNOWN_CHECKS and len(KNOWN_CHECKS) == 17
     assert one("- accept plan.crashed S4").check == "plan.crashed"
+
+
+def test_known_checks_are_the_viewer_audit_checks():
+    """A drawing check the viewer runs can be accepted in map-notes.md: the two lists name the same checks."""
+    src = (Path(__file__).parents[2] / "viewer/src/audit/types.ts").read_text()
+    union = re.search(r"export type CheckId =([^;]+);", src).group(1)
+    assert set(re.findall(r'"([a-z.-]+)"', union)) == set(KNOWN_CHECKS)
+    assert one("- accept floor.wide S7 — a wide floor is fine here").check == "floor.wide"
 
 
 def test_unknown_check_and_missing_floor_are_not_understood():

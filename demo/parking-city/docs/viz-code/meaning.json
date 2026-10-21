@@ -2,30 +2,229 @@
  "domain_context": null,
  "nodes": [
   {
-   "id": "svc:reservations",
-   "kind": "service",
-   "name": "reservations",
+   "id": "3p:google-maps",
+   "kind": "external",
+   "name": "google-maps"
+  },
+  {
+   "id": "3p:smtp",
+   "kind": "external",
+   "name": "smtp"
+  },
+  {
+   "id": "3p:stripe",
+   "kind": "external",
+   "name": "stripe"
+  },
+  {
+   "id": "3p:twilio",
+   "kind": "external",
+   "name": "twilio"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT",
+   "kind": "datastore",
+   "name": "bigquery",
+   "store": "warehouse"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.bay_events",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.bay_events"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.bay_snapshots",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.bay_snapshots"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.daily_revenue",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.daily_revenue"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.reservations",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.reservations"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.tariff_history",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.tariff_history"
+  },
+  {
+   "id": "db:bigquery:BQ_PROJECT/analytics.zone_features",
+   "kind": "table",
+   "parent": "db:bigquery:BQ_PROJECT",
+   "name": "analytics.zone_features"
+  },
+  {
+   "id": "db:postgres:DB_HOST",
+   "kind": "datastore",
+   "name": "postgres",
+   "store": "database"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.bay_status",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.bay_status"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.daily_revenue",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.daily_revenue"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.demand_forecast",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.demand_forecast"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.invoices",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.invoices"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.payments",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.payments"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.reservation_outbox",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.reservation_outbox"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.reservations",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.reservations"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.tariffs",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.tariffs"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.zone_utilisation",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.zone_utilisation"
+  },
+  {
+   "id": "db:postgres:DB_HOST/public.zones",
+   "kind": "table",
+   "parent": "db:postgres:DB_HOST",
+   "name": "public.zones"
+  },
+  {
+   "id": "db:redis:REDIS_URL",
+   "kind": "datastore",
+   "name": "reservations-redis",
+   "store": "cache"
+  },
+  {
+   "id": "db:redis:REDIS_URL/quote:{key}",
+   "kind": "table",
+   "parent": "db:redis:REDIS_URL",
+   "name": "quote:{key}"
+  },
+  {
+   "id": "db:redis:SHARED_CACHE_URL",
+   "kind": "datastore",
+   "name": "shared-cache",
+   "store": "cache"
+  },
+  {
+   "id": "db:redis:SHARED_CACHE_URL/bays:{zone}",
+   "kind": "table",
+   "parent": "db:redis:SHARED_CACHE_URL",
+   "name": "bays:{zone}"
+  },
+  {
+   "id": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
+   "kind": "table",
+   "parent": "db:redis:SHARED_CACHE_URL",
+   "name": "occupancy:{zone}"
+  },
+  {
+   "id": "db:s3:RECEIPTS_BUCKET",
+   "kind": "datastore",
+   "name": "receipts-bucket",
+   "store": "bucket"
+  },
+  {
+   "id": "db:s3:RECEIPTS_BUCKET/exports/audit/",
+   "kind": "table",
+   "parent": "db:s3:RECEIPTS_BUCKET",
+   "name": "exports/audit/"
+  },
+  {
+   "id": "db:s3:RECEIPTS_BUCKET/exports/invoices/",
+   "kind": "table",
+   "parent": "db:s3:RECEIPTS_BUCKET",
+   "name": "exports/invoices/"
+  },
+  {
+   "id": "db:s3:RECEIPTS_BUCKET/receipts/",
+   "kind": "table",
+   "parent": "db:s3:RECEIPTS_BUCKET",
+   "name": "receipts/"
+  },
+  {
+   "id": "ext:http:ACCOUNTS_API_URL",
+   "kind": "external",
+   "name": "accounts-api"
+  },
+  {
+   "id": "ext:http:FINES_API_URL",
+   "kind": "external",
+   "name": "fines-api"
+  },
+  {
+   "id": "ext:http:SENSORCLOUD_WS_URL",
+   "kind": "external",
+   "name": "sensorcloud"
+  },
+  {
+   "id": "lib:common",
+   "kind": "library",
+   "name": "common",
    "modules": [
-    "reservations"
-   ],
-   "evidence": [
-    {
-     "file": "docker-compose.yml",
-     "line": 20
-    }
+    "common"
    ]
   },
   {
-   "id": "svc:pricing",
-   "kind": "service",
-   "name": "pricing",
+   "id": "lib:common_py",
+   "kind": "library",
+   "name": "common_py",
    "modules": [
-    "pricing"
+    "common_py/common_py"
+   ]
+  },
+  {
+   "id": "svc:analytics-loader",
+   "kind": "service",
+   "name": "analytics-loader",
+   "modules": [
+    "analytics_loader/app"
    ],
    "evidence": [
     {
      "file": "docker-compose.yml",
-     "line": 32
+     "line": 115
     }
    ]
   },
@@ -44,45 +243,31 @@
    ]
   },
   {
-   "id": "svc:notifier",
+   "id": "svc:city-dashboard",
    "kind": "service",
-   "name": "notifier",
+   "name": "city-dashboard",
    "modules": [
-    "notifier/app"
+    "city_dashboard/app"
    ],
    "evidence": [
     {
      "file": "docker-compose.yml",
-     "line": 52
-    }
-   ],
-   "replicas": 2
-  },
-  {
-   "id": "svc:sensor-gateway",
-   "kind": "service",
-   "name": "sensor-gateway",
-   "modules": [
-    "sensor_gateway/app"
-   ],
-   "evidence": [
-    {
-     "file": "docker-compose.yml",
-     "line": 66
+     "line": 107
     }
    ]
   },
   {
-   "id": "svc:occupancy",
+   "id": "svc:demand-forecast",
    "kind": "service",
-   "name": "occupancy",
+   "name": "demand-forecast",
    "modules": [
-    "occupancy/app"
+    "forecast",
+    "pipelines_shared"
    ],
    "evidence": [
     {
-     "file": "docker-compose.yml",
-     "line": 77
+     "file": "deploy/register.sh",
+     "line": 14
     }
    ]
   },
@@ -102,6 +287,67 @@
    "replicas": 3
   },
   {
+   "id": "svc:feature-store",
+   "kind": "service",
+   "name": "feature-store",
+   "modules": [
+    "features",
+    "pipelines_shared"
+   ],
+   "evidence": [
+    {
+     "file": "deploy/register.sh",
+     "line": 11
+    }
+   ],
+   "twins": [
+    "pipelines_shared::pipelines_shared/"
+   ]
+  },
+  {
+   "id": "svc:nightly-jobs",
+   "kind": "service",
+   "name": "nightly-jobs",
+   "modules": [
+    "jobs/dags"
+   ],
+   "evidence": [
+    {
+     "file": "deploy/register.sh",
+     "line": 8
+    }
+   ]
+  },
+  {
+   "id": "svc:notifier",
+   "kind": "service",
+   "name": "notifier",
+   "modules": [
+    "notifier/app"
+   ],
+   "evidence": [
+    {
+     "file": "docker-compose.yml",
+     "line": 52
+    }
+   ],
+   "replicas": 2
+  },
+  {
+   "id": "svc:occupancy",
+   "kind": "service",
+   "name": "occupancy",
+   "modules": [
+    "occupancy/app"
+   ],
+   "evidence": [
+    {
+     "file": "docker-compose.yml",
+     "line": 77
+    }
+   ]
+  },
+  {
    "id": "svc:payments-webhook",
    "kind": "service",
    "name": "payments-webhook",
@@ -116,30 +362,16 @@
    ]
   },
   {
-   "id": "svc:city-dashboard",
+   "id": "svc:pricing",
    "kind": "service",
-   "name": "city-dashboard",
+   "name": "pricing",
    "modules": [
-    "city_dashboard/app"
+    "pricing"
    ],
    "evidence": [
     {
      "file": "docker-compose.yml",
-     "line": 107
-    }
-   ]
-  },
-  {
-   "id": "svc:analytics-loader",
-   "kind": "service",
-   "name": "analytics-loader",
-   "modules": [
-    "analytics_loader/app"
-   ],
-   "evidence": [
-    {
-     "file": "docker-compose.yml",
-     "line": 115
+     "line": 32
     }
    ]
   },
@@ -158,63 +390,31 @@
    ]
   },
   {
-   "id": "svc:nightly-jobs",
+   "id": "svc:reservations",
    "kind": "service",
-   "name": "nightly-jobs",
+   "name": "reservations",
    "modules": [
-    "jobs/dags"
+    "reservations"
    ],
    "evidence": [
     {
-     "file": "deploy/register.sh",
-     "line": 7
+     "file": "docker-compose.yml",
+     "line": 20
     }
    ]
   },
   {
-   "id": "svc:feature-store",
+   "id": "svc:sensor-gateway",
    "kind": "service",
-   "name": "feature-store",
+   "name": "sensor-gateway",
    "modules": [
-    "features",
-    "pipelines_shared"
+    "sensor_gateway/app"
    ],
    "evidence": [
     {
-     "file": "deploy/register.sh",
-     "line": 10
+     "file": "docker-compose.yml",
+     "line": 66
     }
-   ]
-  },
-  {
-   "id": "svc:demand-forecast",
-   "kind": "service",
-   "name": "demand-forecast",
-   "modules": [
-    "forecast",
-    "pipelines_shared"
-   ],
-   "evidence": [
-    {
-     "file": "deploy/register.sh",
-     "line": 13
-    }
-   ]
-  },
-  {
-   "id": "lib:common",
-   "kind": "library",
-   "name": "common",
-   "modules": [
-    "common"
-   ]
-  },
-  {
-   "id": "lib:common_py",
-   "kind": "library",
-   "name": "common_py",
-   "modules": [
-    "common_py/common_py"
    ]
   },
   {
@@ -255,18 +455,6 @@
    ]
   },
   {
-   "id": "topic:sqs:violations.fifo",
-   "kind": "topic",
-   "name": "violations.fifo",
-   "delivery": "queue",
-   "evidence": [
-    {
-     "file": "deploy/sqs.yaml",
-     "line": 6
-    }
-   ]
-  },
-  {
    "id": "topic:sqs:violations-dead.fifo",
    "kind": "topic",
    "name": "violations-dead.fifo",
@@ -284,219 +472,1582 @@
    ]
   },
   {
-   "id": "db:postgres:DB_HOST",
-   "kind": "datastore",
-   "name": "postgres"
-  },
-  {
-   "id": "db:redis:SHARED_CACHE_URL",
-   "kind": "datastore",
-   "name": "shared-cache"
-  },
-  {
-   "id": "db:redis:REDIS_URL",
-   "kind": "datastore",
-   "name": "reservations-redis"
-  },
-  {
-   "id": "db:s3:RECEIPTS_BUCKET",
-   "kind": "datastore",
-   "name": "receipts-bucket"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT",
-   "kind": "datastore",
-   "name": "bigquery"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.reservations",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.reservations"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.reservation_outbox",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.reservation_outbox"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.zones",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.zones"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.tariffs",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.tariffs"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.invoices",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.invoices"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.payments",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.payments"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.bay_status",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.bay_status"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.daily_revenue",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.daily_revenue"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.zone_utilisation",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.zone_utilisation"
-  },
-  {
-   "id": "db:postgres:DB_HOST/public.demand_forecast",
-   "kind": "table",
-   "parent": "db:postgres:DB_HOST",
-   "name": "public.demand_forecast"
-  },
-  {
-   "id": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
-   "kind": "table",
-   "parent": "db:redis:SHARED_CACHE_URL",
-   "name": "occupancy:{zone}"
-  },
-  {
-   "id": "db:redis:SHARED_CACHE_URL/bays:{zone}",
-   "kind": "table",
-   "parent": "db:redis:SHARED_CACHE_URL",
-   "name": "bays:{zone}"
-  },
-  {
-   "id": "db:redis:REDIS_URL/quote:{key}",
-   "kind": "table",
-   "parent": "db:redis:REDIS_URL",
-   "name": "quote:{key}"
-  },
-  {
-   "id": "db:s3:RECEIPTS_BUCKET/receipts/",
-   "kind": "table",
-   "parent": "db:s3:RECEIPTS_BUCKET",
-   "name": "receipts/"
-  },
-  {
-   "id": "db:s3:RECEIPTS_BUCKET/exports/invoices/",
-   "kind": "table",
-   "parent": "db:s3:RECEIPTS_BUCKET",
-   "name": "exports/invoices/"
-  },
-  {
-   "id": "db:s3:RECEIPTS_BUCKET/exports/audit/",
-   "kind": "table",
-   "parent": "db:s3:RECEIPTS_BUCKET",
-   "name": "exports/audit/"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.bay_events",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.bay_events"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.bay_snapshots",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.bay_snapshots"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.reservations",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.reservations"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.daily_revenue",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.daily_revenue"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.tariff_history",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.tariff_history"
-  },
-  {
-   "id": "db:bigquery:BQ_PROJECT/analytics.zone_features",
-   "kind": "table",
-   "parent": "db:bigquery:BQ_PROJECT",
-   "name": "analytics.zone_features"
-  },
-  {
-   "id": "3p:stripe",
-   "kind": "external",
-   "name": "stripe"
-  },
-  {
-   "id": "3p:google-maps",
-   "kind": "external",
-   "name": "google-maps"
-  },
-  {
-   "id": "3p:twilio",
-   "kind": "external",
-   "name": "twilio"
-  },
-  {
-   "id": "3p:smtp",
-   "kind": "external",
-   "name": "smtp"
-  },
-  {
-   "id": "ext:http:ACCOUNTS_API_URL",
-   "kind": "external",
-   "name": "accounts-api"
-  },
-  {
-   "id": "ext:http:FINES_API_URL",
-   "kind": "external",
-   "name": "fines-api"
-  },
-  {
-   "id": "ext:http:SENSORCLOUD_WS_URL",
-   "kind": "external",
-   "name": "sensorcloud"
+   "id": "topic:sqs:violations.fifo",
+   "kind": "topic",
+   "name": "violations.fifo",
+   "delivery": "queue",
+   "evidence": [
+    {
+     "file": "deploy/sqs.yaml",
+     "line": 6
+    }
+   ]
   }
  ],
  "relations": [
   {
-   "kind": "request",
-   "from": "reservations::city.parking.reservations.PricingClient.Live#quote/2",
-   "to": "pricing::city.parking.pricing.QuoteEndpoint$#routes/1",
-   "key": "GET /v1/quote",
+   "kind": "batch",
+   "from": "svc:demand-forecast",
+   "to": "features::features.zone_features#zone_features/0",
+   "key": "task zone_features",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "reservations/src/main/scala/city/parking/reservations/PricingClient.scala",
+     "file": "forecast/demand_forecast.py",
+     "line": 27
+    },
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 29
+    },
+    {
+     "file": "features/zone_features.py",
+     "line": 16
+    }
+   ],
+   "job": "refresh_zone_features",
+   "id": "r:batch:svc:demand-forecast->features::features.zone_features#zone_features/0:task zone_features",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:demand-forecast",
+   "to": "forecast::forecast.demand_forecast#demand_forecast/0",
+   "key": "task demand_forecast",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 18
+    },
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 20
+    }
+   ],
+   "schedule": [
+    "30 1 * * *"
+   ],
+   "job": "demand_forecast",
+   "id": "r:batch:svc:demand-forecast->forecast::forecast.demand_forecast#demand_forecast/0:task demand_forecast",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:feature-store",
+   "to": "features::features.zone_features#zone_features/0",
+   "key": "task zone_features",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "features/zone_features.py",
+     "line": 15
+    },
+    {
+     "file": "features/zone_features.py",
+     "line": 17
+    }
+   ],
+   "schedule": [
+    "0 1 * * *"
+   ],
+   "job": "zone_features",
+   "id": "r:batch:svc:feature-store->features::features.zone_features#zone_features/0:task zone_features",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0",
+   "key": "task bq_bay_events_export",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_bay_events_export.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "*/15 * * * *"
+   ],
+   "job": "bq_bay_events_export",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0:task bq_bay_events_export",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.bq_reservations_export#bq_reservations_export/0",
+   "key": "task bq_reservations_export",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_reservations_export.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "0 * * * *"
+   ],
+   "job": "bq_reservations_export",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.bq_reservations_export#bq_reservations_export/0:task bq_reservations_export",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.bq_revenue_export#bq_revenue_export/0",
+   "key": "task bq_revenue_export",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_revenue_export.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "45 3 * * *"
+   ],
+   "job": "bq_revenue_export",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.bq_revenue_export#bq_revenue_export/0:task bq_revenue_export",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.bq_tariff_snapshot#bq_tariff_snapshot/0",
+   "key": "task bq_tariff_snapshot",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_tariff_snapshot.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "0 1 * * 1"
+   ],
+   "job": "bq_tariff_snapshot",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.bq_tariff_snapshot#bq_tariff_snapshot/0:task bq_tariff_snapshot",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0",
+   "key": "task daily_revenue_rollup",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/daily_revenue_rollup.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "30 2 * * *"
+   ],
+   "job": "daily_revenue_rollup",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0:task daily_revenue_rollup",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.nightly_settlement#nightly_settlement/0",
+   "key": "task nightly_settlement",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/nightly_settlement.py",
+     "line": 8
+    }
+   ],
+   "schedule": [
+    "0 2 * * *"
+   ],
+   "job": "nightly_settlement",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.nightly_settlement#nightly_settlement/0:task nightly_settlement",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.s3_audit_export#s3_audit_export/0",
+   "key": "task s3_audit_export",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_audit_export.py",
+     "line": 11
+    }
+   ],
+   "schedule": [
+    "0 4 * * 1"
+   ],
+   "job": "s3_audit_export",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.s3_audit_export#s3_audit_export/0:task s3_audit_export",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.s3_invoice_export#s3_invoice_export/0",
+   "key": "task s3_invoice_export",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_invoice_export.py",
+     "line": 11
+    }
+   ],
+   "schedule": [
+    "15 4 * * *"
+   ],
+   "job": "s3_invoice_export",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.s3_invoice_export#s3_invoice_export/0:task s3_invoice_export",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.zone_utilisation_daily#zone_utilisation_daily/0",
+   "key": "task zone_utilisation_daily",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_daily.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "0 3 * * *"
+   ],
+   "job": "zone_utilisation_daily",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.zone_utilisation_daily#zone_utilisation_daily/0:task zone_utilisation_daily",
+   "data": "forward"
+  },
+  {
+   "kind": "batch",
+   "from": "svc:nightly-jobs",
+   "to": "jobs/dags::dags.zone_utilisation_hourly#zone_utilisation_hourly/0",
+   "key": "task zone_utilisation_hourly",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_hourly.py",
+     "line": 10
+    }
+   ],
+   "schedule": [
+    "5 * * * *"
+   ],
+   "job": "zone_utilisation_hourly",
+   "id": "r:batch:svc:nightly-jobs->jobs/dags::dags.zone_utilisation_hourly#zone_utilisation_hourly/0:task zone_utilisation_hourly",
+   "data": "forward"
+  },
+  {
+   "kind": "db-read",
+   "from": "billing::city.parking.billing.InvoiceRepo.Live#unsettled/0",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
+     "line": 34
+    }
+   ],
+   "id": "r:db-read:billing::city.parking.billing.InvoiceRepo.Live#unsettled/0->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "features::features.zone_features#compute_zone_features/1",
+   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
+   "key": "table analytics.bay_events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "features/zone_features.py",
+     "line": 31
+    }
+   ],
+   "id": "r:db-read:features::features.zone_features#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "forecast::forecast.demand_forecast#history_check/0",
+   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
+   "key": "table analytics.bay_events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 38
+    }
+   ],
+   "id": "r:db-read:forecast::forecast.demand_forecast#history_check/0->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
+   "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
+   "key": "table analytics.zone_features",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 45
+    }
+   ],
+   "id": "r:db-read:forecast::forecast.demand_forecast#write_forecast/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.bq_bay_events_export#export_snapshot/0",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_bay_events_export.py",
+     "line": 20
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.bq_bay_events_export#export_snapshot/0->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.bq_reservations_export#export_recent/0",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_reservations_export.py",
+     "line": 20
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.bq_reservations_export#export_recent/0->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.bq_revenue_export#export_day/1",
+   "to": "db:postgres:DB_HOST/public.daily_revenue",
+   "key": "table public.daily_revenue",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_revenue_export.py",
+     "line": 20
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.bq_revenue_export#export_day/1->db:postgres:DB_HOST/public.daily_revenue:table public.daily_revenue",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.bq_tariff_snapshot#snapshot/0",
+   "to": "db:postgres:DB_HOST/public.tariffs",
+   "key": "table public.tariffs",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_tariff_snapshot.py",
+     "line": 20
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.bq_tariff_snapshot#snapshot/0->db:postgres:DB_HOST/public.tariffs:table public.tariffs",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/daily_revenue_rollup.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.daily_revenue_rollup#rollup/1->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/daily_revenue_rollup.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.daily_revenue_rollup#rollup/1->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.s3_audit_export#export_payments/1",
+   "to": "db:postgres:DB_HOST/public.payments",
+   "key": "table public.payments",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_audit_export.py",
+     "line": 21
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.s3_audit_export#export_payments/1->db:postgres:DB_HOST/public.payments:table public.payments",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.s3_invoice_export#export_csv/1",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_invoice_export.py",
+     "line": 22
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.s3_invoice_export#export_csv/1->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.zone_utilisation_daily#compute/1",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_daily.py",
+     "line": 23
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.zone_utilisation_daily#compute/1->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "jobs/dags::dags.zone_utilisation_hourly#refresh_today/0",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_hourly.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-read:jobs/dags::dags.zone_utilisation_hourly#refresh_today/0->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "occupancy/app::app.repo#bays_in_zone/1",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/repo.py",
+     "line": 34
+    }
+   ],
+   "id": "r:db-read:occupancy/app::app.repo#bays_in_zone/1->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "occupancy/app::app.repo#overstayed/2",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/repo.py",
+     "line": 46
+    }
+   ],
+   "id": "r:db-read:occupancy/app::app.repo#overstayed/2->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "occupancy/app::app.repo#overstayed/2",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/repo.py",
+     "line": 47
+    }
+   ],
+   "id": "r:db-read:occupancy/app::app.repo#overstayed/2->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "occupancy/app::app.repo#percent_full/1",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/repo.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-read:occupancy/app::app.repo#percent_full/1->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "pricing::city.parking.pricing.SharedCache.live$impl#occupancyPercent/1",
+   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
+   "key": "table occupancy:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/SharedCache.scala",
+     "line": 24
+    }
+   ],
+   "id": "r:db-read:pricing::city.parking.pricing.SharedCache.live$impl#occupancyPercent/1->db:redis:SHARED_CACHE_URL/occupancy:{zone}:table occupancy:{zone}",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "pricing::city.parking.pricing.TariffRepo.Live#demandIndex/2",
+   "to": "db:postgres:DB_HOST/public.demand_forecast",
+   "key": "table public.demand_forecast",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
+     "line": 44
+    }
+   ],
+   "id": "r:db-read:pricing::city.parking.pricing.TariffRepo.Live#demandIndex/2->db:postgres:DB_HOST/public.demand_forecast:table public.demand_forecast",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "pricing::city.parking.pricing.TariffRepo.Live#tariff/1",
+   "to": "db:postgres:DB_HOST/public.tariffs",
+   "key": "table public.tariffs",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
+     "line": 26
+    }
+   ],
+   "id": "r:db-read:pricing::city.parking.pricing.TariffRepo.Live#tariff/1->db:postgres:DB_HOST/public.tariffs:table public.tariffs",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "pricing::city.parking.pricing.TariffRepo.Live#zone/1",
+   "to": "db:postgres:DB_HOST/public.zones",
+   "key": "table public.zones",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
+     "line": 31
+    }
+   ],
+   "id": "r:db-read:pricing::city.parking.pricing.TariffRepo.Live#zone/1->db:postgres:DB_HOST/public.zones:table public.zones",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reporting_api/app::app.main#occupancy/0",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reporting_api/app/main.py",
+     "line": 37
+    }
+   ],
+   "id": "r:db-read:reporting_api/app::app.main#occupancy/0->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reporting_api/app::app.main#occupancy/0",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reporting_api/app/main.py",
+     "line": 43
+    }
+   ],
+   "id": "r:db-read:reporting_api/app::app.main#occupancy/0->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reporting_api/app::app.main#revenue/2",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reporting_api/app/main.py",
+     "line": 18
+    }
+   ],
+   "id": "r:db-read:reporting_api/app::app.main#revenue/2->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reporting_api/app::app.main#revenue/2",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reporting_api/app/main.py",
+     "line": 19
+    }
+   ],
+   "id": "r:db-read:reporting_api/app::app.main#revenue/2->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reservations::city.parking.reservations.QuoteCache.live$impl#get/1",
+   "to": "db:redis:REDIS_URL/quote:{key}",
+   "key": "table quote:{key}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/QuoteCache.scala",
+     "line": 26
+    }
+   ],
+   "id": "r:db-read:reservations::city.parking.reservations.QuoteCache.live$impl#get/1->db:redis:REDIS_URL/quote:{key}:table quote:{key}",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#find/1",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 53
+    }
+   ],
+   "id": "r:db-read:reservations::city.parking.reservations.ReservationRepo.Live#find/1->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#pendingOutbox/1",
+   "to": "db:postgres:DB_HOST/public.reservation_outbox",
+   "key": "table public.reservation_outbox",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 68
+    }
+   ],
+   "id": "r:db-read:reservations::city.parking.reservations.ReservationRepo.Live#pendingOutbox/1->db:postgres:DB_HOST/public.reservation_outbox:table public.reservation_outbox",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "svc:city-dashboard",
+   "to": "db:redis:SHARED_CACHE_URL/bays:{zone}",
+   "key": "table bays:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/cache.py",
+     "line": 24
+    },
+    {
+     "file": "city_dashboard/app/main.py",
+     "line": 35
+    }
+   ],
+   "via": "common_py/common_py::common_py.cache.SharedCache#bays/1",
+   "id": "r:db-read:svc:city-dashboard->db:redis:SHARED_CACHE_URL/bays:{zone}:table bays:{zone}",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "svc:city-dashboard",
+   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
+   "key": "table occupancy:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/cache.py",
+     "line": 17
+    },
+    {
+     "file": "city_dashboard/app/main.py",
+     "line": 34
+    }
+   ],
+   "via": "common_py/common_py::common_py.cache.SharedCache#get_occupancy/1",
+   "id": "r:db-read:svc:city-dashboard->db:redis:SHARED_CACHE_URL/occupancy:{zone}:table occupancy:{zone}",
+   "data": "back"
+  },
+  {
+   "kind": "db-read",
+   "from": "svc:occupancy",
+   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
+   "key": "table occupancy:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/cache.py",
+     "line": 17
+    },
+    {
+     "file": "occupancy/app/api.py",
+     "line": 16
+    }
+   ],
+   "via": "common_py/common_py::common_py.cache.SharedCache#get_occupancy/1",
+   "id": "r:db-read:svc:occupancy->db:redis:SHARED_CACHE_URL/occupancy:{zone}:table occupancy:{zone}",
+   "data": "back"
+  },
+  {
+   "kind": "db-write",
+   "from": "analytics_loader/app::app.warehouse.BayEventsTable#insert/1",
+   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
+   "key": "table analytics.bay_events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "analytics_loader/app/warehouse.py",
      "line": 25
     },
     {
-     "file": "pricing/src/main/scala/city/parking/pricing/QuoteEndpoint.scala",
-     "line": 20
+     "file": "docker-compose.yml",
+     "line": 121
+    }
+   ],
+   "id": "r:db-write:analytics_loader/app::app.warehouse.BayEventsTable#insert/1->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "billing::city.parking.billing.InvoiceRepo.Live#insert/2",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
+     "line": 24
+    }
+   ],
+   "id": "r:db-write:billing::city.parking.billing.InvoiceRepo.Live#insert/2->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "billing::city.parking.billing.InvoiceRepo.Live#markRefunded/1",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
+     "line": 31
+    }
+   ],
+   "id": "r:db-write:billing::city.parking.billing.InvoiceRepo.Live#markRefunded/1->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "billing::city.parking.billing.InvoiceRepo.Live#markSettled/1",
+   "to": "db:postgres:DB_HOST/public.invoices",
+   "key": "table public.invoices",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
+     "line": 39
+    }
+   ],
+   "id": "r:db-write:billing::city.parking.billing.InvoiceRepo.Live#markSettled/1->db:postgres:DB_HOST/public.invoices:table public.invoices",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "billing::city.parking.billing.ReceiptStore.live$impl#put/2",
+   "to": "db:s3:RECEIPTS_BUCKET/receipts/",
+   "key": "table receipts/",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/ReceiptStore.scala",
+     "line": 27
     },
     {
      "file": "docker-compose.yml",
-     "line": 27
+     "line": 50
     }
-   ]
+   ],
+   "id": "r:db-write:billing::city.parking.billing.ReceiptStore.live$impl#put/2->db:s3:RECEIPTS_BUCKET/receipts/:table receipts/",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "features::features.zone_features#compute_zone_features/1",
+   "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
+   "key": "table analytics.zone_features",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "features/zone_features.py",
+     "line": 36
+    },
+    {
+     "file": "features/zone_features.py",
+     "line": 38
+    }
+   ],
+   "id": "r:db-write:features::features.zone_features#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
+   "to": "db:postgres:DB_HOST/public.demand_forecast",
+   "key": "table public.demand_forecast",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 56
+    }
+   ],
+   "id": "r:db-write:forecast::forecast.demand_forecast#write_forecast/1->db:postgres:DB_HOST/public.demand_forecast:table public.demand_forecast",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.bq_bay_events_export#export_snapshot/0",
+   "to": "db:bigquery:BQ_PROJECT/analytics.bay_snapshots",
+   "key": "table analytics.bay_snapshots",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_bay_events_export.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.bq_bay_events_export#export_snapshot/0->db:bigquery:BQ_PROJECT/analytics.bay_snapshots:table analytics.bay_snapshots",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.bq_reservations_export#export_recent/0",
+   "to": "db:bigquery:BQ_PROJECT/analytics.reservations",
+   "key": "table analytics.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_reservations_export.py",
+     "line": 28
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.bq_reservations_export#export_recent/0->db:bigquery:BQ_PROJECT/analytics.reservations:table analytics.reservations",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.bq_revenue_export#export_day/1",
+   "to": "db:bigquery:BQ_PROJECT/analytics.daily_revenue",
+   "key": "table analytics.daily_revenue",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_revenue_export.py",
+     "line": 24
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.bq_revenue_export#export_day/1->db:bigquery:BQ_PROJECT/analytics.daily_revenue:table analytics.daily_revenue",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.bq_tariff_snapshot#snapshot/0",
+   "to": "db:bigquery:BQ_PROJECT/analytics.tariff_history",
+   "key": "table analytics.tariff_history",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/bq_tariff_snapshot.py",
+     "line": 23
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.bq_tariff_snapshot#snapshot/0->db:bigquery:BQ_PROJECT/analytics.tariff_history:table analytics.tariff_history",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
+   "to": "db:postgres:DB_HOST/public.daily_revenue",
+   "key": "table public.daily_revenue",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/daily_revenue_rollup.py",
+     "line": 22
+    },
+    {
+     "file": "jobs/dags/pg_revenue_correction.py",
+     "line": 5
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.daily_revenue_rollup#rollup/1->db:postgres:DB_HOST/public.daily_revenue:table public.daily_revenue",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.s3_audit_export#export_payments/1",
+   "to": "db:s3:RECEIPTS_BUCKET/exports/audit/",
+   "key": "table exports/audit/",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_audit_export.py",
+     "line": 25
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.s3_audit_export#export_payments/1->db:s3:RECEIPTS_BUCKET/exports/audit/:table exports/audit/",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.s3_invoice_export#export_csv/1",
+   "to": "db:s3:RECEIPTS_BUCKET/exports/invoices/",
+   "key": "table exports/invoices/",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/s3_invoice_export.py",
+     "line": 28
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.s3_invoice_export#export_csv/1->db:s3:RECEIPTS_BUCKET/exports/invoices/:table exports/invoices/",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.zone_utilisation_daily#compute/1",
+   "to": "db:postgres:DB_HOST/public.zone_utilisation",
+   "key": "table public.zone_utilisation",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_daily.py",
+     "line": 21
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.zone_utilisation_daily#compute/1->db:postgres:DB_HOST/public.zone_utilisation:table public.zone_utilisation",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "jobs/dags::dags.zone_utilisation_hourly#refresh_today/0",
+   "to": "db:postgres:DB_HOST/public.zone_utilisation",
+   "key": "table public.zone_utilisation",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "jobs/dags/zone_utilisation_hourly.py",
+     "line": 22
+    }
+   ],
+   "id": "r:db-write:jobs/dags::dags.zone_utilisation_hourly#refresh_today/0->db:postgres:DB_HOST/public.zone_utilisation:table public.zone_utilisation",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "occupancy/app::app.repo#upsert_bay/4",
+   "to": "db:postgres:DB_HOST/public.bay_status",
+   "key": "table public.bay_status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/repo.py",
+     "line": 9
+    }
+   ],
+   "id": "r:db-write:occupancy/app::app.repo#upsert_bay/4->db:postgres:DB_HOST/public.bay_status:table public.bay_status",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "payments_webhook/app::app.store#mark_reservation/2",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "payments_webhook/app/store.py",
+     "line": 20
+    },
+    {
+     "file": "payments_webhook/app/main.py",
+     "line": 30
+    }
+   ],
+   "id": "r:db-write:payments_webhook/app::app.store#mark_reservation/2->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "payments_webhook/app::app.store#record_payment/5",
+   "to": "db:postgres:DB_HOST/public.payments",
+   "key": "table public.payments",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "payments_webhook/app/store.py",
+     "line": 9
+    }
+   ],
+   "id": "r:db-write:payments_webhook/app::app.store#record_payment/5->db:postgres:DB_HOST/public.payments:table public.payments",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "pricing::city.parking.pricing.TariffRepo.Live#saveCoordinates/3",
+   "to": "db:postgres:DB_HOST/public.zones",
+   "key": "table public.zones",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
+     "line": 40
+    }
+   ],
+   "id": "r:db-write:pricing::city.parking.pricing.TariffRepo.Live#saveCoordinates/3->db:postgres:DB_HOST/public.zones:table public.zones",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.QuoteCache.live$impl#put/2",
+   "to": "db:redis:REDIS_URL/quote:{key}",
+   "key": "table quote:{key}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/QuoteCache.scala",
+     "line": 28
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.QuoteCache.live$impl#put/2->db:redis:REDIS_URL/quote:{key}:table quote:{key}",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#insert/1",
+   "to": "db:postgres:DB_HOST/public.reservation_outbox",
+   "key": "table public.reservation_outbox",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 43
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.ReservationRepo.Live#insert/1->db:postgres:DB_HOST/public.reservation_outbox:table public.reservation_outbox",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#insert/1",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 30
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.ReservationRepo.Live#insert/1->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#markCancelled/1",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 59
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.ReservationRepo.Live#markCancelled/1->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#markSent/1",
+   "to": "db:postgres:DB_HOST/public.reservation_outbox",
+   "key": "table public.reservation_outbox",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 73
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.ReservationRepo.Live#markSent/1->db:postgres:DB_HOST/public.reservation_outbox:table public.reservation_outbox",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "reservations::city.parking.reservations.ReservationRepo.Live#setPaymentIntent/2",
+   "to": "db:postgres:DB_HOST/public.reservations",
+   "key": "table public.reservations",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
+     "line": 64
+    }
+   ],
+   "id": "r:db-write:reservations::city.parking.reservations.ReservationRepo.Live#setPaymentIntent/2->db:postgres:DB_HOST/public.reservations:table public.reservations",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "svc:occupancy",
+   "to": "db:redis:SHARED_CACHE_URL/bays:{zone}",
+   "key": "table bays:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/cache.py",
+     "line": 21
+    },
+    {
+     "file": "occupancy/app/grpc_server.py",
+     "line": 25
+    }
+   ],
+   "via": "common_py/common_py::common_py.cache.SharedCache#set_bay/3",
+   "id": "r:db-write:svc:occupancy->db:redis:SHARED_CACHE_URL/bays:{zone}:table bays:{zone}",
+   "data": "forward"
+  },
+  {
+   "kind": "db-write",
+   "from": "svc:occupancy",
+   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
+   "key": "table occupancy:{zone}",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/cache.py",
+     "line": 14
+    },
+    {
+     "file": "occupancy/app/grpc_server.py",
+     "line": 26
+    }
+   ],
+   "via": "common_py/common_py::common_py.cache.SharedCache#set_occupancy/2",
+   "id": "r:db-write:svc:occupancy->db:redis:SHARED_CACHE_URL/occupancy:{zone}:table occupancy:{zone}",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "billing::city.parking.billing.DeadLetters.live$impl#park/3",
+   "to": "topic:kafka:reservation-events.dlq",
+   "key": "reservation-events.dlq",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/DeadLetters.scala",
+     "line": 15
+    },
+    {
+     "file": "billing/src/main/scala/city/parking/billing/DeadLetters.scala",
+     "line": 22
+    }
+   ],
+   "on_failure": true,
+   "id": "r:event:billing::city.parking.billing.DeadLetters.live$impl#park/3->topic:kafka:reservation-events.dlq:reservation-events.dlq",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "occupancy/app::app.overstay.OverstayWatcher#check/3",
+   "to": "topic:sqs:violations.fifo",
+   "key": "violations.fifo",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "occupancy/app/overstay.py",
+     "line": 22
+    },
+    {
+     "file": "deploy/sqs.yaml",
+     "line": 7
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 85
+    }
+   ],
+   "id": "r:event:occupancy/app::app.overstay.OverstayWatcher#check/3->topic:sqs:violations.fifo:violations.fifo",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "reservations::city.parking.reservations.OutboxRelay$#run/0",
+   "to": "topic:kafka:reservation-events",
+   "key": "reservation-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/OutboxRelay.scala",
+     "line": 20
+    }
+   ],
+   "id": "r:event:reservations::city.parking.reservations.OutboxRelay$#run/0->topic:kafka:reservation-events:reservation-events",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "sensor_gateway/app::app.main#main/0",
+   "to": "topic:pubsub:bay-status",
+   "key": "bay-status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "sensor_gateway/app/main.py",
+     "line": 31
+    },
+    {
+     "file": "deploy/pubsub.yaml",
+     "line": 4
+    }
+   ],
+   "via": "common_py/common_py::common_py.pubsub.Publisher#publish/2",
+   "id": "r:event:sensor_gateway/app::app.main#main/0->topic:pubsub:bay-status:bay-status",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:kafka:reservation-events",
+   "to": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
+   "key": "reservation-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
+     "line": 23
+    },
+    {
+     "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
+     "line": 31
+    }
+   ],
+   "group": "billing",
+   "id": "r:event:topic:kafka:reservation-events->billing::city.parking.billing.ReservationEventsConsumer$#handle/3:reservation-events",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:kafka:reservation-events",
+   "to": "notifier/app::app.main#main/0",
+   "key": "reservation-events",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "notifier/app/main.py",
+     "line": 26
+    },
+    {
+     "file": "notifier/app/main.py",
+     "line": 31
+    }
+   ],
+   "group": "notifier",
+   "id": "r:event:topic:kafka:reservation-events->notifier/app::app.main#main/0:reservation-events",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:pubsub:bay-status",
+   "to": "analytics_loader/app::app.main#main/0",
+   "key": "bay-status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "deploy/pubsub.yaml",
+     "line": 17
+    },
+    {
+     "file": "analytics_loader/app/main.py",
+     "line": 19
+    },
+    {
+     "file": "analytics_loader/app/main.py",
+     "line": 23
+    }
+   ],
+   "subscription": "pull",
+   "group": "bay-status-analytics",
+   "id": "r:event:topic:pubsub:bay-status->analytics_loader/app::app.main#main/0:bay-status",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:pubsub:bay-status",
+   "to": "city_dashboard/app::app.main#bay_status_push/1",
+   "key": "bay-status",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "deploy/pubsub.yaml",
+     "line": 8
+    },
+    {
+     "file": "deploy/pubsub.yaml",
+     "line": 11
+    },
+    {
+     "file": "city_dashboard/app/main.py",
+     "line": 20
+    }
+   ],
+   "subscription": "push",
+   "group": "bay-status-dashboard",
+   "id": "r:event:topic:pubsub:bay-status->city_dashboard/app::app.main#bay_status_push/1:bay-status",
+   "data": "forward"
+  },
+  {
+   "kind": "event",
+   "from": "topic:sqs:violations.fifo",
+   "to": "enforcement_worker/app::app.main#main/0",
+   "key": "violations.fifo",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "enforcement_worker/app/main.py",
+     "line": 25
+    },
+    {
+     "file": "deploy/sqs.yaml",
+     "line": 7
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 94
+    }
+   ],
+   "id": "r:event:topic:sqs:violations.fifo->enforcement_worker/app::app.main#main/0:violations.fifo",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "billing::city.parking.billing.StripeCharger.live$impl#confirm/1",
+   "to": "3p:stripe",
+   "key": "PaymentIntent.confirm",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/StripeCharger.scala",
+     "line": 24
+    }
+   ],
+   "id": "r:ext-call:billing::city.parking.billing.StripeCharger.live$impl#confirm/1->3p:stripe:PaymentIntent.confirm",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "billing::city.parking.billing.StripeCharger.live$impl#refund/1",
+   "to": "3p:stripe",
+   "key": "Refund.create",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "billing/src/main/scala/city/parking/billing/StripeCharger.scala",
+     "line": 30
+    }
+   ],
+   "id": "r:ext-call:billing::city.parking.billing.StripeCharger.live$impl#refund/1->3p:stripe:Refund.create",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "enforcement_worker/app::app.fines.FinesClient#issue/1",
+   "to": "ext:http:FINES_API_URL",
+   "key": "POST /v2/fines",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "enforcement_worker/app/fines.py",
+     "line": 18
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 95
+    }
+   ],
+   "deployment_dependent": true,
+   "id": "r:ext-call:enforcement_worker/app::app.fines.FinesClient#issue/1->ext:http:FINES_API_URL:POST /v2/fines",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "notifier/app::app.directory#contact_for/1",
+   "to": "ext:http:ACCOUNTS_API_URL",
+   "key": "GET /drivers/{driver_id}/contact",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "notifier/app/directory.py",
+     "line": 17
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 60
+    }
+   ],
+   "deployment_dependent": true,
+   "id": "r:ext-call:notifier/app::app.directory#contact_for/1->ext:http:ACCOUNTS_API_URL:GET /drivers/{driver_id}/contact",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "pricing::city.parking.pricing.Geocoder.live$impl#geocode/1",
+   "to": "3p:google-maps",
+   "key": "GET /maps/api/geocode/json",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/Geocoder.scala",
+     "line": 18
+    },
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/Geocoder.scala",
+     "line": 30
+    }
+   ],
+   "id": "r:ext-call:pricing::city.parking.pricing.Geocoder.live$impl#geocode/1->3p:google-maps:GET /maps/api/geocode/json",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "reservations::city.parking.reservations.StripeGateway.live$impl#createIntent/3",
+   "to": "3p:stripe",
+   "key": "PaymentIntent.create",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "reservations/src/main/scala/city/parking/reservations/StripeGateway.scala",
+     "line": 31
+    }
+   ],
+   "id": "r:ext-call:reservations::city.parking.reservations.StripeGateway.live$impl#createIntent/3->3p:stripe:PaymentIntent.create",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "svc:notifier",
+   "to": "3p:smtp",
+   "key": "SMTP send_message",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/mailer.py",
+     "line": 23
+    },
+    {
+     "file": "notifier/app/main.py",
+     "line": 55
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 64
+    }
+   ],
+   "via": "common_py/common_py::common_py.mailer.Mailer#send/3",
+   "id": "r:ext-call:svc:notifier->3p:smtp:SMTP send_message",
+   "data": "forward"
+  },
+  {
+   "kind": "ext-call",
+   "from": "svc:notifier",
+   "to": "3p:twilio",
+   "key": "messages.create",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "common_py/common_py/sms.py",
+     "line": 15
+    },
+    {
+     "file": "notifier/app/main.py",
+     "line": 53
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 61
+    }
+   ],
+   "via": "common_py/common_py::common_py.sms.SmsClient#send/2",
+   "id": "r:ext-call:svc:notifier->3p:twilio:messages.create",
+   "data": "forward"
+  },
+  {
+   "kind": "request",
+   "from": "3p:stripe",
+   "to": "payments_webhook/app::app.main#stripe_webhook/2",
+   "key": "POST /webhooks/stripe",
+   "confidence": "inferred",
+   "evidence": [
+    {
+     "file": "payments_webhook/app/main.py",
+     "line": 15
+    }
+   ],
+   "why": "route exists in code; the Stripe dashboard endpoint registration is not in the repo",
+   "data": "forward",
+   "id": "r:request:3p:stripe->payments_webhook/app::app.main#stripe_webhook/2:POST /webhooks/stripe"
   },
   {
    "kind": "request",
@@ -521,21 +2072,31 @@
      "file": "jobs/README.md",
      "line": 23
     }
-   ]
+   ],
+   "id": "r:request:jobs/dags::dags.nightly_settlement#settle/0->billing::city.parking.billing.SettleEndpoint$#routes/1:POST /internal/settle",
+   "data": "forward"
   },
   {
    "kind": "request",
-   "from": "3p:stripe",
-   "to": "payments_webhook/app::app.main#stripe_webhook/2",
-   "key": "POST /webhooks/stripe",
-   "confidence": "inferred",
+   "from": "reservations::city.parking.reservations.PricingClient.Live#quote/2",
+   "to": "pricing::city.parking.pricing.QuoteEndpoint$#routes/1",
+   "key": "GET /v1/quote",
+   "confidence": "confirmed",
    "evidence": [
     {
-     "file": "payments_webhook/app/main.py",
-     "line": 15
+     "file": "reservations/src/main/scala/city/parking/reservations/PricingClient.scala",
+     "line": 25
+    },
+    {
+     "file": "pricing/src/main/scala/city/parking/pricing/QuoteEndpoint.scala",
+     "line": 20
+    },
+    {
+     "file": "docker-compose.yml",
+     "line": 27
     }
    ],
-   "why": "route exists in code; the Stripe dashboard endpoint registration is not in the repo",
+   "id": "r:request:reservations::city.parking.reservations.PricingClient.Live#quote/2->pricing::city.parking.pricing.QuoteEndpoint$#routes/1:GET /v1/quote",
    "data": "forward"
   },
   {
@@ -563,7 +2124,8 @@
     }
    ],
    "data": "both",
-   "bidirectional": true
+   "bidirectional": true,
+   "id": "r:stream:sensor_gateway/app::app.uplink.OccupancyUplink#run/1->occupancy/app::app.grpc_server.OccupancyFeedService#Stream/2:grpc parking.occupancy.v1.OccupancyFeed/Stream"
   },
   {
    "kind": "stream",
@@ -581,1361 +2143,470 @@
      "line": 72
     }
    ],
-   "data": "back"
-  },
-  {
-   "kind": "event",
-   "from": "sensor_gateway/app::app.main#main/0",
-   "to": "topic:pubsub:bay-status",
-   "key": "bay-status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "sensor_gateway/app/main.py",
-     "line": 31
-    },
-    {
-     "file": "deploy/pubsub.yaml",
-     "line": 4
-    }
-   ],
-   "via": "common_py/common_py::common_py.pubsub.Publisher#publish/2"
-  },
-  {
-   "kind": "event",
-   "from": "topic:pubsub:bay-status",
-   "to": "city_dashboard/app::app.main#bay_status_push/1",
-   "key": "bay-status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "deploy/pubsub.yaml",
-     "line": 8
-    },
-    {
-     "file": "deploy/pubsub.yaml",
-     "line": 11
-    },
-    {
-     "file": "city_dashboard/app/main.py",
-     "line": 20
-    }
-   ],
-   "subscription": "push",
-   "group": "bay-status-dashboard"
-  },
-  {
-   "kind": "event",
-   "from": "topic:pubsub:bay-status",
-   "to": "analytics_loader/app::app.main#main/0",
-   "key": "bay-status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "deploy/pubsub.yaml",
-     "line": 17
-    },
-    {
-     "file": "analytics_loader/app/main.py",
-     "line": 19
-    },
-    {
-     "file": "analytics_loader/app/main.py",
-     "line": 23
-    }
-   ],
-   "subscription": "pull",
-   "group": "bay-status-analytics"
-  },
-  {
-   "kind": "event",
-   "from": "reservations::city.parking.reservations.OutboxRelay$#run/0",
-   "to": "topic:kafka:reservation-events",
-   "key": "reservation-events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/OutboxRelay.scala",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "event",
-   "from": "topic:kafka:reservation-events",
-   "to": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
-   "key": "reservation-events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
-     "line": 23
-    },
-    {
-     "file": "billing/src/main/scala/city/parking/billing/ReservationEventsConsumer.scala",
-     "line": 31
-    }
-   ],
-   "group": "billing"
-  },
-  {
-   "kind": "event",
-   "from": "topic:kafka:reservation-events",
-   "to": "notifier/app::app.main#main/0",
-   "key": "reservation-events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "notifier/app/main.py",
-     "line": 26
-    },
-    {
-     "file": "notifier/app/main.py",
-     "line": 31
-    }
-   ],
-   "group": "notifier"
-  },
-  {
-   "kind": "event",
-   "from": "billing::city.parking.billing.DeadLetters.live$impl#park/3",
-   "to": "topic:kafka:reservation-events.dlq",
-   "key": "reservation-events.dlq",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/DeadLetters.scala",
-     "line": 15
-    },
-    {
-     "file": "billing/src/main/scala/city/parking/billing/DeadLetters.scala",
-     "line": 22
-    }
-   ],
-   "on_failure": true
-  },
-  {
-   "kind": "event",
-   "from": "occupancy/app::app.overstay.OverstayWatcher#check/3",
-   "to": "topic:sqs:violations.fifo",
-   "key": "violations.fifo",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/overstay.py",
-     "line": 22
-    },
-    {
-     "file": "deploy/sqs.yaml",
-     "line": 7
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 85
-    }
-   ]
-  },
-  {
-   "kind": "event",
-   "from": "topic:sqs:violations.fifo",
-   "to": "enforcement_worker/app::app.main#main/0",
-   "key": "violations.fifo",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "enforcement_worker/app/main.py",
-     "line": 25
-    },
-    {
-     "file": "deploy/sqs.yaml",
-     "line": 7
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 94
-    }
-   ]
-  },
-  {
-   "kind": "ext-call",
-   "from": "reservations::city.parking.reservations.StripeGateway.live$impl#createIntent/3",
-   "to": "3p:stripe",
-   "key": "PaymentIntent.create",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/StripeGateway.scala",
-     "line": 31
-    }
-   ]
-  },
-  {
-   "kind": "ext-call",
-   "from": "billing::city.parking.billing.StripeCharger.live$impl#confirm/1",
-   "to": "3p:stripe",
-   "key": "PaymentIntent.confirm",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/StripeCharger.scala",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "ext-call",
-   "from": "billing::city.parking.billing.StripeCharger.live$impl#refund/1",
-   "to": "3p:stripe",
-   "key": "Refund.create",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/StripeCharger.scala",
-     "line": 30
-    }
-   ]
-  },
-  {
-   "kind": "ext-call",
-   "from": "pricing::city.parking.pricing.Geocoder.live$impl#geocode/1",
-   "to": "3p:google-maps",
-   "key": "GET /maps/api/geocode/json",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/Geocoder.scala",
-     "line": 18
-    },
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/Geocoder.scala",
-     "line": 30
-    }
-   ]
-  },
-  {
-   "kind": "ext-call",
-   "from": "svc:notifier",
-   "to": "3p:twilio",
-   "key": "messages.create",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/sms.py",
-     "line": 15
-    },
-    {
-     "file": "notifier/app/main.py",
-     "line": 53
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 61
-    }
-   ],
-   "via": "common_py/common_py::common_py.sms.SmsClient#send/2"
-  },
-  {
-   "kind": "ext-call",
-   "from": "svc:notifier",
-   "to": "3p:smtp",
-   "key": "SMTP send_message",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/mailer.py",
-     "line": 23
-    },
-    {
-     "file": "notifier/app/main.py",
-     "line": 55
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 64
-    }
-   ],
-   "via": "common_py/common_py::common_py.mailer.Mailer#send/3"
-  },
-  {
-   "kind": "ext-call",
-   "from": "notifier/app::app.directory#contact_for/1",
-   "to": "ext:http:ACCOUNTS_API_URL",
-   "key": "GET /drivers/{driver_id}/contact",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "notifier/app/directory.py",
-     "line": 17
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 60
-    }
-   ],
-   "deployment_dependent": true
-  },
-  {
-   "kind": "ext-call",
-   "from": "enforcement_worker/app::app.fines.FinesClient#issue/1",
-   "to": "ext:http:FINES_API_URL",
-   "key": "POST /v2/fines",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "enforcement_worker/app/fines.py",
-     "line": 18
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 95
-    }
-   ],
-   "deployment_dependent": true
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#insert/1",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 30
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#insert/1",
-   "to": "db:postgres:DB_HOST/public.reservation_outbox",
-   "key": "table public.reservation_outbox",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 43
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#find/1",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 53
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#markCancelled/1",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 59
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#setPaymentIntent/2",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 64
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#pendingOutbox/1",
-   "to": "db:postgres:DB_HOST/public.reservation_outbox",
-   "key": "table public.reservation_outbox",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 68
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.ReservationRepo.Live#markSent/1",
-   "to": "db:postgres:DB_HOST/public.reservation_outbox",
-   "key": "table public.reservation_outbox",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
-     "line": 73
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "pricing::city.parking.pricing.TariffRepo.Live#tariff/1",
-   "to": "db:postgres:DB_HOST/public.tariffs",
-   "key": "table public.tariffs",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 26
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "pricing::city.parking.pricing.TariffRepo.Live#zone/1",
-   "to": "db:postgres:DB_HOST/public.zones",
-   "key": "table public.zones",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 31
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "pricing::city.parking.pricing.TariffRepo.Live#saveCoordinates/3",
-   "to": "db:postgres:DB_HOST/public.zones",
-   "key": "table public.zones",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 40
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "pricing::city.parking.pricing.TariffRepo.Live#demandIndex/2",
-   "to": "db:postgres:DB_HOST/public.demand_forecast",
-   "key": "table public.demand_forecast",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
-     "line": 44
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "billing::city.parking.billing.InvoiceRepo.Live#insert/2",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "billing::city.parking.billing.InvoiceRepo.Live#markRefunded/1",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
-     "line": 31
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "billing::city.parking.billing.InvoiceRepo.Live#unsettled/0",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
-     "line": 34
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "billing::city.parking.billing.InvoiceRepo.Live#markSettled/1",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
-     "line": 39
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "occupancy/app::app.repo#upsert_bay/4",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/repo.py",
-     "line": 9
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "occupancy/app::app.repo#percent_full/1",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/repo.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "occupancy/app::app.repo#bays_in_zone/1",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/repo.py",
-     "line": 34
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "occupancy/app::app.repo#overstayed/2",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/repo.py",
-     "line": 46
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "occupancy/app::app.repo#overstayed/2",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "occupancy/app/repo.py",
-     "line": 47
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "payments_webhook/app::app.store#record_payment/5",
-   "to": "db:postgres:DB_HOST/public.payments",
-   "key": "table public.payments",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "payments_webhook/app/store.py",
-     "line": 9
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "payments_webhook/app::app.store#mark_reservation/2",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "payments_webhook/app/store.py",
-     "line": 20
-    },
-    {
-     "file": "payments_webhook/app/main.py",
-     "line": 30
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reporting_api/app::app.main#revenue/2",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reporting_api/app/main.py",
-     "line": 18
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reporting_api/app::app.main#revenue/2",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reporting_api/app/main.py",
-     "line": 19
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reporting_api/app::app.main#occupancy/0",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reporting_api/app/main.py",
-     "line": 37
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reporting_api/app::app.main#occupancy/0",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reporting_api/app/main.py",
-     "line": 43
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
-   "to": "db:postgres:DB_HOST/public.daily_revenue",
-   "key": "table public.daily_revenue",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/daily_revenue_rollup.py",
-     "line": 22
-    },
-    {
-     "file": "jobs/dags/pg_revenue_correction.py",
-     "line": 5
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/daily_revenue_rollup.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.daily_revenue_rollup#rollup/1",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/daily_revenue_rollup.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.zone_utilisation_daily#compute/1",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_daily.py",
-     "line": 23
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.zone_utilisation_daily#compute/1",
-   "to": "db:postgres:DB_HOST/public.zone_utilisation",
-   "key": "table public.zone_utilisation",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_daily.py",
-     "line": 21
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.zone_utilisation_hourly#refresh_today/0",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_hourly.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.zone_utilisation_hourly#refresh_today/0",
-   "to": "db:postgres:DB_HOST/public.zone_utilisation",
-   "key": "table public.zone_utilisation",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_hourly.py",
-     "line": 22
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.bq_bay_events_export#export_snapshot/0",
-   "to": "db:postgres:DB_HOST/public.bay_status",
-   "key": "table public.bay_status",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_bay_events_export.py",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.bq_bay_events_export#export_snapshot/0",
-   "to": "db:bigquery:BQ_PROJECT/analytics.bay_snapshots",
-   "key": "table analytics.bay_snapshots",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_bay_events_export.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.bq_reservations_export#export_recent/0",
-   "to": "db:postgres:DB_HOST/public.reservations",
-   "key": "table public.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_reservations_export.py",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.bq_reservations_export#export_recent/0",
-   "to": "db:bigquery:BQ_PROJECT/analytics.reservations",
-   "key": "table analytics.reservations",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_reservations_export.py",
-     "line": 28
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.bq_revenue_export#export_day/1",
-   "to": "db:postgres:DB_HOST/public.daily_revenue",
-   "key": "table public.daily_revenue",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_revenue_export.py",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.bq_revenue_export#export_day/1",
-   "to": "db:bigquery:BQ_PROJECT/analytics.daily_revenue",
-   "key": "table analytics.daily_revenue",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_revenue_export.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.bq_tariff_snapshot#snapshot/0",
-   "to": "db:postgres:DB_HOST/public.tariffs",
-   "key": "table public.tariffs",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_tariff_snapshot.py",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.bq_tariff_snapshot#snapshot/0",
-   "to": "db:bigquery:BQ_PROJECT/analytics.tariff_history",
-   "key": "table analytics.tariff_history",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_tariff_snapshot.py",
-     "line": 23
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.s3_invoice_export#export_csv/1",
-   "to": "db:postgres:DB_HOST/public.invoices",
-   "key": "table public.invoices",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_invoice_export.py",
-     "line": 22
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.s3_invoice_export#export_csv/1",
-   "to": "db:s3:RECEIPTS_BUCKET/exports/invoices/",
-   "key": "table exports/invoices/",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_invoice_export.py",
-     "line": 28
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "jobs/dags::dags.s3_audit_export#export_payments/1",
-   "to": "db:postgres:DB_HOST/public.payments",
-   "key": "table public.payments",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_audit_export.py",
-     "line": 21
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "jobs/dags::dags.s3_audit_export#export_payments/1",
-   "to": "db:s3:RECEIPTS_BUCKET/exports/audit/",
-   "key": "table exports/audit/",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_audit_export.py",
-     "line": 25
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "billing::city.parking.billing.ReceiptStore.live$impl#put/2",
-   "to": "db:s3:RECEIPTS_BUCKET/receipts/",
-   "key": "table receipts/",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "billing/src/main/scala/city/parking/billing/ReceiptStore.scala",
-     "line": 27
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 50
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "analytics_loader/app::app.warehouse.BayEventsTable#insert/1",
-   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
-   "key": "table analytics.bay_events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "analytics_loader/app/warehouse.py",
-     "line": 25
-    },
-    {
-     "file": "docker-compose.yml",
-     "line": 121
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "features::features.workflows#compute_zone_features/1",
-   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
-   "key": "table analytics.bay_events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "features/workflows.py",
-     "line": 20
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "features::features.workflows#compute_zone_features/1",
-   "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
-   "key": "table analytics.zone_features",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "features/workflows.py",
-     "line": 25
-    },
-    {
-     "file": "features/workflows.py",
-     "line": 27
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "forecast::forecast.workflows#load_features/1",
-   "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
-   "key": "table analytics.zone_features",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 30
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "forecast::forecast.workflows#history_check/0",
-   "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
-   "key": "table analytics.bay_events",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 36
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "forecast::forecast.workflows#write_forecast/2",
-   "to": "db:postgres:DB_HOST/public.demand_forecast",
-   "key": "table public.demand_forecast",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 54
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "svc:occupancy",
-   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
-   "key": "table occupancy:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/cache.py",
-     "line": 14
-    },
-    {
-     "file": "occupancy/app/grpc_server.py",
-     "line": 26
-    }
-   ],
-   "via": "common_py/common_py::common_py.cache.SharedCache#set_occupancy/2"
-  },
-  {
-   "kind": "db-write",
-   "from": "svc:occupancy",
-   "to": "db:redis:SHARED_CACHE_URL/bays:{zone}",
-   "key": "table bays:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/cache.py",
-     "line": 21
-    },
-    {
-     "file": "occupancy/app/grpc_server.py",
-     "line": 25
-    }
-   ],
-   "via": "common_py/common_py::common_py.cache.SharedCache#set_bay/3"
-  },
-  {
-   "kind": "db-read",
-   "from": "svc:occupancy",
-   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
-   "key": "table occupancy:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/cache.py",
-     "line": 17
-    },
-    {
-     "file": "occupancy/app/api.py",
-     "line": 16
-    }
-   ],
-   "via": "common_py/common_py::common_py.cache.SharedCache#get_occupancy/1"
-  },
-  {
-   "kind": "db-read",
-   "from": "svc:city-dashboard",
-   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
-   "key": "table occupancy:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/cache.py",
-     "line": 17
-    },
-    {
-     "file": "city_dashboard/app/main.py",
-     "line": 34
-    }
-   ],
-   "via": "common_py/common_py::common_py.cache.SharedCache#get_occupancy/1"
-  },
-  {
-   "kind": "db-read",
-   "from": "svc:city-dashboard",
-   "to": "db:redis:SHARED_CACHE_URL/bays:{zone}",
-   "key": "table bays:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "common_py/common_py/cache.py",
-     "line": 24
-    },
-    {
-     "file": "city_dashboard/app/main.py",
-     "line": 35
-    }
-   ],
-   "via": "common_py/common_py::common_py.cache.SharedCache#bays/1"
-  },
-  {
-   "kind": "db-read",
-   "from": "pricing::city.parking.pricing.SharedCache.live$impl#occupancyPercent/1",
-   "to": "db:redis:SHARED_CACHE_URL/occupancy:{zone}",
-   "key": "table occupancy:{zone}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "pricing/src/main/scala/city/parking/pricing/SharedCache.scala",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "kind": "db-read",
-   "from": "reservations::city.parking.reservations.QuoteCache.live$impl#get/1",
-   "to": "db:redis:REDIS_URL/quote:{key}",
-   "key": "table quote:{key}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/QuoteCache.scala",
-     "line": 26
-    }
-   ]
-  },
-  {
-   "kind": "db-write",
-   "from": "reservations::city.parking.reservations.QuoteCache.live$impl#put/2",
-   "to": "db:redis:REDIS_URL/quote:{key}",
-   "key": "table quote:{key}",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "reservations/src/main/scala/city/parking/reservations/QuoteCache.scala",
-     "line": 28
-    }
-   ]
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.nightly_settlement#nightly_settlement/0",
-   "key": "task nightly_settlement",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/nightly_settlement.py",
-     "line": 8
-    }
-   ],
-   "schedule": [
-    "0 2 * * *"
-   ],
-   "job": "nightly_settlement"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0",
-   "key": "task daily_revenue_rollup",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/daily_revenue_rollup.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "30 2 * * *"
-   ],
-   "job": "daily_revenue_rollup"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.zone_utilisation_daily#zone_utilisation_daily/0",
-   "key": "task zone_utilisation_daily",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_daily.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "0 3 * * *"
-   ],
-   "job": "zone_utilisation_daily"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.zone_utilisation_hourly#zone_utilisation_hourly/0",
-   "key": "task zone_utilisation_hourly",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/zone_utilisation_hourly.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "5 * * * *"
-   ],
-   "job": "zone_utilisation_hourly"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0",
-   "key": "task bq_bay_events_export",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_bay_events_export.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "*/15 * * * *"
-   ],
-   "job": "bq_bay_events_export"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.bq_reservations_export#bq_reservations_export/0",
-   "key": "task bq_reservations_export",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_reservations_export.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "0 * * * *"
-   ],
-   "job": "bq_reservations_export"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.bq_revenue_export#bq_revenue_export/0",
-   "key": "task bq_revenue_export",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_revenue_export.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "45 3 * * *"
-   ],
-   "job": "bq_revenue_export"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.bq_tariff_snapshot#bq_tariff_snapshot/0",
-   "key": "task bq_tariff_snapshot",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/bq_tariff_snapshot.py",
-     "line": 10
-    }
-   ],
-   "schedule": [
-    "0 1 * * 1"
-   ],
-   "job": "bq_tariff_snapshot"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.s3_invoice_export#s3_invoice_export/0",
-   "key": "task s3_invoice_export",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_invoice_export.py",
-     "line": 11
-    }
-   ],
-   "schedule": [
-    "15 4 * * *"
-   ],
-   "job": "s3_invoice_export"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:nightly-jobs",
-   "to": "jobs/dags::dags.s3_audit_export#s3_audit_export/0",
-   "key": "task s3_audit_export",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "jobs/dags/s3_audit_export.py",
-     "line": 11
-    }
-   ],
-   "schedule": [
-    "0 4 * * 1"
-   ],
-   "job": "s3_audit_export"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:feature-store",
-   "to": "features::features.workflows#features_wf/1",
-   "key": "task features_wf",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "features/workflows.py",
-     "line": 41
-    }
-   ],
-   "schedule": [
-    "0 1 * * *"
-   ],
-   "job": "features_nightly"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:demand-forecast",
-   "to": "forecast::forecast.workflows#forecast_wf/1",
-   "key": "task forecast_wf",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 75
-    }
-   ],
-   "schedule": [
-    "30 1 * * *"
-   ],
-   "job": "forecast_nightly"
-  },
-  {
-   "kind": "batch",
-   "from": "svc:demand-forecast",
-   "to": "features::features.workflows#compute_zone_features/1",
-   "key": "task compute_zone_features",
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 17
-    }
-   ],
-   "job": "reference_task features/compute_zone_features"
+   "data": "back",
+   "id": "r:stream:sensor_gateway/app::app.vendor#vendor_messages/0->ext:http:SENSORCLOUD_WS_URL:websocket SENSORCLOUD_WS_URL"
   }
  ],
+ "pins": [
+  {
+   "id": "driver-reserves-a-bay-billing-charges-it",
+   "title": "driver reserves a bay, billing charges it",
+   "start": "reservations::city.parking.reservations.ReservationService.Live#create/1",
+   "direction": "downstream",
+   "by": "agent"
+  },
+  {
+   "id": "billing-parks-an-event-it-cannot-process",
+   "title": "billing parks an event it cannot process",
+   "start": "billing::city.parking.billing.DeadLetters.live$impl#park/3",
+   "direction": "both",
+   "by": "agent"
+  },
+  {
+   "id": "a-sensor-frame-becomes-bay-status-cache-and-a-fine",
+   "title": "a sensor frame becomes bay status, cache and a fine",
+   "start": "sensor_gateway/app::app.vendor#vendor_messages/0",
+   "direction": "downstream",
+   "by": "agent"
+  },
+  {
+   "id": "nightly-job-settles-paid-invoices",
+   "title": "nightly job settles paid invoices",
+   "start": "jobs/dags::dags.nightly_settlement#settle/0",
+   "direction": "downstream",
+   "by": "agent"
+  },
+  {
+   "id": "stripe-payment-result-updates-the-reservation",
+   "title": "Stripe payment result updates the reservation",
+   "start": "payments_webhook/app::app.main#stripe_webhook/2",
+   "direction": "downstream",
+   "by": "agent"
+  },
+  {
+   "id": "nightly-demand-forecast-feeds-pricing",
+   "title": "nightly demand forecast feeds pricing",
+   "start": "features::features.zone_features#compute_zone_features/1",
+   "direction": "downstream",
+   "by": "agent"
+  }
+ ],
+ "unpinned": [],
+ "examples": {
+  "types": {
+   "reservations::city.parking.reservations.NewReservation": {
+    "value": {
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z"
+    },
+    "fingerprint": "46161c4629e6"
+   },
+   "reservations::city.parking.reservations.Quote": {
+    "value": {
+     "zoneId": "z3",
+     "cents": 450,
+     "currency": "EUR",
+     "surge": 1.2
+    },
+    "fingerprint": "43bf68f969d8"
+   },
+   "reservations::city.parking.reservations.Reservation": {
+    "value": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z",
+     "status": "PENDING",
+     "quoteCents": 450,
+     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
+    },
+    "fingerprint": "94355638fea2"
+   }
+  },
+  "entries": [
+   {
+    "node": "analytics_loader/app::app.main#main/0",
+    "key": "bay-status",
+    "request": {
+     "zone_id": "z3",
+     "bay_id": "b014",
+     "occupied": true,
+     "plate": "KT482LM",
+     "observed_at_ms": 1791712800000,
+     "sequence": "48213"
+    },
+    "fingerprint": "c75bec0bb822"
+   },
+   {
+    "node": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
+    "key": "reservation-events",
+    "request": {
+     "type": "reservation.created",
+     "reservationId": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "amountCents": 450
+    },
+    "fingerprint": "5d0a12cfa3b0"
+   },
+   {
+    "node": "billing::city.parking.billing.SettleEndpoint$#routes/1",
+    "key": "POST /internal/settle",
+    "request": {},
+    "response": {
+     "settled": 312
+    },
+    "fingerprint": "d44d2ebd6df0"
+   },
+   {
+    "node": "city_dashboard/app::app.main#bay_status_push/1",
+    "key": "POST /pubsub/bay-status",
+    "request": {
+     "message": {
+      "data": "eyJ6b25lX2lkIjogInozIiwgImJheV9pZCI6ICJiMDE0IiwgIm9jY3VwaWVkIjogdHJ1ZSwgInBsYXRlIjogIktUNDgyTE0iLCAib2JzZXJ2ZWRfYXRfbXMiOiAxNzkxNzEyODAwMDAwLCAic2VxdWVuY2UiOiAiNDgyMTMifQ==",
+      "messageId": "9182736450112233",
+      "publishTime": "2026-10-14T08:40:00.412Z"
+     },
+     "subscription": "projects/parking-city/subscriptions/bay-status-dashboard"
+    },
+    "fingerprint": "3f950db6ae15"
+   },
+   {
+    "node": "city_dashboard/app::app.main#bay_status_push/1",
+    "key": "bay-status",
+    "request": {
+     "zone_id": "z3",
+     "bay_id": "b014",
+     "occupied": true,
+     "plate": "KT482LM",
+     "observed_at_ms": 1791712800000,
+     "sequence": "48213"
+    },
+    "fingerprint": "3f950db6ae15"
+   },
+   {
+    "node": "city_dashboard/app::app.main#zone_live/1",
+    "key": "GET /api/zones/{zone_id}/live",
+    "request": {
+     "zone_id": "z3"
+    },
+    "response": {
+     "zone_id": "z3",
+     "percent_full": 82,
+     "bays": {
+      "b013": false,
+      "b014": true,
+      "b015": true
+     },
+     "recent_changes": [
+      {
+       "zone_id": "z3",
+       "bay_id": "b014",
+       "occupied": true,
+       "plate": "KT482LM",
+       "observed_at_ms": 1791712800000,
+       "sequence": "48213"
+      }
+     ]
+    },
+    "fingerprint": "fafc48a9e228"
+   },
+   {
+    "node": "enforcement_worker/app::app.main#main/0",
+    "key": "violations.fifo",
+    "request": {
+     "zone_id": "z3",
+     "bay_id": "b014",
+     "plate": "KT482LM",
+     "kind": "overstay"
+    },
+    "fingerprint": "c75bec0bb822"
+   },
+   {
+    "node": "features::features.zone_features#zone_features/0",
+    "key": "task zone_features",
+    "request": {
+     "days": 28
+    },
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "forecast::forecast.demand_forecast#demand_forecast/0",
+    "key": "task demand_forecast",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0",
+    "key": "task bq_bay_events_export",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.bq_reservations_export#bq_reservations_export/0",
+    "key": "task bq_reservations_export",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.bq_revenue_export#bq_revenue_export/0",
+    "key": "task bq_revenue_export",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.bq_tariff_snapshot#bq_tariff_snapshot/0",
+    "key": "task bq_tariff_snapshot",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0",
+    "key": "task daily_revenue_rollup",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.nightly_settlement#nightly_settlement/0",
+    "key": "task nightly_settlement",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.s3_audit_export#s3_audit_export/0",
+    "key": "task s3_audit_export",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.s3_invoice_export#s3_invoice_export/0",
+    "key": "task s3_invoice_export",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.zone_utilisation_daily#zone_utilisation_daily/0",
+    "key": "task zone_utilisation_daily",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "jobs/dags::dags.zone_utilisation_hourly#zone_utilisation_hourly/0",
+    "key": "task zone_utilisation_hourly",
+    "request": {},
+    "fingerprint": "6571c4042488"
+   },
+   {
+    "node": "notifier/app::app.main#main/0",
+    "key": "reservation-events",
+    "request": {
+     "type": "reservation.cancelled",
+     "reservationId": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931"
+    },
+    "fingerprint": "c75bec0bb822"
+   },
+   {
+    "node": "occupancy/app::app.api#bays/1",
+    "key": "GET /v1/bays/{zone_id}",
+    "request": {
+     "zone_id": "z3"
+    },
+    "response": {
+     "zone_id": "z3",
+     "percent_full": 82,
+     "bays": [
+      {
+       "bay_id": "b013",
+       "occupied": false,
+       "plate": null,
+       "since": "2026-10-14T07:52:10+00:00"
+      },
+      {
+       "bay_id": "b014",
+       "occupied": true,
+       "plate": "KT482LM",
+       "since": "2026-10-14T08:40:00+00:00"
+      }
+     ]
+    },
+    "fingerprint": "fafc48a9e228"
+   },
+   {
+    "node": "occupancy/app::app.grpc_server.OccupancyFeedService#Stream/2",
+    "key": "grpc parking.occupancy.v1.OccupancyFeed/Stream",
+    "request": {
+     "zone_id": "z3",
+     "bay_id": "b014",
+     "occupied": true,
+     "plate": "KT482LM",
+     "observed_at_ms": 1791712800000,
+     "sequence": "48213"
+    },
+    "fingerprint": "261340450ce9"
+   },
+   {
+    "node": "payments_webhook/app::app.main#stripe_webhook/2",
+    "key": "POST /webhooks/stripe",
+    "request": {
+     "stripe_signature": "t=1791714012,v1=6f3c9a0e2b7d41c58e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345678abc",
+     "body": {
+      "id": "evt_1Q8kN42eZvKYlo2C0aPq9RsT",
+      "type": "payment_intent.succeeded",
+      "data": {
+       "object": {
+        "id": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE",
+        "amount": 450,
+        "currency": "eur",
+        "metadata": {
+         "reservation_id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
+        }
+       }
+      }
+     }
+    },
+    "response": {
+     "received": true
+    },
+    "fingerprint": "82ec141305e3"
+   },
+   {
+    "node": "pricing::city.parking.pricing.QuoteEndpoint$#routes/1",
+    "key": "GET /v1/quote",
+    "request": {
+     "zone": "z3",
+     "minutes": 90
+    },
+    "response": {
+     "zoneId": "z3",
+     "cents": 450,
+     "currency": "EUR",
+     "surge": 1.2
+    },
+    "fingerprint": "2dd5df83550a"
+   },
+   {
+    "node": "reporting_api/app::app.main#occupancy/0",
+    "key": "GET /v1/reports/occupancy",
+    "request": {},
+    "response": {
+     "zones": [
+      {
+       "zone_id": "z3",
+       "bays": 40,
+       "occupied": 33,
+       "booked_now": 12
+      },
+      {
+       "zone_id": "z7",
+       "bays": 25,
+       "occupied": 9,
+       "booked_now": 3
+      }
+     ]
+    },
+    "fingerprint": "a8186fb514c4"
+   },
+   {
+    "node": "reporting_api/app::app.main#revenue/2",
+    "key": "GET /v1/reports/revenue",
+    "request": {
+     "start": "2026-10-06",
+     "end": "2026-10-07"
+    },
+    "response": {
+     "rows": [
+      {
+       "zone_id": "z3",
+       "day": "2026-10-06",
+       "cents": 18450,
+       "bookings": 41
+      },
+      {
+       "zone_id": "z7",
+       "day": "2026-10-06",
+       "cents": 6300,
+       "bookings": 14
+      },
+      {
+       "zone_id": "z3",
+       "day": "2026-10-07",
+       "cents": 20100,
+       "bookings": 45
+      }
+     ]
+    },
+    "fingerprint": "2e3803e9949b"
+   },
+   {
+    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
+    "key": "GET /v1/reservations/{id}",
+    "request": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
+    },
+    "response": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z",
+     "status": "PAID",
+     "quoteCents": 450,
+     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
+    },
+    "fingerprint": "31cc42437630"
+   },
+   {
+    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
+    "key": "POST /v1/reservations",
+    "request": {
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z"
+    },
+    "response": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z",
+     "status": "PENDING",
+     "quoteCents": 450,
+     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
+    },
+    "fingerprint": "31cc42437630"
+   },
+   {
+    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
+    "key": "POST /v1/reservations/{id}/cancel",
+    "request": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
+    },
+    "response": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z",
+     "status": "CANCELLED",
+     "quoteCents": 450,
+     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
+    },
+    "fingerprint": "31cc42437630"
+   }
+  ]
+ },
  "problems": [
   {
    "text": "Module `.` (sbt root, 0 files) is claimed by no service or library; assemble defaults it to a library.",
@@ -1943,7 +2614,7 @@
    "source": "agent"
   },
   {
-   "text": "pipelines_shared is registered into both Flyte projects (feature-store, demand-forecast) so both services claim it.",
+   "text": "pipelines_shared is synced by both the features and the forecast Airflow registrations (feature-store, demand-forecast), so both services claim it.",
    "nodes": [
     "svc:feature-store",
     "svc:demand-forecast"
@@ -1968,9 +2639,9 @@
    "source": "agent"
   },
   {
-   "text": "Airflow @task functions nested in each @dag function were not scanned as methods; DAG relations attach to the DAG function. SUBTRACT_REFUNDS (pg_revenue_correction.py) is a module constant run by daily_revenue_rollup and is folded into its relations.",
+   "text": "SUBTRACT_REFUNDS (pg_revenue_correction.py) is a module constant run by the rollup task of daily_revenue_rollup and is folded into its relations.",
    "nodes": [
-    "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0"
+    "jobs/dags::dags.daily_revenue_rollup#rollup/1"
    ],
    "source": "agent"
   },
@@ -2017,7 +2688,7 @@
    "source": "agent"
   },
   {
-   "text": "Platform boxes (Airflow, Flyte, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
+   "text": "Platform boxes (Airflow, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
    "nodes": [],
    "source": "agent"
   },
@@ -2029,445 +2700,9 @@
    "source": "agent"
   }
  ],
+ "roles": {},
  "summaries": {
-  "reservations::city.parking.reservations.OutboxRelay$#run/0": "Polls reservation_outbox and publishes each row to reservation-events.",
-  "billing::city.parking.billing.ReservationEventsConsumer$": "Consumes reservation-events as group billing; failures go to reservation-events.dlq."
- },
- "pins": [
-  {
-   "id": "driver-reserves-a-bay-billing-charges-it",
-   "title": "driver reserves a bay, billing charges it",
-   "start": "reservations::city.parking.reservations.ReservationService.Live#create/1",
-   "direction": "downstream",
-   "by": "agent"
-  },
-  {
-   "id": "billing-parks-an-event-it-cannot-process",
-   "title": "billing parks an event it cannot process",
-   "start": "billing::city.parking.billing.DeadLetters.live$impl#park/3",
-   "direction": "both",
-   "by": "agent"
-  },
-  {
-   "id": "a-sensor-frame-becomes-bay-status-cache-and-a-fine",
-   "title": "a sensor frame becomes bay status, cache and a fine",
-   "start": "sensor_gateway/app::app.vendor#vendor_messages/0",
-   "direction": "downstream",
-   "by": "agent"
-  },
-  {
-   "id": "nightly-job-settles-paid-invoices",
-   "title": "nightly job settles paid invoices",
-   "start": "jobs/dags::dags.nightly_settlement#settle/0",
-   "direction": "downstream",
-   "by": "agent"
-  },
-  {
-   "id": "stripe-payment-result-updates-the-reservation",
-   "title": "Stripe payment result updates the reservation",
-   "start": "payments_webhook/app::app.main#stripe_webhook/2",
-   "direction": "downstream",
-   "by": "agent"
-  },
-  {
-   "id": "nightly-demand-forecast-feeds-pricing",
-   "title": "nightly demand forecast feeds pricing",
-   "start": "features::features.workflows#compute_zone_features/1",
-   "direction": "downstream",
-   "by": "agent"
-  }
- ],
- "unpinned": [],
- "examples": {
-  "types": {
-   "reservations::city.parking.reservations.NewReservation": {
-    "value": {
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z"
-    }
-   },
-   "reservations::city.parking.reservations.Quote": {
-    "value": {
-     "zoneId": "z3",
-     "cents": 450,
-     "currency": "EUR",
-     "surge": 1.2
-    }
-   },
-   "reservations::city.parking.reservations.Reservation": {
-    "value": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z",
-     "status": "PENDING",
-     "quoteCents": 450,
-     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
-    }
-   }
-  },
-  "entries": [
-   {
-    "node": "analytics_loader/app::app.main#main/0",
-    "key": "bay-status",
-    "request": {
-     "zone_id": "z3",
-     "bay_id": "b014",
-     "occupied": true,
-     "plate": "KT482LM",
-     "observed_at_ms": 1791712800000,
-     "sequence": "48213"
-    }
-   },
-   {
-    "node": "billing::city.parking.billing.ReservationEventsConsumer$#handle/3",
-    "key": "reservation-events",
-    "request": {
-     "type": "reservation.created",
-     "reservationId": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "amountCents": 450
-    }
-   },
-   {
-    "node": "billing::city.parking.billing.SettleEndpoint$#routes/1",
-    "key": "POST /internal/settle",
-    "request": {},
-    "response": {
-     "settled": 312
-    }
-   },
-   {
-    "node": "city_dashboard/app::app.main#bay_status_push/1",
-    "key": "POST /pubsub/bay-status",
-    "request": {
-     "message": {
-      "data": "eyJ6b25lX2lkIjogInozIiwgImJheV9pZCI6ICJiMDE0IiwgIm9jY3VwaWVkIjogdHJ1ZSwgInBsYXRlIjogIktUNDgyTE0iLCAib2JzZXJ2ZWRfYXRfbXMiOiAxNzkxNzEyODAwMDAwLCAic2VxdWVuY2UiOiAiNDgyMTMifQ==",
-      "messageId": "9182736450112233",
-      "publishTime": "2026-10-14T08:40:00.412Z"
-     },
-     "subscription": "projects/parking-city/subscriptions/bay-status-dashboard"
-    }
-   },
-   {
-    "node": "city_dashboard/app::app.main#bay_status_push/1",
-    "key": "bay-status",
-    "request": {
-     "zone_id": "z3",
-     "bay_id": "b014",
-     "occupied": true,
-     "plate": "KT482LM",
-     "observed_at_ms": 1791712800000,
-     "sequence": "48213"
-    }
-   },
-   {
-    "node": "city_dashboard/app::app.main#zone_live/1",
-    "key": "GET /api/zones/{zone_id}/live",
-    "request": {
-     "zone_id": "z3"
-    },
-    "response": {
-     "zone_id": "z3",
-     "percent_full": 82,
-     "bays": {
-      "b013": false,
-      "b014": true,
-      "b015": true
-     },
-     "recent_changes": [
-      {
-       "zone_id": "z3",
-       "bay_id": "b014",
-       "occupied": true,
-       "plate": "KT482LM",
-       "observed_at_ms": 1791712800000,
-       "sequence": "48213"
-      }
-     ]
-    }
-   },
-   {
-    "node": "enforcement_worker/app::app.main#main/0",
-    "key": "violations.fifo",
-    "request": {
-     "zone_id": "z3",
-     "bay_id": "b014",
-     "plate": "KT482LM",
-     "kind": "overstay"
-    }
-   },
-   {
-    "node": "features::features.workflows#compute_zone_features/1",
-    "key": "task compute_zone_features",
-    "request": {
-     "days": 28
-    }
-   },
-   {
-    "node": "features::features.workflows#features_wf/1",
-    "key": "task features_wf",
-    "request": {
-     "days": 28
-    }
-   },
-   {
-    "node": "forecast::forecast.workflows#forecast_wf/1",
-    "key": "task forecast_wf",
-    "request": {
-     "days": 28
-    }
-   },
-   {
-    "node": "jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0",
-    "key": "task bq_bay_events_export",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.bq_reservations_export#bq_reservations_export/0",
-    "key": "task bq_reservations_export",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.bq_revenue_export#bq_revenue_export/0",
-    "key": "task bq_revenue_export",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.bq_tariff_snapshot#bq_tariff_snapshot/0",
-    "key": "task bq_tariff_snapshot",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0",
-    "key": "task daily_revenue_rollup",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.nightly_settlement#nightly_settlement/0",
-    "key": "task nightly_settlement",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.s3_audit_export#s3_audit_export/0",
-    "key": "task s3_audit_export",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.s3_invoice_export#s3_invoice_export/0",
-    "key": "task s3_invoice_export",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.zone_utilisation_daily#zone_utilisation_daily/0",
-    "key": "task zone_utilisation_daily",
-    "request": {}
-   },
-   {
-    "node": "jobs/dags::dags.zone_utilisation_hourly#zone_utilisation_hourly/0",
-    "key": "task zone_utilisation_hourly",
-    "request": {}
-   },
-   {
-    "node": "notifier/app::app.main#main/0",
-    "key": "reservation-events",
-    "request": {
-     "type": "reservation.cancelled",
-     "reservationId": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931"
-    }
-   },
-   {
-    "node": "occupancy/app::app.api#bays/1",
-    "key": "GET /v1/bays/{zone_id}",
-    "request": {
-     "zone_id": "z3"
-    },
-    "response": {
-     "zone_id": "z3",
-     "percent_full": 82,
-     "bays": [
-      {
-       "bay_id": "b013",
-       "occupied": false,
-       "plate": null,
-       "since": "2026-10-14T07:52:10+00:00"
-      },
-      {
-       "bay_id": "b014",
-       "occupied": true,
-       "plate": "KT482LM",
-       "since": "2026-10-14T08:40:00+00:00"
-      }
-     ]
-    }
-   },
-   {
-    "node": "occupancy/app::app.grpc_server.OccupancyFeedService#Stream/2",
-    "key": "grpc parking.occupancy.v1.OccupancyFeed/Stream",
-    "request": {
-     "zone_id": "z3",
-     "bay_id": "b014",
-     "occupied": true,
-     "plate": "KT482LM",
-     "observed_at_ms": 1791712800000,
-     "sequence": "48213"
-    }
-   },
-   {
-    "node": "payments_webhook/app::app.main#stripe_webhook/2",
-    "key": "POST /webhooks/stripe",
-    "request": {
-     "stripe_signature": "t=1791714012,v1=6f3c9a0e2b7d41c58e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9012345678abc",
-     "body": {
-      "id": "evt_1Q8kN42eZvKYlo2C0aPq9RsT",
-      "type": "payment_intent.succeeded",
-      "data": {
-       "object": {
-        "id": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE",
-        "amount": 450,
-        "currency": "eur",
-        "metadata": {
-         "reservation_id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
-        }
-       }
-      }
-     }
-    },
-    "response": {
-     "received": true
-    }
-   },
-   {
-    "node": "pricing::city.parking.pricing.QuoteEndpoint$#routes/1",
-    "key": "GET /v1/quote",
-    "request": {
-     "zone": "z3",
-     "minutes": 90
-    },
-    "response": {
-     "zoneId": "z3",
-     "cents": 450,
-     "currency": "EUR",
-     "surge": 1.2
-    }
-   },
-   {
-    "node": "reporting_api/app::app.main#occupancy/0",
-    "key": "GET /v1/reports/occupancy",
-    "request": {},
-    "response": {
-     "zones": [
-      {
-       "zone_id": "z3",
-       "bays": 40,
-       "occupied": 33,
-       "booked_now": 12
-      },
-      {
-       "zone_id": "z7",
-       "bays": 25,
-       "occupied": 9,
-       "booked_now": 3
-      }
-     ]
-    }
-   },
-   {
-    "node": "reporting_api/app::app.main#revenue/2",
-    "key": "GET /v1/reports/revenue",
-    "request": {
-     "start": "2026-10-06",
-     "end": "2026-10-07"
-    },
-    "response": {
-     "rows": [
-      {
-       "zone_id": "z3",
-       "day": "2026-10-06",
-       "cents": 18450,
-       "bookings": 41
-      },
-      {
-       "zone_id": "z7",
-       "day": "2026-10-06",
-       "cents": 6300,
-       "bookings": 14
-      },
-      {
-       "zone_id": "z3",
-       "day": "2026-10-07",
-       "cents": 20100,
-       "bookings": 45
-      }
-     ]
-    }
-   },
-   {
-    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
-    "key": "POST /v1/reservations",
-    "request": {
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z"
-    },
-    "response": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z",
-     "status": "PENDING",
-     "quoteCents": 450,
-     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
-    }
-   },
-   {
-    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
-    "key": "GET /v1/reservations/{id}",
-    "request": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
-    },
-    "response": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z",
-     "status": "PAID",
-     "quoteCents": 450,
-     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
-    }
-   },
-   {
-    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
-    "key": "POST /v1/reservations/{id}/cancel",
-    "request": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
-    },
-    "response": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z",
-     "status": "CANCELLED",
-     "quoteCents": 450,
-     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
-    }
-   }
-  ]
+  "billing::city.parking.billing.ReservationEventsConsumer$": "Consumes reservation-events as group billing; failures go to reservation-events.dlq.",
+  "reservations::city.parking.reservations.OutboxRelay$#run/0": "Polls reservation_outbox and publishes each row to reservation-events."
  }
 }

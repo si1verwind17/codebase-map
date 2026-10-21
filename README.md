@@ -60,8 +60,9 @@ Later, run it again, or ask:
 
 > Refresh the code map for the latest commit.
 
-The map lands in `docs/viz-code/`. Open `docs/viz-code/index.html`, and commit `code-map.json`, `stack.yaml` and
-`README.md` from that folder; the rest are working files, already gitignored.
+The map lands in `docs/viz-code/`, and nothing outside it is touched. Open `docs/viz-code/index.html`, and commit
+`code-map.json`, `stack.yaml`, `README.md`, `.gitignore` and `.gitattributes` from that folder; the rest are working
+files, already gitignored.
 
 **Found something it gets wrong?** Run the skill with `send-feedback`
 (`/codebase-map:visualizing-codebases send-feedback`), or ask your agent to send feedback on the code map. It drafts

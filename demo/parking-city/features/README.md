@@ -1,11 +1,14 @@
-# features: feature-store (Flyte)
+# features: feature-store (Airflow 2)
 
-Flyte project `features`. `workflows.py` holds the `compute_zone_features`
-task, which the `forecast` project calls through a `reference_task`.
+Airflow project `features`. `zone_features.py` holds the `zone_features` DAG
+(`0 1 * * *`): its task `compute_zone_features` reads BigQuery
+`analytics.bay_events` and writes `analytics.zone_features`. The `forecast`
+project also triggers this DAG before each forecast (`TriggerDagRunOperator`).
 
-Registration (also in `deploy/register.sh`). `pipelines_shared/` is registered
-into this project as well as into `forecast`:
+Registration (also in `deploy/register.sh`). `pipelines_shared/` is synced with
+this project as well as with `forecast`:
 
 ```bash
-pyflyte register --project features --domain production --image "$PIPELINE_IMAGE" features pipelines_shared
+gsutil -m rsync -r -d features "gs://${AIRFLOW_DAGS_BUCKET}/dags/features"
+gsutil -m rsync -r -d pipelines_shared "gs://${AIRFLOW_DAGS_BUCKET}/dags/pipelines_shared"
 ```

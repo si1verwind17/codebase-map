@@ -76,8 +76,9 @@ export class TraceGraph {
       if (ev.file.localeCompare(e.file) < 0 || (ev.file === e.file && ev.line < e.line)) { e.file = ev.file; e.line = ev.line; }
     }
     // trait method -> implementations, by the scanner's fold rule (calls.py `_abstractions`): a method of a class
-    // naming a supertype in `implements` folds to that supertype's same-named method of the same arity, else of any
-    // arity when only one exists; chains reach the top. The edge runs from the top method to each implementation.
+    // naming a supertype in `implements` folds to the same-named method of that supertype, or of the nearest class
+    // above it that declares one, of the same arity, else of any arity when only one exists; chains reach the top.
+    // The edge runs from the top method to each implementation.
     const methods = new Map<string, Map<string, string[]>>();
     for (const n of model.map.nodes) {
       if (n.kind !== "method" || !n.parent) continue;
@@ -86,11 +87,23 @@ export class TraceGraph {
       methods.set(n.parent, byName);
     }
     const arity = (m: string) => m.slice(m.lastIndexOf("/") + 1);
+    const declared = (sup: string, name: string): string[] => {
+      const todo = [sup], seen = new Set<string>();
+      while (todo.length) {
+        const c = todo.shift()!;
+        if (seen.has(c) || !model.nodes.has(c)) continue;
+        seen.add(c);
+        const found = methods.get(c)?.get(name);
+        if (found?.length) return found;
+        todo.push(...(model.nodes.get(c)!.implements ?? []));
+      }
+      return [];
+    };
     const up = new Map<string, string>();
     for (const c of model.map.nodes) {
       for (const sup of c.implements ?? []) {
         for (const [name, mine] of methods.get(c.id) ?? []) {
-          const theirs = methods.get(sup)?.get(name) ?? [];
+          const theirs = declared(sup, name);
           for (const m of mine) {
             const sameArity = theirs.filter((t) => arity(t) === arity(m));
             const same = sameArity.length ? sameArity : theirs;

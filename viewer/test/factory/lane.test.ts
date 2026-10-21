@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { crossings, isClick, moverSpeed } from "../../src/floor/lane";
+import { crossings, isClick, laneCrossings, moverSpeed } from "../../src/floor/lane";
+import { laneLabelSpot } from "../../src/factory/clear";
 
 describe("lane labels", () => {
   it("finds where vertical runs cross or end on a lane", () => {
@@ -10,6 +11,18 @@ describe("lane labels", () => {
       { key: "d", points: [{ x: 100, y: 50 }, { x: 900, y: 50 }] },           // runs along it: not a crossing
     ];
     expect(crossings(routes, 50, 14)).toEqual([275, 523]);
+  });
+
+  it("keeps a lane's name off a drone or flight path over the lane, as off a line crossing it", () => {
+    const lane = { y: 10 };   // rows 10-12: 240..312 px
+    const path = [{ x: 0, y: 200 }, { x: 400, y: 400 }];   // over the lane from x 80 to 224
+    const xs = laneCrossings(lane, [], [path]);
+    expect(xs[0]).toBe(80);
+    expect(xs[xs.length - 1]).toBeCloseTo(224);
+    expect(xs.every((x, i) => i === 0 || x - xs[i - 1] <= 8)).toBe(true);
+    // a name that would fit from the lane's start does not: it sits past the path
+    expect(laneLabelSpot(48, 600, 60, xs, 1).x).toBeCloseTo(232);
+    expect(laneCrossings(lane, [], [[{ x: 0, y: 0 }, { x: 400, y: 100 }]])).toEqual([]);   // a path above the lane
   });
 });
 

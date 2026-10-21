@@ -70,7 +70,7 @@ def test_a_latin1_file_keeps_its_accented_identifiers():
     assert any("from té where" in (s["text"] if isinstance(s, dict) else s) for s in res["strings"])
 
 
-# --- parking-city demo: Airflow TaskFlow DAGs, Flyte workflows ---------------
+# --- Airflow TaskFlow DAGs (as in the parking-city demo), Flyte workflows -----
 JOBS = {"id": "mod:jobs/dags", "path": "jobs/dags", "lang": "python", "build": "python-scripts"}
 FORECAST = {"id": "mod:forecast", "path": "forecast", "lang": "python", "build": "python-scripts"}
 

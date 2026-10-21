@@ -89,13 +89,17 @@ def _npm_name(path: Path) -> str | None:
 
 
 def _cargo_name(path: Path) -> str | None:
-    """Cargo.toml `[package] name`, as code writes it (`shop-core` -> `shop_core`)."""
+    """The library crate's name as code writes it: Cargo.toml `[lib] name`, else `[package] name` (`shop-core` ->
+    `shop_core`)."""
     try:
-        pkg = tomllib.loads(_read(path)).get("package")
+        doc = tomllib.loads(_read(path))
     except tomllib.TOMLDecodeError:
         return None
-    name = pkg.get("name") if isinstance(pkg, dict) else None
-    return name.replace("-", "_") if isinstance(name, str) and name else None
+    for table in (doc.get("lib"), doc.get("package")):
+        name = table.get("name") if isinstance(table, dict) else None
+        if isinstance(name, str) and name:
+            return name.replace("-", "_")
+    return None
 
 
 NAME_READERS: dict[str, Callable[[Path], str | None]] = {

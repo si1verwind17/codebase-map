@@ -6,7 +6,9 @@ Writes stale.json (what to redo) and, unless a full rescan is needed,
 meaning.json (every fact; stale ones carry "stale": true, examples included
 when their fingerprint no longer matches). A full rescan removes meaning.json and
 writes meaning.previous.json instead: the previous map's facts in the same shape, suspect ones flagged.
-Prints the mode: none (no source change, nothing stale) | rules | incremental | full.
+Either way stale.json lists the flagged facts, with `why` (fact id -> what it depends on that changed), and evidence on
+unchanged lines follows them to their new place (`moved_evidence` counts them).
+Prints the mode: none (no source change, nothing stale, no evidence moved) | rules | incremental | full.
 When the map was made under older meaning rules (CHANGES.md), stale.json and the summary carry "rules": {from, to,
 recheck}, the entries to re-check (a count in the summary; null when the map is older than the oldest entry, which
 is a full rescan). An otherwise unchanged map then gets mode rules instead of none: meaning.json is written from the
@@ -51,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         report["rules"] = behind
     if report["mode"] == "incremental" and not (
             report["stale_relations"] or report["stale_nodes"] or report["stale_examples"] or report["removed_nodes"]
-            or any(c["path"].endswith(SOURCE_SUFFIXES) for c in report["changed"])):
+            or report["moved_evidence"] or any(c["path"].endswith(SOURCE_SUFFIXES) for c in report["changed"])):
         report["mode"] = "rules" if behind else "none"
     previous_path = out / PREVIOUS
     if previous is not None:
@@ -67,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = {"mode": report["mode"], "reason": report["reason"],
                "changed": len(report["changed"]), "stale_relations": len(report["stale_relations"]),
                "stale_nodes": len(report["stale_nodes"]), "stale_examples": len(report["stale_examples"]),
-               "removed_nodes": len(report["removed_nodes"])}
+               "removed_nodes": len(report["removed_nodes"]), "moved_evidence": report["moved_evidence"]}
     if behind:
         summary["rules"] = {"from": behind["from"], "to": behind["to"],
                             "recheck": None if behind["recheck"] is None else len(behind["recheck"])}

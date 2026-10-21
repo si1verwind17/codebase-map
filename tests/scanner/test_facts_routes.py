@@ -8,7 +8,21 @@ def test_sql_reads_and_writes():
     assert q["writes"] == ["public.jobs"] and q["reads"] == ["public.old"]
     q = facts.sql_facts("select * from information_schema.tables t join public.users u on 1=1")
     assert q["reads"] == ["public.users"]
-    assert facts.sql_facts("INSERT INTO {table} (a) VALUES (1)")["writes"] == ["{table}"]
+    assert facts.sql_facts("INSERT INTO {table} (a) VALUES (1)")["writes"] == []
+
+
+def test_an_interpolated_table_name_is_no_table():
+    for text in ("SELECT n FROM {table('events')} WHERE x > 1", "SELECT n FROM ${tbl} WHERE x > 1",
+                 "SELECT n FROM #{tbl} WHERE x > 1", "SELECT n FROM %s WHERE x > 1",
+                 "SELECT n FROM %(tbl)s WHERE x > 1", "SELECT n FROM ? WHERE x > 1", "SELECT n FROM :tbl",
+                 "SELECT n FROM app.{tbl} JOIN app.${other} ON 1=1", "SELECT n FROM events_%s",
+                 "SELECT n FROM events_#{day} JOIN app.%(t)s ON 1=1", "SELECT n FROM ",
+                 "INSERT INTO {table} (a) VALUES (1)", "UPDATE ${t} SET a = 1", "UPDATE %s SET a = 1", "UPDATE ? SET a = 1",
+                 "DELETE FROM app.%s"):
+        assert facts.sql_facts(text)["reads"] == facts.sql_facts(text)["writes"] == [], text
+    q = facts.sql_facts("SELECT n FROM {tbl} JOIN orders o ON o.id = n")
+    assert q["reads"] == ["orders"]
+    assert facts.sql_facts("INSERT INTO ${t} (a) SELECT a FROM staging")["writes"] == []
 
 
 def test_prose_is_not_sql():
@@ -16,6 +30,30 @@ def test_prose_is_not_sql():
     assert facts.sql_facts("the job is selected from the queue") is None
     assert facts.sql_facts("Updates the cache") is None
     assert facts.sql_facts("select 1") is None
+
+
+def test_prose_that_starts_like_sql_names_no_table():
+    for text in ("Update line prior unit price amount.", "Update translation", "update date.",
+                 "Create order from existing cart.", "Create or update line discount for the order.",
+                 "Delete any event found in DB for old orders.", "Delete stale rows from database that are older.",
+                 "Truncate text to a safe length.", "Merge two accounts into one", "merge FROM TO",
+                 "Select products from all warehouses", "Update empty args with defaults from argument definition."):
+        assert facts.sql_facts(text) is None, text
+
+
+def test_sql_keywords_and_cte_names_are_no_tables():
+    q = facts.sql_facts("SELECT id, email FROM jobs FOR UPDATE SKIP LOCKED LIMIT 1")
+    assert q == {"verb": "select", "reads": ["jobs"], "writes": []}
+    q = facts.sql_facts("CREATE TRIGGER t BEFORE INSERT OR UPDATE ON orders FOR EACH ROW EXECUTE PROCEDURE f()")
+    assert q is None or "ON" not in q["writes"] + q["reads"]
+    q = facts.sql_facts("WITH recent AS (SELECT id FROM orders LIMIT 5) UPDATE orders o SET seen = true "
+                        "FROM recent WHERE o.id = recent.id")
+    assert q == {"verb": "with", "reads": ["orders"], "writes": ["orders"]}
+    q = facts.sql_facts("SELECT extract(epoch FROM created_at), x FROM orders o WHERE a IS DISTINCT FROM b")
+    assert q["reads"] == ["orders"]
+    assert facts.sql_facts('SELECT * FROM "order" WHERE id = 1')["reads"] == ["order"]   # quoted: a name
+    assert facts.sql_facts("UPDATE orders SET a = 1")["writes"] == ["orders"]
+    assert facts.sql_facts("truncate table jobs")["writes"] == ["jobs"]
 
 
 def test_urls():
@@ -132,3 +170,36 @@ def test_tapir_method_after_inputs_and_method_less_endpoint():
     # a bare prefix or a path-only chain is not an endpoint by itself
     assert routes.tapir_uses('endpoint.in("v1")', root) == []
     assert routes.tapir_uses('f(endpoint.in("a").out(stringBody))', root) == []
+
+
+def test_sql_written_out_as_text_is_no_database_access(make_repo):
+    from vizcode import structure
+    repo = make_repo({
+        "tools/requirements.txt": "",
+        "tools/gen_seed.py": 'import json\n\nfor row in json.load(open("rows.json")):\n'
+                             '    print(f"INSERT INTO items (id) VALUES ({row})")\n',
+        "tools/dump.py": 'def dump(out, rows):\n    for r in rows:\n'
+                         '        out.write("INSERT INTO items (id) VALUES (%s);" % r)\n',
+        "tools/store.py": 'def save(cur, row):\n    print("saving", row)\n'
+                          '    cur.execute("INSERT INTO items (id) VALUES (%s)", (row,))\n',
+        "tools/queries.py": 'LOAD = "SELECT id FROM items WHERE id = %s"\n'})
+    sql = {f: ff["sql"] for f, ff in structure.build(repo, "docs/viz-code")["facts"].items()}
+    assert sql["tools/gen_seed.py"] == [] and sql["tools/dump.py"] == []
+    assert sql["tools/store.py"][0]["writes"] == ["items"]
+    assert sql["tools/queries.py"][0]["reads"] == ["items"]
+
+
+def test_interpolated_table_names_stay_out_of_the_facts(make_repo):
+    from vizcode import structure
+    repo = make_repo({
+        "jobs/requirements.txt": "",
+        "jobs/py_job.py": 'def load(read, table):\n'
+                          '    return read(f"SELECT n FROM {table(\'events\')} WHERE n > 1")\n',
+        "jobs/fmt_job.py": 'def load(cur, name):\n    cur.execute("SELECT n FROM %s WHERE n > 1" % name)\n',
+        "web/package.json": "{}",
+        "web/load.js": "export function load(db, tbl) {\n  return db.query(`SELECT n FROM ${tbl} WHERE n > 1`);\n}\n",
+        "rb/Gemfile": "",
+        "rb/load.rb": 'def load(db, tbl)\n  db.exec("SELECT n FROM #{tbl} WHERE n > 1")\nend\n'})
+    sql = {f: ff["sql"] for f, ff in structure.build(repo, "docs/viz-code")["facts"].items() if ff["sql"]}
+    assert set(sql) == {"jobs/py_job.py", "jobs/fmt_job.py", "web/load.js", "rb/load.rb"}   # still code that runs SQL
+    assert {t for qs in sql.values() for q in qs for t in q["reads"] + q["writes"]} == set()

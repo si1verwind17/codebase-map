@@ -127,8 +127,8 @@ def test_ktor_routes_mounts_tables(ktor_repo):
     s = structure.build(ktor_repo, "docs/viz-code")
     module = ".::io.demo.orders/Application.kt#module/0"
     assert routes(s, APP) == [
-        ("GET", "/orders/{id}", module, 12, "ktor", "pack"),
-        ("POST", "/orders", module, 15, "ktor", "pack"),
+        ("GET", "/v1/orders/{id}", module, 12, "ktor", "pack"),
+        ("POST", "/v1/orders", module, 15, "ktor", "pack"),
         ("GET", "/health", module, 19, "ktor", "pack")]
     assert [(m["path"], m["line"], m["framework"]) for m in s["facts"][APP]["mounts"]] == [("/v1", 11, "ktor-route")]
     orders = "src/main/kotlin/io/demo/orders/Orders.kt"
@@ -137,7 +137,7 @@ def test_ktor_routes_mounts_tables(ktor_repo):
     assert sorted(set(sinks(s, APP))) == [("http-in", "io.ktor.server.routing"), ("http-out", "io.ktor.client")]
     assert s["stack"]["unrecognised"] == []
     md = structure.summary_md(s)
-    assert "- **mounts:** /v1 (src/main/kotlin/io/demo/orders/Application.kt:11)\n" in md
+    assert "- **mounts:** /v1 (src/main/kotlin/io/demo/orders/Application.kt:11, composed onto 2 routes)\n" in md
     assert "- **tables (patterns):** orders (src/main/kotlin/io/demo/orders/Orders.kt:7 defined on" in md
 
 

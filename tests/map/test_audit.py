@@ -81,6 +81,21 @@ def test_timeout(tmp_path):
     assert rep is None and skip == SKIP + "audit.mjs timed out after 0.5 s"
 
 
+def test_full_audit_passes_full_and_waits_longer(tmp_path, monkeypatch):
+    """--full-audit checks every floor (audit.mjs --full) with the longer timeout; the default keeps the budget."""
+    seen = []
+    monkeypatch.setattr(audit.subprocess, "run", lambda args, **kw: seen.append((args, kw.get("timeout")))
+                        or audit.subprocess.CompletedProcess(args, 0, json.dumps(REPORT) if len(seen) > 1 else "v20.0.0", ""))
+    node = stub(tmp_path, "true")
+    for full in (False, True):
+        seen.clear()
+        assert audit.run_drawing(map_file(tmp_path), node=node, full=full) == (REPORT, None)
+        args, timeout = seen[-1]
+        assert (args[-1] == "--full") == full
+        assert timeout == (audit.FULL_TIMEOUT if full else audit.TIMEOUT)
+    assert audit.FULL_TIMEOUT > audit.TIMEOUT
+
+
 def test_noise_before_the_json(tmp_path):
     node = stub(tmp_path, f"echo '(node:1) ExperimentalWarning: x' >&2; echo 'deprecated thing'; echo '';"
                           f" echo '{json.dumps(REPORT)}'; echo ''")
@@ -124,8 +139,18 @@ def test_render_limits_accepted_stale_and_the_rest():
     assert "- crowd.congestion — S7 0.41, S9 0.22\n" in text
     assert "- crowd.spacing — S7 area 0.10 spread 0.30, S9 area 0.20 spread 0.10\n" in text
     assert "- fit.readable — S7 fit 0.50 vs switch 0.60, S9 fit 0.70 vs switch 0.60\n" in text
-    assert "## Not checked\n- floors skipped by the time budget: S12\n" in text
-    assert line == "Map limits: 1 (see docs/viz-code/audit.md) · findings: 1 cycle · content warnings: 1"
+    assert ("## Not checked\n- floors past the audit's budget: S12\n"
+            "- to check every floor: `audit.py REPO --out-dir docs/viz-code --full-audit` (no budget; slower)\n") in text
+    assert line == ("Map limits: 1 (see docs/viz-code/audit.md) · findings: 1 cycle · content warnings: 1"
+                    " · 1 floor not checked (audit budget; --full-audit checks every floor)")
+
+
+def test_render_clean_but_budgeted_says_floors_were_skipped():
+    rep = {**REPORT, "results": [r("lines.failed", "site", ok=True)], "measured": {},
+           "skipped": ["id-S12", "id-S13"], "skippedCodes": ["S12", "S13"]}
+    _, line = audit.render(rep, None, [], [], ([], []), META)
+    assert line == ("Map audit: no limits, no findings, no content warnings"
+                    " · 2 floors not checked (audit budget; --full-audit checks every floor)")
 
 
 def test_render_all_pass_leaves_out_empty_sections():
@@ -203,13 +228,23 @@ def test_real_node_on_the_demo(tmp_path, capsys):
     assert audit.main([str(repo)]) == 0
     line = capsys.readouterr().out.strip().splitlines()[-1]
     text = (o / "audit.md").read_text()
-    assert "Drawing checks: 13 run on " in text
+    assert "Drawing checks: 16 run on " in text
     # the counts follow the demo's map-notes and the checks; only the shape is pinned here
     assert line.startswith("Map ")
     if line.startswith("Map audit: no limits"):
         assert "## Map limits" not in text
     else:
         assert line.startswith("Map limits: ") and "(see docs/viz-code/audit.md) · findings: " in line
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_real_node_full_audit_checks_every_floor(tmp_path, capsys):
+    repo, o = out_repo(tmp_path)
+    floors = len(json.loads((o / "code-map.json").read_text())["layout"]["containers"])
+    assert audit.main([str(repo), "--full-audit"]) == 0
+    text = (o / "audit.md").read_text()
+    assert f" run on {floors} floors" in text and "## Not checked" not in text
+    assert "not checked (audit budget" not in capsys.readouterr().out
 
 
 def test_viz_audit_0_skips_the_drawing(tmp_path, monkeypatch, capsys):

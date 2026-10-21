@@ -71,6 +71,8 @@ names_extend  an import's names continue its target (`a.b` + `C` = `a.b.C`); Fal
               exports (JS `import {a} from "x"`), and the target alone names the library
 aliases       node type -> name key of a type alias that is no class (`type Id = string`, `typealias`, C#
               `using X = A.B;`): FileResult `aliases`, names a type link never resolves in that file
+test_only     regex over an annotation before an item marking it test-only code (Rust `#[cfg(test)]`): the item
+              and everything in it are left out. "" = off
 """
 from __future__ import annotations
 
@@ -126,6 +128,7 @@ class LangSpec:
     names_extend: bool = True
     class_when: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
+    test_only: str = ""
 
 
 JAVA = LangSpec(
@@ -298,6 +301,7 @@ RUST = LangSpec(
     group_depth=1,
     supers=("trait", "bounds"),
     file_qualified=True,
+    test_only=r"#\[cfg\(\s*test\s*\)\]",
     attach={"impl_item": ("type",)},
     attach_types=("type_identifier", "scoped_type_identifier", "generic_type"),
     attach_unwrap=("reference_type",),

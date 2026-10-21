@@ -103,8 +103,8 @@ describe("layers", () => {
 
   // digests of every floor's base plan, taken when layers came in (6ccf2f1): the same with the layer pass and without it
   it("demo and fixture: every floor's base plan is the same with the layer pass and without it", () => {
-    expect(baseDigest(demo())).toBe("055727f3eb3015b8");   // demo re-pinned at rules 3 (requests one way) and the graded end cost
-    expect(baseDigest(new Model(shop as unknown as CodeMap))).toBe("d1dd3884b79fa12d");
+    expect(baseDigest(demo())).toBe("33072e58e959cf0e");   // demo re-pinned at rules 3 (requests one way), the graded end cost, lanes off it (straight drops), short lanes' names and its features/forecast DAGs on Airflow
+    expect(baseDigest(new Model(shop as unknown as CodeMap))).toBe("fe27c0c8966d7d1e");   // re-pinned when lanes left the graded end cost (straight drops) and short lanes' names
   });
 
   it("demo: the dags floor's 10 calls route over the base, plugged, on their own trunks, at most one failed", () => {

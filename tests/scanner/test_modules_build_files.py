@@ -163,7 +163,9 @@ def test_min_js_and_bundles_excluded(make_repo):
                       "settings.gradle.kts": 'include(":a")\n', "a/build.gradle.kts": "plugins {}\n",
                       "bin/tool.py": "def main():\n    pass\n", "build/gen.py": "X = 1\n"})
     s = structure.build(repo)
-    assert sorted(s["files"]) == ["bin/tool.py", "build/gen.py", "svc/main.go", "web/ok.js"]
+    assert sorted(s["files"]) == ["bin/tool.py", "build/gen.py", "svc/api.pb.go", "svc/main.go", "web/api_pb.ts",
+                                  "web/ok.js"]
+    assert s["generated"] == ["svc/api.pb.go", "web/api_pb.ts"]   # scanned for data types and routes only
     assert {sk["file"] for sk in s["skipped"]} == {"web/big.js"}
     assert "dist/app.js" in s["excluded"] and "web/x.min.js" in s["excluded"]
 

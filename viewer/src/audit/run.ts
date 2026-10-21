@@ -1,11 +1,11 @@
 // The map audit's runner: plans every floor of a code map as the viewer does and runs each drawing check over it, in
-// the order the time budget favours (site first, then the floors with the most boxes). Pure: no Pixi, no DOM, no file
+// the order the budget favours (site first, then the floors with the most boxes). Pure: no Pixi, no DOM, no file
 // access (cli.ts reads the map and prints the report).
 import { Model, SITE } from "../model/model";
 import type { CodeMap } from "../model/types";
 import { planFloor, type FloorPlan } from "../factory/plan";
 import type { TileRoute } from "../factory/router";
-import { failedViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
+import { failedViolations, gapStubViolations, laneDropViolations, laneGapViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
 import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
 import { lostViolations, measure, padCorridorViolations, travelViolations, wideViolations, type FloorMeasures } from "./floor";
 import { ROW, type CheckId, type CheckResult, type Violation } from "./types";
@@ -38,6 +38,9 @@ function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorM
       ...views(plan).slice(1).flatMap(([view, routes]) => midSideViolations(tf, [...plan.routes, ...routes])
         .filter((v) => routes.some((r) => v.detail.startsWith(`${r.key} `))).map((v) => ({ ...v, detail: v.detail + view })))]],
     ["lines.plate-wall", () => perRoute(plan, (r) => plateWallViolations(tf, r))],
+    ["lines.lane-drop", () => perView(plan, (routes) => laneDropViolations(tf, routes))],
+    ["lines.gap-stub", () => perView(plan, (routes) => gapStubViolations(tf, routes))],
+    ["lines.lane-gap", () => perView(plan, (routes) => laneGapViolations(tf, routes))],
     ["text.cut", () => cutViolations(model, c, plan)],
     ["text.over-line", () => overLineViolations(model, c, plan, bundles)],
     ["zone.narrow", () => narrowZoneViolations(plan)],
@@ -48,18 +51,26 @@ function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorM
   ];
 }
 
-/** Audits every floor of `map` within `budgetMs` (read off `now`): floors not reached go to `skipped`. Each floor gets
- *  one result per check (the first violation and how many more), or one `plan.crashed` when its plan throws; an empty
- *  floor is checked with no results. `measured` holds each planned floor's numbers by its code. */
-export function auditMap(map: CodeMap, budgetMs = 45_000, now: () => number = Date.now): AuditReport {
-  const start = now();
+/** What the audit may spend, in boxes: each floor costs its box count plus FLOOR_COST, for the work every floor takes
+ *  whatever its size. Counted in work, not time, so the same map always checks the same floors on any machine (about
+ *  30 s on the largest maps known). */
+export const BUDGET = 2_500;
+export const FLOOR_COST = 3;
+
+/** Audits the floors of `map`, in order, until they have spent `budget` (BUDGET): the floors after that go to
+ *  `skipped`. Each floor gets one result per check (the first violation and how many more), or one `plan.crashed` when
+ *  its plan throws; an empty floor is checked with no results. `measured` holds each planned floor's numbers by its
+ *  code. */
+export function auditMap(map: CodeMap, budget = BUDGET): AuditReport {
   const model = new Model(map);
   const containers = map.layout.containers;
   const size = (c: string) => Object.keys(containers[c].items ?? {}).length;
   const floors = Object.keys(containers).sort((a, b) => Number(b === SITE) - Number(a === SITE) || size(b) - size(a) || a.localeCompare(b));
   const out: AuditReport = { checked: [], skipped: [], skippedCodes: [], results: [], measured: {} };
+  let spent = 0;
   for (const c of floors) {
-    if (now() - start > budgetMs) { out.skipped.push(c); out.skippedCodes.push(model.codes.get(c) ?? c); continue; }
+    if (spent >= budget) { out.skipped.push(c); out.skippedCodes.push(model.codes.get(c) ?? c); continue; }
+    spent += size(c) + FLOOR_COST;
     out.checked.push(c);
     if (!size(c)) continue;
     const code = model.codes.get(c) ?? c;

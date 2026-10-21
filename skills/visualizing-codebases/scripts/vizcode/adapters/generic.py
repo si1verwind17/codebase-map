@@ -530,6 +530,12 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
             return None
         return _last_name(name_node), value
 
+    def named_function(n):
+        """(name node, function) of a function declaration or a name bound to a function value."""
+        if n.type in spec.functions and (name_node := child(n, spec.functions[n.type])) is not None:
+            return name_node, n
+        return bound(n) if n.type in spec.bindings else None
+
     def attached_to(n, qual: tuple, owner) -> tuple[dict, tuple] | None:
         """The class node of the type a Go receiver or Rust `impl` names (the one declared in this file, else a
         class node kept for the structure pass), and its qualified names."""
@@ -560,6 +566,9 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
     while todo:
         n, owner, qual, scope, in_str, in_annot = todo.pop()
         t, nxt = n.type, (owner, qual, scope, in_str, in_annot)
+        if spec.test_only and (t in spec.classes or t in spec.functions or t in spec.imports or t in spec.attach) \
+                and _test_only(n, spec):
+            continue
         if t in spec.aliases and not _is_class(n, spec) and (alias := child(n, spec.aliases[t])) is not None:
             res["aliases"].append(_name(alias))
         if t in spec.imports and (found := IMPORT_READERS[spec.imports[t]](n, spec)):
@@ -591,6 +600,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
             nxt = (owner, qual, function(n, n, name_node, hit[0] if hit else owner), in_str, in_annot)
         elif scope is None and t in spec.bindings and (hit := bound(n)) is not None:
             nxt = (owner, qual, function(n, hit[1], hit[0], owner), in_str, in_annot)
+        elif scope is not None and (hit := named_function(n)) is not None:
+            res["nested"].append(_nested(n, hit[1], _name(hit[0]), scope, _params(hit[1], spec)))
         elif t in spec.annotations:
             nxt = (owner, qual, scope, in_str, True)
         elif t in spec.calls and not in_annot:
@@ -620,6 +631,22 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         key = next(g for g in m.groups() if g)
         res["env_keys"].append({"key": key, "line": src_text.count("\n", 0, m.start()) + 1})
     return res
+
+
+def _test_only(n, spec: LangSpec) -> bool:
+    """Is an annotation before the item (comments between allowed) the language's test-only marker?"""
+    p = n.prev_named_sibling
+    while p is not None and (p.type in spec.annotations or p.type in spec.comments):
+        if p.type in spec.annotations and re.fullmatch(spec.test_only, text(p).strip()):
+            return True
+        p = p.prev_named_sibling
+    return False
+
+
+def _nested(decl, fn, name: str, scope: str, params: list[dict]) -> dict:
+    """A named function inside a function: not a node, but structure makes it one when a route names it."""
+    return {"name": name, "start": decl.start_point[0] + 1, "line": decl.start_point[0] + 1,
+            "end": decl.end_point[0] + 1, "in": scope, "params": params}
 
 
 class Adapter:

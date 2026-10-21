@@ -442,7 +442,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(errors).toEqual([]);
   }, 90_000);
 
-  it("factory view: demand-forecast's floor opens with its stand-in rail (a reference task to a door) and no page error", async () => {
+  it("factory view: demand-forecast's floor opens with its stand-in rail (a cross-project trigger to a door) and no page error", async () => {
     const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
     const model = new Model(JSON.parse(map) as CodeMap);
     const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
@@ -564,14 +564,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(ownNear, "a line's own words within a tile of it").toBeGreaterThan(0);
     // the ratchet: an overlap with no local fix is listed here (`<floor> <fit|near>: "<word>" over …`); the list never grows,
     // and an entry no longer found is taken off it. Empty: every overlap found so far was fixed where it was drawn.
-    // reservations: the graded end cost (lines run on to a side's middle) moved the redis line under the postgres store's
-    // name; kept on the owner's call (2026-10-20), to fix in the router later
-    const KNOWN: string[] = [
-      "svc:reservations fit: \"postgres\" over line db:redis:REDIS_URL|reservations::city.parking.reservations/",
-      "svc:reservations fit: \"postgres\" over line door:topic:kafka:reservation-events|reservations::city.parking.reservations/",
-      "svc:reservations near: \"postgres\" over line db:redis:REDIS_URL|reservations::city.parking.reservations/",
-      "svc:reservations near: \"postgres\" over line door:topic:kafka:reservation-events|reservations::city.parking.reservations/",
-    ];
+    const KNOWN: string[] = [];
     expect({ added: found.filter((f) => !KNOWN.includes(f)), gone: KNOWN.filter((k) => !found.includes(k)) }, "words over a line or another word").toEqual({ added: [], gone: [] });
     expect(errors).toEqual([]);
   }, 300_000);
@@ -643,7 +636,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await expect(page.locator(".insp .jobs").textContent()).resolves.toContain("bq_revenue_export — daily 03:45 (1×/day)");
       await page.mouse.move(at.x, at.y - 200);   // off the sign: the list goes
       await page.waitForFunction(() => !document.querySelector("canvas")?.getAttribute("data-rail-tip"), null, { timeout: 5_000 });
-      // demand-forecast's floor: a tap on its stand-in rail (the reference task to feature-store's door) selects it
+      // demand-forecast's floor: a tap on its stand-in rail (the cross-project trigger to feature-store's door) selects it
       await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get("forecast::forecast/")!);
       await page.locator(".rail .list button").first().click();
       await page.waitForFunction(() => /demand-forecast/.test(document.querySelector(".floors button[aria-current=page]")?.textContent ?? ""), null, { timeout: 15_000 });
@@ -673,7 +666,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     writeFileSync(file, html);
     const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
     const errors: string[] = [];
-    const FEATURES = "features::features.workflows", FORECAST = "svc:demand-forecast";
+    const FEATURES = "features::features.zone_features", FORECAST = "svc:demand-forecast";
     // the centre of door `door` on floor `c` at Fit (the scene's fit(): the floor centred at fitScale)
     const doorAt = async (page: import("playwright-core").Page, c: string, door: string) => {
       const { bundles, doors } = model.bundles(c);
@@ -695,10 +688,10 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto("file://" + file);
       await page.waitForSelector("canvas");
-      // features' workflows.py: its door to demand-forecast carries the reference task forecast runs there
-      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get("features::features.workflows#compute_zone_features/1")!);
+      // features' zone_features.py: its door to demand-forecast carries the DAG forecast triggers there
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get("features::features.zone_features#compute_zone_features/1")!);
       await page.locator(".rail .list button").first().click();
-      await onFloor(page, "workflows.py");
+      await onFloor(page, "zone_features.py");
       await fit(page);
       const out = await doorAt(page, FEATURES, "door:svc:demand-forecast");
       await page.mouse.dblclick(out.x, out.y);
@@ -708,7 +701,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await fit(page);
       const back = await doorAt(page, FORECAST, "door:svc:feature-store");
       await page.mouse.dblclick(back.x, back.y);
-      await onFloor(page, "workflows.py");
+      await onFloor(page, "zone_features.py");
       await page.waitForFunction(() => /demand-forecast/.test(document.querySelector(".insp h2")?.textContent ?? ""), null, { timeout: 5_000 });
       // a door deeper in is named after the building it opens: reservations' quote calls pricing's QuoteEndpoint
       const quote = "reservations::city.parking.reservations.PricingClient.Live", PRICING = "svc:pricing";

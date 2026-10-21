@@ -55,3 +55,28 @@ def test_extract_cli(shop_repo, capsys):
 def test_extract_cli_not_a_repo(tmp_path, capsys):
     assert extract.main([str(tmp_path)]) == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_exclude_flags_are_kept_in_stack_yaml_for_the_next_run(shop_repo):
+    # `--exclude` adds its globs to stack.yaml's `exclude` list (once each): a rescan without the flag reuses them
+    assert extract.main([str(shop_repo), "--exclude", "scripts/*"]) == 0
+    stack_file = shop_repo / "docs" / "viz-code" / "stack.yaml"
+    text = stack_file.read_text()
+    assert text.startswith("# stack.yaml:") and "exclude:\n  - 'scripts/*'\n" in text
+    assert extract.main([str(shop_repo)]) == 0
+    s = json.loads((shop_repo / "docs" / "viz-code" / "structure.json").read_text())
+    assert "scripts/run_once.py" in s["excluded"] and "scripts/run_once.py" not in s["files"]
+    assert extract.main([str(shop_repo), "--exclude", "scripts/*", "--exclude", "pylib/*"]) == 0
+    assert stack_file.read_text().count("exclude:") == 1
+    assert "  - 'scripts/*'\n  - 'pylib/*'\n" in stack_file.read_text()
+
+
+def test_exclude_list_is_rewritten_in_place_of_the_old_one(tmp_path):
+    from vizcode import stack
+    p = tmp_path / "stack.yaml"
+    p.write_text("python:\n  ignore: [attrs]\nexclude:\n- gen/*\n# routes below\ngo:\n  ignore: [x]\n")
+    assert stack.add_excludes(p, ["gen/*", "it's/*"]) == ["it's/*"]
+    text = p.read_text()
+    assert text == ("python:\n  ignore: [attrs]\n# routes below\ngo:\n  ignore: [x]\n"
+                    "exclude:\n  - 'gen/*'\n  - 'it''s/*'\n")
+    assert stack.load(p).excludes == ["gen/*", "it's/*"]

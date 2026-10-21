@@ -12,7 +12,8 @@ FILES = {"build.sbt": 'lazy val app = (project in file("."))\n',
 def test_scanned_map_with_fields_and_refs_is_valid(make_repo):
     cmap = assemble(structure.build(make_repo(FILES), "docs/viz-code"), {})
     by_id = {n["id"]: n for n in cmap["nodes"]}
-    assert by_id[".::a.Quote"]["fields"] == [{"name": "bay", "type": "String"}, {"name": "total", "type": "Long"}]
+    assert by_id[".::a.Quote"]["fields"] == [{"name": "bay", "type": "String", "visibility": "public"},
+                                             {"name": "total", "type": "Long", "visibility": "public"}]
     sig = by_id[".::a.Api#price/1"]["signature"]
     assert sig["params"][0]["refs"] == [".::a.Quote"] and sig["returns_refs"] == [".::a.Quote"]
     assert mapcheck.check(cmap) == []
@@ -25,6 +26,7 @@ def test_schema_refuses_bad_fields_and_refs(make_repo):
     for path, value in ((("fields",), []),                                   # an empty list: leave the key out
                         (("fields",), [{"name": "bay"}]),                    # type is required (null when none)
                         (("fields",), [{"name": "bay", "type": "S", "x": 1}]),
+                        (("fields",), [{"name": "bay", "type": "S", "visibility": "internal"}]),
                         (("signature", "returns_refs"), []),
                         (("signature", "returns_refs"), [".::a.Quote", ".::a.Quote"])):
         bad = copy.deepcopy(cmap)

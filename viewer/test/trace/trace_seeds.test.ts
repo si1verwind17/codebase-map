@@ -14,7 +14,7 @@ const demo = new Model(JSON.parse(readFileSync(new URL("../../../demo/parking-ci
 
 /** The same expectations as scripts/tests/test_examples.py (`examples.seeds`): the agent's checklist and the viewer start
  *  a container's trace from the same seeds. */
-const FEATURE_STORE = ["features::features.workflows#compute_zone_features/1", "features::features.workflows#features_wf/1"];
+const FEATURE_STORE = ["features::features.zone_features#zone_features/0"];
 const COMMON = [
   "common::city.parking.common.Config$#env/1", "common::city.parking.common.EventProducer#publish/3",
   "common::city.parking.common.Jdbc#query/3", "common::city.parking.common.Jdbc#transaction/1",
@@ -130,7 +130,7 @@ describe("the header and the pin's name (spec A6)", () => {
     expect(startText(m, at(idle))).toBe("class");
     expect(startText(m, at(db))).toBe("datastore · 2 tables");
     expect(startText(m, at(a))).toBeNull();
-    expect(startText(demo, layoutTrace(demo, new TraceGraph(demo), initialState("svc:feature-store")))).toBe("service · 2 entry points");
+    expect(startText(demo, layoutTrace(demo, new TraceGraph(demo), initialState("svc:feature-store")))).toBe("service · 1 entry point");
   });
 
   it("titles a line's trace as the line, a group by its label, a container by its name", () => {

@@ -6,8 +6,8 @@ import re
 from dataclasses import dataclass
 
 KNOWN_CHECKS = ("lines.failed", "lines.plugged", "lines.trunks", "lines.under", "lines.mid-side", "lines.plate-wall",
-                "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long", "lost.relation",
-                "plan.crashed")
+                "lines.lane-drop", "lines.gap-stub", "lines.lane-gap", "text.cut", "text.over-line", "zone.narrow",
+                "pads.corridor", "travel.long", "lost.relation", "floor.wide", "plan.crashed")
 ACCEPT = re.compile(r"^\s*-\s*accept\b")
 SEPS = ("—", "–", "--", "-")
 

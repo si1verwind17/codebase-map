@@ -12,7 +12,7 @@ You write only `meaning.json`; `assemble.py` combines it with the structure pass
 `scanner_version`, `repo` (the scanned folder's name), `root` (optional: the
 scanned folder's path from the git top level, e.g. `demo/parking-city`; null at the top
 level; every other path in the map is relative to that folder), `commit` (the one scanned
-commit, 40 hex), `scanned_at`, `rules_version` (optional integer: the meaning rules the map was made under; absent = 1), `stack` (optional: sha256 of the `OUT/stack.yaml` the map was made with; absent without one; `diff.py` runs `full` when it differs from the current file), `languages`, `domain_context` (path or null).
+commit, 40 hex), `scanned_at`, `rules_version` (optional integer: the meaning rules the map was made under; absent = 1), `stack` (optional: sha256 of the parsed content of the `OUT/stack.yaml` the map was made with, as canonical JSON, so comments and spacing do not count; absent without one; `diff.py` runs `full` when it differs from the current file), `languages`, `domain_context` (path or null).
 
 ## Nodes and floors
 
@@ -35,10 +35,11 @@ Fields: `id`, `kind`, `parent`, `name`, plus `lang`, `file`, `line`,
 (`{params: [{name, type, refs, optional}], returns, returns_refs}`; `refs` and `returns_refs` only where a type names a
 repo class; `optional: true` on a parameter a call may leave out, recorded for Python and Scala) on methods, `fields` on a class that declares fields (both: § Fields and type links), `modules` on services and
 libraries (`defaulted: true` marks a library `assemble.py` created for an
-unclaimed module), `implements` on a class (scanner, Scala: the class or trait ids it extends or, for an anonymous
+unclaimed module), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
 body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::city.parking.billing.InvoiceRepo"]`;
-`calls` counts a trait method and its implementations' same-named methods as one target, drawn to the
-trait method), `twins` on a service that also deploys another service's
+in Go, every repo interface whose methods it has, by name and arity; `calls` counts a trait method and its
+implementations' same-named methods as one target, drawn to the trait method, also when the implementation sits
+below a class that does not declare the method; a trace continues from it into each implementation), `twins` on a service that also deploys another service's
 module (root package ids; its floor shows them as `twin:<id>` items), `role` on packages (`entry`, `logic`, `outbound`,
 `storage`, `model`; `role_why` when overridden), `tags`, `summary`,
 `delivery` on topics (`fan-out` or `queue`; absent means `fan-out`) and on in-process queues (required there), `dead_letter_of` on a topic (the
@@ -50,7 +51,8 @@ Dockerfile, build, orchestrator registration, or the documented run command;
 also required on an in-process queue (the line that creates it), on a topic that sets `delivery` or `dead_letter_of` and on a
 datastore whose `store` differs from the engine default: the line that shows
 it; optional elsewhere), `stale` (set by `diff.py` on a node whose evidence
-file changed; `assemble.py` refuses the map until each flag is resolved).
+line, or the method around it, changed; `assemble.py` refuses the map until
+each flag is resolved).
 
 ### In-process queues
 
@@ -66,9 +68,12 @@ gets it: a hub, a broadcast channel, an event bus).
 
 Written by the scanner; nothing in `meaning.json` sets them.
 
-`fields: [{name, type}]` on a class that declares fields, in declared order. `type` is the declared type text, or
-`null` where the language declares none. A class with no declared fields has no `fields` key. A name quoted in the
-source loses its quotes (Scala and Kotlin backticks; PHP's `$`).
+`fields: [{name, type, visibility}]` on a class that declares fields, in declared order. `type` is the declared type
+text, or `null` where the language declares none. `visibility` (`public`/`private`, as on methods) is recorded where
+the language says it by modifiers (Java, C#, Kotlin, Scala, PHP): `private` or `protected` make a field private, and
+so does no access modifier at all in C# (outside an interface); a record's components are public. A class with no
+declared fields has no `fields` key. A name quoted in the source loses its quotes (Scala and Kotlin backticks; PHP's
+`$`).
 
 | Language | Fields |
 |---|---|
@@ -83,6 +88,16 @@ source loses its quotes (Scala and Kotlin backticks; PHP's `$`).
 | Rust | struct fields; a tuple struct's are `0`, `1`, … |
 | PHP | typed non-static properties; promoted constructor parameters |
 | Ruby | none: Ruby declares no fields |
+| Protocol Buffers | a message's fields, `oneof` members included; `type` as written (`repeated Line`, `map<string,int32>`) |
+
+A `.proto` file inside a module gives each of its messages a class node with `lang: proto`, id
+`<module path>::<proto package>.<Message>` (no package: `_root_`), in that package; a nested message is
+`<Outer>.<Inner>`, its parent the outer message. A message is left out when the module already has a class of its
+name (generated code), and so are the messages nested in it. A `.proto` in no module gives protocol keys only. A
+generated file (SKILL.md, step 1) keeps only its public classes with fields, the methods its routes name as
+handlers, and what contains them. A kept class keeps its public fields only: by their `visibility`, or where a
+language makes a field public by its name (Go upper case, Python no leading underscore); a class left with none is no
+data type (a `.proto` message of its name then stands in). A class that is not generated keeps every field.
 
 `refs` on a signature parameter and `returns_refs` on a signature: the class ids the type text names, each once, in
 the order the names appear. Every name in the type text is tried, so `List[Reservation]`, `Future<Charge>` and
@@ -129,6 +144,7 @@ declarations within its owner, never lines.
 | Scala `val` holding behaviour (an effect, layer, stream or function; constants are skipped) | a method of arity 0 — `billing::city.parking.billing.Main$#run/0` |
 | Scala anonymous implementation (`new T { … }`) | a class `<module path>::<package>.<Owner>.<val>$impl` — `billing::city.parking.billing.DeadLetters.live$impl`, its defs `…live$impl#park/3`; not assigned to a val: `<Owner>.$impl<n>`, `n` counting from 1 in source order within that owner (less stable than a val-named id: adding an earlier unnamed body renumbers it). Two bodies in one val get `~2` like any repeated id |
 | Python function nested in an Airflow `@dag` function (or defined in a module-level `with DAG(...)` block) | a method of the file, like a top-level function — `jobs/dags::dags.bq_bay_events_export#export_snapshot/0`; when the name is also a top-level function of the file or a task of another DAG in it: `<file id>#<dag function>.<name>/<arity>` — `…#etl.extract/0`, or for a `with DAG(...)` block `<file id>#<dag_id>.<name>/<arity>` — `…#legacy.helper/1`, where the prefix is the dag id only when it is a plain string literal, else the `with … as <alias>` name, else `DAG<n>` (the block's place among the file's `with DAG` blocks, from 1). `calls` reaches a qualified task only from inside its own DAG |
+| Function nested in another that a route names or decorates (any language but Scala) | a method of the outer function's owner, `<owner>#<outer>.<name>/<arity>` — `.::src/server.js#serve.listOrders/2`; the calls and strings inside it are its own, not the outer function's. Other nested functions are not nodes |
 | service / library | `svc:<name>` / `lib:<name>` |
 | datastore / table | `db:<engine>:<config key>` / `<datastore id>/<schema.table>` |
 | external | `ext:http:<config key or host>`, `3p:<vendor>` |
@@ -142,7 +158,7 @@ declarations within its owner, never lines.
 | `kind` | `request`, `event`, `stream`, `batch`, `db-read`, `db-write`, `ext-call`, `hand-off` (a method to an in-process queue it puts items on, or the queue to the method that takes them; both ends in the queue's service); `uses-code` and `calls` (method to method, resolved by name; ambiguous ones `inferred`) come from the scanner |
 | `data` | which way data moves: `forward`, `back` or `both`; defaulted per kind (db-read `back`, the rest `forward`), required on `stream`; a call's reply does not count, so a `request` or `ext-call` stays `forward` |
 | `from`, `to` | the finest node known: method, else class, else service |
-| `key` | protocol key: `POST /v1/orders/create`, `table public.orders`, topic name, `grpc <package>.<Service>/<Rpc>` (`grpc parking.occupancy.v1.OccupancyFeed/Stream`; `grpc <Service>/<Rpc>` when the .proto has no package) |
+| `key` | protocol key: `POST /v1/orders/create`, `table public.orders`, topic name (on a job queue's topic, `job <name>`: one key per job), `grpc <package>.<Service>/<Rpc>` (`grpc parking.occupancy.v1.OccupancyFeed/Stream`; `grpc <Service>/<Rpc>` when the .proto has no package) |
 | `confidence` | `confirmed` or `inferred` (needs `why`) |
 | `deployment_dependent` | target is set per deployment |
 | `bidirectional` | streams that flow both ways |
@@ -153,8 +169,8 @@ declarations within its owner, never lines.
 | `on_failure` | `true` on an `event` to a topic that is published only when processing fails (dead-letter or retry); only on an `event` to a topic |
 | `schedule` | array on a `batch`: 5- or 6-field cron, `manual`, or `on <event>` |
 | `job` | DAG or task name of a `batch` |
-| `stale` | set by `diff.py` on facts an incremental scan must re-resolve; `assemble.py` refuses the map while any remain |
-| `evidence` | at least one `{file, line}`; incremental scans use it to find stale facts |
+| `stale` | set by `diff.py` on facts a rescan must re-resolve: a cited line or the method around it changed, an end or `via` node is gone or in another file, or the route the `key` names changed; `assemble.py` refuses the map while any remain |
+| `evidence` | at least one `{file, line}`; rescans use it to find stale facts, and move it with its line when lines above it change or the file is renamed |
 
 ## Pins
 
@@ -225,8 +241,8 @@ Examples).
 `files` maps each scanned path to `{lang, module, node, parse_error}` and,
 for a file with routes, `routes: [{method, path, handler, line}]`: the route
 facts of `structure.json` whose handler is a node id (a method, or the file
-for inline and Rails routes), paths as written in code (mount prefixes not
-composed).
+for inline and Rails routes), paths as written in code with the prefixes of the mounts the scanner joins
+(`mounts` facts with `composed`), no other mount prefix.
 
 ## Layout
 
@@ -515,8 +531,8 @@ descriptions (optional); `roles` overrides package roles (optional). Complete ex
 | `README.md` | yes | `assemble.py`, rewritten each run: what each file here is for |
 | `structure.json`, `summary.md` | no | `extract.py` |
 | `meaning.json` | no | you; `diff.py` on incremental scans (all facts, stale ones flagged); `diff.py` also flags stale examples |
-| `meaning.previous.json` | no | `diff.py` on full rescans: the previous map's facts in `meaning.json`'s shape, suspect ones (an id missing from the new structure, a changed evidence file) flagged `stale`; removed by `diff.py` on none/incremental runs and by `assemble.py` on exit 0 |
-| `stale.json` | no | `diff.py` (on a full rescan, `previous_meaning` names the file above) |
+| `meaning.previous.json` | no | `diff.py` on full rescans: the previous map's facts in `meaning.json`'s shape, suspect ones flagged `stale` as on incremental scans; removed by `diff.py` on none/incremental runs and by `assemble.py` on exit 0 |
+| `stale.json` | no | `diff.py`: `mode`, `reason` (why a rescan is full), `changed` files, the flagged `stale_relations`, `stale_nodes` and `stale_examples` (each with `why`), `why` (fact id → what it depends on that changed), `removed_nodes`, `moved_evidence` (evidence lines moved to their new place); on a full rescan, `previous_meaning` names the file above |
 | `code-map.invalid.json` | no | `assemble.py` when validation fails |
 | `index.html` | no | `assemble.py` (or `view.py` alone): the viewer with the map built in |
 | `export-comment.md` | no | the viewer: review comments and pin changes (`## Pins`) for the agent |
@@ -545,9 +561,11 @@ it as `<path>#<lang>`. `build` is where the module came from:
 | `dir` | none found: the file's top folder |
 
 A file belongs to the nearest folder above it with a build file of its
-language's ecosystem (`scripts/vizcode/packs/modules.yaml`). A changed build
-file makes the next `diff.py` run `full`, as `build.sbt` does, and so does a
-language the map's `meta.languages` lacks ("new languages scanned").
+language's ecosystem (`scripts/vizcode/packs/modules.yaml`). The next
+`diff.py` run is `full` when a build file is added, removed or renamed, when
+the set of modules changes ("modules changed"), and when a language the map's
+`meta.languages` lacks is scanned ("new languages scanned"); an edit inside a
+build file that leaves the modules as they were (a dependency bump) is not.
 
 ## Stack
 
@@ -558,7 +576,8 @@ language (`python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
 (`{prefix, kind}`), `routes`, `effects` (Scala type names; Scala only),
 `ignore` (prefixes), `tables` (`name`, `regex` with a `table` group,
 optional `when`) and `queues` (`name`, `regex`, `delivery` `queue` or `fan-out`, optional `when`: in-process queue
-creation sites). A route entry is one of:
+creation sites); and at the top level `exclude`, a list of path globs every scan leaves out (`extract.py --exclude`
+adds to it). A route entry is one of:
 
 - `form: regex` (the default): `name`, `regex` (with a `path` group, optional
   `method`, `methods` and `handler` groups), `path` reader `literal` (the
@@ -591,7 +610,8 @@ A file's `routes` facts are `[{method, path, handler, line, framework,
 source}]` (`framework` is the pattern's name; `method` upper-cased; a handler outside any method is the
 file node, made for a generic-walker file that has none); its `mounts` facts (key
 present on files with a mount) are `[{path, target, line, framework,
-source}]`, `target` the matched name or null. Two patterns giving the same
+source, composed}]`, `target` the matched name or null, `composed` (present when above 0) the number of the
+file's routes whose path the scanner prefixed with it (SKILL.md § Stack). Two patterns giving the same
 route (method, path, handler) or table (table, line, in) give one fact,
 named after the pattern listed first (packs before `stack.yaml`).
 
@@ -636,7 +656,7 @@ Rails routes, `resources` and `resource` (`config/routes.rb`), ActiveRecord
 
 ## Audit
 
-`audit.py REPO [--out-dir OUT]` checks the written map, writes `audit.md` and
+`audit.py REPO [--out-dir OUT] [--full-audit]` checks the written map, writes `audit.md` and
 prints one summary line. It always exits 0. The drawing checks run
 `viewer/dist/audit.mjs` on Node 18+; without it they are skipped and the line
 says why (`VIZ_AUDIT=0` skips them too). A failed drawing check is a **map
@@ -651,7 +671,9 @@ Map limits: not checked (Node not found; see OUT/audit.md) · findings: 0 cycles
 map audit: failed: <first line of the error>
 ```
 
-with ` · audit errors: N` appended when a content check itself broke. `audit.md`
+with ` · audit errors: N` appended when a content check itself broke, and
+` · N floors not checked (audit budget; --full-audit checks every floor)` when floors
+were past the budget. `audit.md`
 has a header (drawing checks run, failed, accepted; content warnings; findings;
 audit errors when any), then only the sections that have entries: Map limits,
 Accepted, Stale acceptances, Notes not understood, Audit errors, Content
@@ -665,30 +687,43 @@ warnings, Findings, Measured (no threshold yet), Not checked.
 | `lines.under` | 2 | an underground run lacks an entrance or exit piece |
 | `lines.mid-side` | 13 | a line end sits in a side's outer tile and turns on the tile next to the box, while that side's middle tile is free (a straight run from a corner is allowed by the router's design) |
 | `lines.plate-wall` | 30 | a junction plate tile is next to (sharing an edge with) a machine box |
+| `lines.lane-drop` | — | a line turns sideways next to a lane (in a gap between lanes, or on the row along a lane's edge) on its way to its lane, over it, where going straight on to the lane is free |
+| `lines.gap-stub` | — | a line runs along a gap between lanes where another line passes under it and under a lane in one underground run: that line's stub ends on it |
+| `lines.lane-gap` | — | the lines along a gap between lanes take more rows than the gap has rows next to no lane (a gap of two rows has none) |
 | `text.cut` | 5 | a name, sub line or signature is cut from the front |
-| `text.over-line` | 7, 8, 45 | a zone name, a `used by N` badge or a messaging label overlaps a line tile (the base's and each layer's) or a machine box; a messaging plate is not checked against its own flight, and lane labels are not checked |
+| `text.over-line` | 7, 8, 45 | a zone name, a `used by N` badge or a messaging label overlaps a line tile (the base's and each layer's) or a machine box; a lane's name (at an estimated width) overlaps a line tile or a drone or flight path; a messaging plate is not checked against its own flight |
 | `zone.narrow` | 26 | a zone is narrower than its label |
 | `pads.corridor` | 32 | a drone pad takes a corridor tile |
 | `travel.long` | 25 | a rail train takes over 3 s, or a drone flight over 5 s (guards against a future speed change) |
 | `lost.relation` | 40 | a relation that belongs on the floor is in neither the base nor a layer |
 | `floor.wide` | 46 | a floor is more than twice as wide, for its height, as the 1440×900 Fit canvas, and its names do not read at Fit (a row that should wrap) |
 
-A floor whose plan throws is one `plan.crashed` limit. Floors the 45 s budget
-did not reach are listed by floor code under "Not checked" and do not fail.
+A floor whose plan throws is one `plan.crashed` limit. The checks run from the
+largest floor down within a budget counted in boxes, not time (about 30 s on
+the largest maps known), so a map gives the same result on every run and
+machine; floors past it are listed by floor code under "Not checked", with the
+command that checks them, and do not fail. `--full-audit` (on `audit.py` or
+`assemble.py`) checks every floor with no budget and a longer timeout.
 
 - **Measured, never failing:** `crowd.congestion`, `crowd.spacing`,
   `fit.readable` (numbers until real maps give thresholds). Each shows its
   worst 5 floors, then `… N more`: highest congestion, highest spread, least
   room between the fit zoom and the names/codes switch zoom.
 - **Content warnings:** `ext.missing` (a config key that looks like an
-  outside endpoint names nothing on the map), `queue.missing` (an
+  outside endpoint names nothing on the map), `external.unused` (an `external` node that no relation starts or
+  ends at), `deployable.unscanned` (a deployable folder in `summary.md` § Not scanned, a Dockerfile's or a compose
+  service's build context whose source is mostly or wholly unscanned, that no service cites a file inside of or is
+  named like the compose service of, and no `problems` entry names), `queue.missing` (an
   `in-process queues` creation site in `summary.md` that no in-process-queue
   cites in `evidence` and no `problems` entry names as `file:line`), `data.two-way-call` (a `request` or `ext-call`
   with `data: both`: a call's reply is not data moving back), `module.empty` (a service or
   library with no file or package under it) and `example.missing` (an entry
   point with no example, or with a key that has none; one line each; a
   root route `GET /` under a mount stays a key of its own beside the
-  relation's `GET /v1`) and `pin.few` (fewer pins, counting
+  relation's `GET /v1`), `route.file-handler` (routes of a file whose handler is the file: no entry point, so
+  no example) and `route.setup-handler` (a method that registers 3 or more routes itself and is the handler of
+  some of them), each cleared by a `problems` entry naming the handler id or one of those routes' `file:line`,
+  and `pin.few` (fewer pins, counting
   `unpinned`, than 3 or the number of entry points, whichever is fewer) are fixed in `meaning.json`;
   `name.container` (a node named like its parent) is reported, not fixed: a
   scanner or viewer labelling gap; `pin.start-missing` (a pin whose start is

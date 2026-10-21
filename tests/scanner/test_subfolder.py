@@ -65,12 +65,13 @@ def test_subfolder_map_validates(mono):
 def test_change_inside_subfolder_flags_facts(mono):
     _, proj = mono
     scan(proj)
-    write_files(proj, {"worker/main.py": (proj / "worker/main.py").read_text() + "\n# touched\n"})
+    write_files(proj, {"worker/main.py": (proj / "worker/main.py").read_text().replace(
+        'json={"job": job_id})', 'json={"job": job_id}, timeout=5)')})
     commit_all(proj, "edit")
     stale = plan(proj)
     assert stale["mode"] == "incremental"
     assert "worker/main.py" in [c["path"] for c in stale["changed"]]
-    assert stale["stale_relations"] or stale["stale_nodes"]
+    assert stale["stale_relations"] and "worker/main.py:13 changed" in stale["why"][stale["stale_relations"][0]["id"]]
 
 
 def test_change_outside_subfolder_flags_nothing(mono):
@@ -80,7 +81,7 @@ def test_change_outside_subfolder_flags_nothing(mono):
     commit_all(repo, "outside")
     stale = plan(proj)
     assert stale["mode"] == "none"
-    assert [c["path"] for c in stale["changed"]] == [".gitattributes"]   # the map commit itself, inside the folder
+    assert stale["changed"] == []
     assert not (stale["stale_relations"] or stale["stale_nodes"])
 
 

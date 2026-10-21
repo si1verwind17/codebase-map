@@ -44,8 +44,9 @@ export interface TileFloor {
   chestGaps?: Rect[];
 }
 /** `gap`: extra tiles in every corridor, aisle and lane spacing. `colGaps[i]` / `rowGaps[j]`: extra tiles in the
- *  work grid's corridor i (between machine columns i and i+1) / row corridor j only (crowded corridors widen). */
-export interface LayoutOpts { gap?: number; colGaps?: number[]; rowGaps?: number[];
+ *  work grid's corridor i (between machine columns i and i+1) / row corridor j only (crowded corridors widen).
+ *  `laneGaps[i]`: extra rows below lane i (tf.lanes), before the next (a full lane gap widens: plan.ts). */
+export interface LayoutOpts { gap?: number; colGaps?: number[]; rowGaps?: number[]; laneGaps?: number[];
   /** Single-owner caches that keep their lane: no room beside their machine for a chest (layoutTiles grows it until
    *  every such cache is a chest or listed here). */
   laned?: ReadonlySet<string>;
@@ -61,6 +62,21 @@ const LABEL = 1;  // and keeps one more row at its bottom for its name
 const AIR_MIN = 4;
 const ROWS = new Set(["shelf", "bay", "hubs"]);   // regions laid in one row, wrapped when it grows too long
 const ROW_TILES = 60;   // the 1440 px Fit canvas at full size: a row shorter than it never wraps  // hubs a service's airfield row holds at the least, however narrow its work area
+
+/** The rows between two lanes, one right under the other (`above`, `below`: their indices in tf.lanes): rows y0 ≤ y < y1,
+ *  across the stretch both lanes run (x0 ≤ x < x1). */
+export interface LaneGap { above: number; below: number; x0: number; x1: number; y0: number; y1: number }
+
+export function laneGaps(tf: TileFloor): LaneGap[] {
+  const order = tf.lanes.map((_, i) => i).sort((a, b) => tf.lanes[a].y - tf.lanes[b].y);
+  const out: LaneGap[] = [];
+  for (let k = 0; k + 1 < order.length; k++) {
+    const a = tf.lanes[order[k]], b = tf.lanes[order[k + 1]];
+    const g = { above: order[k], below: order[k + 1], x0: Math.max(a.x0, b.x0), x1: Math.min(a.x1, b.x1), y0: a.y + LANE_H, y1: b.y };
+    if (g.x1 > g.x0 && g.y1 > g.y0) out.push(g);
+  }
+  return out;
+}
 
 export function layoutTiles(model: Model, container: string, doors: Door[] = [], opts: LayoutOpts = {}): TileFloor {
   return settleChests(soleCaches(model, container).keys(), (laned) => layoutOnce(model, container, doors, laned.size ? { ...opts, laned } : opts), opts.laned);
@@ -260,7 +276,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     for (const l of list) {
       const b = put(l.box, l.kind, l.kind === "datastore" ? "bus" : "lane", x, y, l.kind === "datastore" ? "warehouse" : undefined);
       lanes.push({ id: l.id, label: model.label(l.id), x0: x + b.w, x1: Math.max(x1, x + b.w + 6), y: y + Math.floor((b.h - LANE_H) / 2) });
-      y += Math.max(b.h, LANE_H) + 2 + gap;
+      y += Math.max(b.h, LANE_H) + 2 + gap + (opts.laneGaps?.[lanes.length - 1] ?? 0);
     }
     return y;
   };

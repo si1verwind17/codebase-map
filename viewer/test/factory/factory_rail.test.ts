@@ -67,15 +67,14 @@ describe("rail paint placement (demo)", () => {
     }
   });
 
-  it("F0: each sign carries its summary beside the clock, on two lines where one does not fit", () => {
+  it("F0: two signs carry their summary beside the clock, on two lines where one does not fit; feature-store's shows on hover only", () => {
     const { rail } = labelled(SITE);
     expect(rail.signs.map((s) => [s.source, s.text])).toEqual([
       ["svc:demand-forecast", "2 jobs · 1×/day\n+ on demand"],
-      ["svc:feature-store", "daily\n01:00"],
       ["svc:nightly-jobs", "10 jobs\n149×/day"],
     ]);
     expect(rail.stations, "F0's one station comes from one place: no source label").toEqual([]);
-    // the features floor: feature-store's yard and demand-forecast's door both feed workflows.py: each station is labelled
+    // the features floor: feature-store's yard and demand-forecast's door both feed zone_features.py: each station is labelled
     expect(labelled("features::features/").rail.stations.map((s) => s.text).sort()).toEqual(["S4", "S6"]);
     expect(labelled("jobs/dags::dags/").rail.stations).toEqual([]);   // ten stations, all from the one yard
     expect(signLines("daily 01:00")).toEqual(["daily\n01:00"]);
@@ -83,7 +82,7 @@ describe("rail paint placement (demo)", () => {
   });
 
   it("every rail runs from its platform through the yard, along its route and through its station to the buffer stop", () => {
-    for (const c of [SITE, "svc:nightly-jobs", "jobs/dags::dags/", "svc:demand-forecast", "features::features/", "features::features.workflows", "svc:feature-store"]) {
+    for (const c of [SITE, "svc:nightly-jobs", "jobs/dags::dags/", "svc:demand-forecast", "features::features/", "features::features.zone_features", "svc:feature-store"]) {
       const p = plan(demo, c), r = p.tf.rails!;
       const paths = trainPaths(p.tf, p.routes), tracks = railTracks(p.tf, p.routes);
       expect(paths.length, c).toBe(r.stations.length);
@@ -108,7 +107,7 @@ describe("rail paint placement (demo)", () => {
         const path = paths.find((q) => q.key === t.key)!, door = p.tf.boxes.get(t.door!)!, a = path.points[0];
         expect(t.link, `${c} ${t.key}`).toEqual([]);
         expect(a.x >= door.x * T && a.x <= (door.x + door.w) * T && a.y >= door.y * T && a.y <= (door.y + door.h) * T, `${c} ${t.key} starts at its door`).toBe(true);
-        expect([path.source, path.runsPerDay]).toEqual([t.door, null]);   // the reference task: on demand
+        expect([path.source, path.runsPerDay]).toEqual([t.door, null]);   // the cross-project trigger: on demand
       }
       expect(r.unplaced, `${c} no yard link cut short`).toEqual([]);
     }
@@ -199,8 +198,8 @@ describe("rail paint placement (demo)", () => {
     expect(list).toContain("bq_revenue_export — daily 03:45 (1×/day)");
     expect(list).toContain("bq_bay_events_export — every 15 min (96×/day)");
     expect(list).toContain("bq_tariff_snapshot — weekly Mon 01:00 (1×/week)");
-    expect(signList(demo, df)).toContain("reference_task features/compute_zone_features — on demand");
-    expect(platformList(demo, df.platforms[0])).toMatch(/^1 job → feature-store\nreference_task/);
+    expect(signList(demo, df)).toContain("refresh_zone_features — on demand");
+    expect(platformList(demo, df.platforms[0])).toMatch(/^1 job → feature-store\nrefresh_zone_features/);
     expect(jobLine({ relation: "r", job: "j", schedule: ["*/15 * * * *"], target: "t" })).toBe("j — every 15 min (96×/day)");
   });
 

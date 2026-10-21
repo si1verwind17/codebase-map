@@ -3,11 +3,11 @@
 // and every corridor widened once more if a line still fails.
 import { flies, type Bundle, type Door, type Model } from "../model/model";
 import type { LayerBundle, LayerId } from "../model/layers";
-import { layoutTiles, type LayoutOpts, type TileFloor } from "./layout";
+import { laneGaps, layoutTiles, type LaneGap, type LayoutOpts, type TileFloor } from "./layout";
 import { hasWebhooks, landing, reservedRects, webhookDocks, type Landing } from "./pads";
 import { routeTiles, type TileRoute } from "./router";
 import { inYardRows, rails, yardLadders, type Ladders } from "./yards";
-import { inside, type Rect } from "./tiles";
+import { inside, type Piece, type Rect } from "./tiles";
 
 const WIDEN = 2;       // tiles added to every corridor on the one retry
 const MAX_START = 3;
@@ -61,6 +61,22 @@ export function trafficGaps(tf: TileFloor, routes: TileRoute[]): { colGaps: numb
   const rowGaps = rows.map((r) => extra(r, "across"));
   return [...colGaps, ...rowGaps].some((g) => g > 0) ? { colGaps, rowGaps } : undefined;
 }
+
+/** Lane gaps whose lines run along more rows than the gap has inner rows (rows next to no lane): a line then runs along
+ *  a row next to a lane, where the lanes' taps end and their underground runs come up, so it passes those stubs as if it
+ *  touched them. A gap of two rows has no inner row. Each with the first line along it and where. */
+export function crowdedLaneGaps(tf: TileFloor, routes: TileRoute[]): { gap: LaneGap; key: string; at: { x: number; y: number } }[] {
+  const out: { gap: LaneGap; key: string; at: { x: number; y: number } }[] = [];
+  for (const g of laneGaps(tf)) {
+    const rect = { x: g.x0, y: g.y0, w: g.x1 - g.x0, h: g.y1 - g.y0 };
+    const along = routes.flatMap((r) => r.pieces.filter((p) => !p.under && alongRow(p) && inside(rect, p.x, p.y)).map((p) => ({ key: r.key, at: { x: p.x, y: p.y } })));
+    if (new Set(along.map((a) => a.at.y)).size > g.y1 - g.y0 - 2) out.push({ gap: g, ...along[0] });
+  }
+  return out;
+}
+
+/** A piece that enters or leaves its tile sideways: its line runs along the row there. */
+export const alongRow = (p: Piece) => p.in === "e" || p.in === "w" || p.out === "e" || p.out === "w";
 
 const failures = (routes: TileRoute[]) => routes.filter((r) => r.failed).length;
 
@@ -122,10 +138,11 @@ function routeLayers(base: FloorPlan, layered: LayerBundle[]): NonNullable<Floor
 
 /** Route once; widen the crowded corridors and route a second time, kept only if no more lines fail and it crosses
  *  strictly less. Only a floor with no crowded corridor, whose lines still fail, gets the old retry (every corridor
- *  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time. When the traffic pass already routed,
- *  its answer stands, failures included. A floor where some yard sends more than one platform's rail out by one exit is
- *  planned once more with that yard a ladder (`yardLadders`; twice when an exit leaves from a group's middle row: its
- *  top end, or its bottom end when that crosses strictly less), kept if no more lines fail and no more rails go unplaced. */
+ *  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time, but for a full lane gap's one more row
+ *  (`roomierLanes`). When the traffic pass already routed, its answer stands, failures included. A floor where some
+ *  yard sends more than one platform's rail out by one exit is planned once more with that yard a ladder (`yardLadders`;
+ *  twice when an exit leaves from a group's middle row: its top end, or its bottom end when that crosses strictly
+ *  less), kept if no more lines fail and no more rails go unplaced. */
 function planBase(model: Model, container: string, doors: Door[], bundles: Bundle[]): FloorPlan {
   let best = routeFloor(model, container, doors, bundles);
   const top = yardLadders(best.tf, best.routes, "top");
@@ -147,16 +164,30 @@ function planBase(model: Model, container: string, doors: Door[], bundles: Bundl
 
 function routeFloor(model: Model, container: string, doors: Door[], bundles: Bundle[], ladders?: Ladders): FloorPlan {
   const gap = startGap(bundles);
-  const tf = layFloor(model, container, doors, bundles, { gap }, ladders);
+  let opts: LayoutOpts = { gap };
+  const tf = layFloor(model, container, doors, bundles, opts, ladders);
   let best = { tf, routes: routeTiles(tf, bundles), gap };
   const widths = trafficGaps(best.tf, best.routes);
   if (widths) {
     const tf2 = layFloor(model, container, doors, bundles, { gap, ...widths }, ladders);
     const routes2 = routeTiles(tf2, bundles);
-    if (failures(routes2) <= failures(best.routes) && crossings(routes2) < crossings(best.routes)) best = { tf: tf2, routes: routes2, gap };
+    if (failures(routes2) <= failures(best.routes) && crossings(routes2) < crossings(best.routes)) { best = { tf: tf2, routes: routes2, gap }; opts = { gap, ...widths }; }
   }
-  if (widths || !failures(best.routes)) return best;   // the traffic pass routed: never a third pass
-  const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
-  const routes3 = routeTiles(wider, bundles);
-  return failures(routes3) <= failures(best.routes) ? { tf: wider, routes: routes3, gap: gap + WIDEN } : best;
+  if (!widths && failures(best.routes)) {   // the traffic pass routed: no wider retry
+    const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
+    const routes3 = routeTiles(wider, bundles);
+    if (failures(routes3) <= failures(best.routes)) { best = { tf: wider, routes: routes3, gap: gap + WIDEN }; opts = { gap: gap + WIDEN }; }
+  }
+  return roomierLanes(model, container, doors, bundles, ladders, best, opts);
+}
+
+/** A plan whose lane gaps are full (`crowdedLaneGaps`) laid out once more with one more row in each, kept if no more
+ *  lines fail and fewer gaps are full: the owner's 2026-10-21 comment, lanes too close where lines crowd the gap. */
+function roomierLanes(model: Model, container: string, doors: Door[], bundles: Bundle[], ladders: Ladders | undefined, best: FloorPlan, opts: LayoutOpts): FloorPlan {
+  const full = crowdedLaneGaps(best.tf, best.routes);
+  if (!full.length) return best;
+  const laneGaps = best.tf.lanes.map((_, i) => (full.some((f) => f.gap.above === i) ? 1 : 0));
+  const tf = layFloor(model, container, doors, bundles, { ...opts, laneGaps }, ladders);
+  const routes = routeTiles(tf, bundles);
+  return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? { ...best, tf, routes } : best;
 }

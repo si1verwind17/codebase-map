@@ -60,14 +60,14 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("traces: one mark, any box", ()
     try {
       const page = await openViewer(browser, demoText(), errors);
       await traceFromInspector(page, m, "svc:feature-store");
-      await expect(h2(page)).resolves.toMatch(/feature-store · service · 2 entry points$/);
-      await expect(page.locator(".trace .row.focus").count()).resolves.toBe(2);
+      await expect(h2(page)).resolves.toMatch(/feature-store · service · 1 entry point$/);
+      await expect(page.locator(".trace .row.focus").count()).resolves.toBe(1);
       await page.locator(".trace > header .tools button", { hasText: /^Pin$/ }).click();
       await expect(page.locator("#pin-title").inputValue()).resolves.toBe("feature-store");
       await page.locator(".naming button", { hasText: /^Pin$/ }).click();
       await page.locator(".trace > header .tools button", { hasText: /^Close$/ }).click();
       await page.locator(".rail .pins .pin-start", { hasText: "feature-store" }).first().click();
-      await expect(h2(page)).resolves.toMatch(/feature-store · service · 2 entry points$/);
+      await expect(h2(page)).resolves.toMatch(/feature-store · service · 1 entry point$/);
       await page.locator(".trace > header .tools button", { hasText: /^Close$/ }).click();
       // ten entry points: five shown, the total in the header, show all brings the rest
       await traceFromInspector(page, m, "svc:nightly-jobs");
@@ -91,7 +91,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("traces: one mark, any box", ()
       await titleEnds(page, "svc:notifier");
       await clickMachine(page, m, SITE, "svc:feature-store");
       await titleEnds(page, "svc:feature-store");
-      await expect(page.locator(".trace > header h2").textContent()).resolves.toMatch(/feature-store · service · 2 entry points$/);
+      await expect(page.locator(".trace > header h2").textContent()).resolves.toMatch(/feature-store · service · 1 entry point$/);
       await expect(page.locator(".trace .dim-note").count()).resolves.toBe(0);
       await expect(page.locator(".trace .body[inert]").count()).resolves.toBe(0);
       await expect(page.locator(".insp h2").first().textContent()).resolves.toBe("feature-store");   // the trace's subject (row 64)

@@ -7,7 +7,7 @@ code-map viewer can be demonstrated and tested on
 something public, with every kind of factory element present at least once.
 
 Eleven runtime services (Scala 3 + ZIO 2 + tapir, and Python), two shared
-libraries, one Airflow project and two Flyte projects.
+libraries and three Airflow projects.
 
 ## How it is wired
 
@@ -20,7 +20,7 @@ libraries, one Airflow project and two Flyte projects.
   `FINES_API_URL`, `SMTP_HOST`, `SENSORCLOUD_WS_URL`, ...) or fixed vendor hosts.
 - One Postgres holds all tables (`sql/schema.sql` shows the owner of each);
   the analytics warehouse is BigQuery.
-- The Airflow project and the two Flyte projects are deployed by registration
+- The three Airflow projects are deployed by registration into one DAG bucket
   (`deploy/register.sh`, `jobs/README.md`, `forecast/README.md`,
   `features/README.md`).
 
@@ -40,8 +40,8 @@ libraries, one Airflow project and two Flyte projects.
 | `analytics-loader` | Python | `analytics_loader/` |
 | `reporting-api` | Python | `reporting_api/` |
 | `nightly-jobs` (Airflow) | Python | `jobs/` |
-| `demand-forecast` (Flyte) | Python | `forecast/` |
-| `feature-store` (Flyte) | Python | `features/` |
+| `demand-forecast` (Airflow) | Python | `forecast/` |
+| `feature-store` (Airflow) | Python | `features/` |
 
 Libraries: `common` (Scala: JDBC helper, Kafka producer, config; used by
 reservations, pricing, billing) and `common_py` (Python: Pub/Sub wrapper,
@@ -59,7 +59,7 @@ Redis cache helper, Twilio SMS client, SMTP mailer, DB connect).
 | Pull subscription | `analytics_loader/app/main.py` + `common_py/common_py/pubsub.py` `Puller.pull`; subscription `bay-status-analytics` |
 | Dead letters | `billing/.../DeadLetters.scala` produces to `reservation-events.dlq` when event handling fails (`ReservationEventsConsumer.scala`) |
 | Rail yard (busy batch destinations) | `jobs/dags/*.py`: 10 DAGs, 4 to BigQuery, 3 to Postgres, 2 to S3, 1 to billing; several run many times a day (`*/15`, hourly) |
-| Cross-project batch | `forecast/workflows.py` `reference_task` to `compute_zone_features` in `features/workflows.py` |
+| Cross-project batch | `forecast/demand_forecast.py` `TriggerDagRunOperator` to the `zone_features` DAG in `features/zone_features.py` |
 | Warehouse + lane (database) | Postgres tables `reservations`, `reservation_outbox`, `tariffs`, `zones`, `invoices`, `payments`, `bay_status`, `daily_revenue`, `zone_utilisation`, `demand_forecast` (`sql/schema.sql`); BigQuery `analytics.bay_events` and friends |
 | Own cache | `reservations/.../QuoteCache.scala` on `REDIS_URL`, read by nobody else |
 | Shared cache | `SHARED_CACHE_URL`: written by `occupancy` (`common_py/common_py/cache.py`), read by `pricing/.../SharedCache.scala` and `city_dashboard/app/main.py` |
@@ -68,7 +68,7 @@ Redis cache helper, Twilio SMS client, SMTP mailer, DB connect).
 | Inbound webhook | `payments_webhook/app/main.py` `POST /webhooks/stripe` |
 | Read-only service | `reporting_api/app/main.py`: only SELECTs on `reservations`, `invoices`, `bay_status` |
 | Libraries (parts racks) | `common/` (sbt module) and `common_py/` (package) |
-| Twin | `pipelines_shared/` registered into both Flyte projects, `deploy/register.sh` |
+| Twin | `pipelines_shared/` synced by both the `features` and the `forecast` registration, `deploy/register.sh` |
 | Replicas | `deploy.replicas` in `docker-compose.yml`: `notifier` 2, `enforcement-worker` 3 |
 | Deliberate smell | see below |
 

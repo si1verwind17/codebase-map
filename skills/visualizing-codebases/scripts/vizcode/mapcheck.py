@@ -225,6 +225,7 @@ WORD = re.compile(r"[a-z0-9]+")
 ENV_LINE = re.compile(r"^- \*\*env keys:\*\* (.*)$", re.M)   # as structure.summary_md writes it
 QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
 QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
+DEPLOY_LINE = re.compile(r"^- deployable `([^`]+)` \((.*)\) — (.*)$", re.M)
 
 
 def _last_segment(name: str) -> str:
@@ -246,6 +247,74 @@ def _queues_missing(cmap: dict, summary_md: str) -> list[dict]:
                             "detail": f"in-process queue created at {hit[1]}:{hit[2]} is in no in-process-queue "
                                       "node's evidence: add the node and its hand-offs where a trace stops at it, "
                                       "or say in problems why it is none"})
+    return out
+
+
+def _deployables_unscanned(cmap: dict, summary_md: str) -> list[dict]:
+    """A deployable folder whose source is mostly not scanned is accounted for when a service cites a file inside it
+    (its Dockerfile) or is named like its compose service, or a `problems` entry names the folder."""
+    services = [n for n in cmap.get("nodes", []) if n.get("kind") == "service"]
+    cited = {e.get("file", "") for n in services for e in n.get("evidence", [])}
+    named = {str(n.get("name", "")) for n in services} | {n["id"].removeprefix("svc:") for n in services}
+    said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
+    out = []
+    for folder, how, what in DEPLOY_LINE.findall(summary_md):
+        # the repository root holds every file: only its own Dockerfile counts there
+        inside = (lambda f: f in re.findall(r"Dockerfile `([^`]+)`", how)) if folder == "." \
+            else (lambda f: f.startswith(folder + "/"))
+        mention = r"`\.`" if folder == "." else rf"(?<![\w./-]){re.escape(folder)}(?![\w/-])"
+        if any(inside(f) for f in cited) or named & set(re.findall(r"compose service `([^`]+)`", how)) \
+                or re.search(mention, said):
+            continue
+        out.append({"id": "deployable.unscanned", "node": None,
+                    "detail": f"deployable `{folder}` ({how}) is mostly source the scanner does not read ({what}): "
+                              "model it as a service citing its deploy line, with its relations read from its code "
+                              "and config and inferred (not an external), or say in problems why it is none"})
+    return out
+
+
+SETUP_ROUTES = 3   # a handler that registers this many routes itself reads as the function that sets them up
+
+
+def _route_handlers(cmap: dict, nodes: dict[str, dict]) -> list[dict]:
+    """Routes whose handler looks wrong: a file (no entry point: no example, no trace start) or a function that
+    registers SETUP_ROUTES or more routes itself and handles some of them. One warning per handler, cleared by a
+    `problems` entry naming the handler's id or one of those routes' `file:line`."""
+    said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
+    out = []
+    for f, info in sorted((cmap.get("files") or {}).items()):
+        routes = [r for r in info.get("routes", []) if r.get("handler") in nodes]
+        mine: dict[str, list[dict]] = {}
+        for r in routes:
+            mine.setdefault(r["handler"], []).append(r)
+        for h, rs in mine.items():
+            n = nodes[h]
+            if n["kind"] == "method":
+                end = n.get("line", 0) + (n.get("metrics") or {}).get("loc", 1) - 1
+                inside = [r for r in routes if n.get("line", 0) <= r["line"] <= end]
+                rs = [r for r in rs if r in inside]
+                if len(inside) < SETUP_ROUTES or not rs:
+                    continue
+            elif n["kind"] != "file":
+                continue
+            sites = [f"{f}:{r['line']}" for r in rs]
+            if re.search(rf"(?<![\w.:/#-]){re.escape(h)}(?![\w/#~])", said) \
+                    or any(re.search(rf"{re.escape(x)}(?!\d)", said) for x in sites):
+                continue
+            listed = "; ".join(f"{r['method']} {r['path']} at {x}" for r, x in zip(rs, sites))
+            if n["kind"] == "file":
+                out.append({"id": "route.file-handler", "node": h,
+                            "detail": f"{len(rs)} route{'s' * (len(rs) != 1)} in {f} "
+                                      f"{'have' if len(rs) != 1 else 'has'} the file as handler ({listed}): no "
+                                      "entry point, so no example or trace "
+                                      "starts there. Point each at the function that handles it in stack.yaml (a "
+                                      "handler group), or say in problems why the file is right"})
+            else:
+                out.append({"id": "route.setup-handler", "node": h,
+                            "detail": f"{h} registers {len(inside)} routes and is the handler of {len(rs)} of them "
+                                      f"({listed}): a function that sets routes up is rarely what handles them. "
+                                      "Point each at its real handler in stack.yaml (a handler group), or say in "
+                                      "problems why it is right"})
     return out
 
 
@@ -277,6 +346,7 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
                     out.append({"id": "ext.missing", "node": None,
                                 "detail": f"config key {key} looks like an outside endpoint but nothing in the map names {key}"})
         out += _queues_missing(cmap, summary_md)
+        out += _deployables_unscanned(cmap, summary_md)
     for r in cmap.get("relations", []):
         if r.get("kind") in ("request", "ext-call") and r.get("data") == "both":
             out.append({"id": "data.two-way-call", "node": r.get("from"),
@@ -304,6 +374,13 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
         if n["kind"] in ("service", "library") and not has_code(n["id"]) and not n.get("twins"):
             out.append({"id": "module.empty", "node": n["id"],
                         "detail": f"{n['kind']} {n['id']} has no file or package under it"})
+    ends = {e for r in cmap.get("relations", []) for e in (r.get("from"), r.get("to"))}
+    for n in nodes.values():
+        if n["kind"] == "external" and n["id"] not in ends:
+            out.append({"id": "external.unused", "node": n["id"],
+                        "detail": f"external {n['id']} has no relation: an outside node is on the map only because "
+                                  "something talks to it. Add the relation, or drop the node"})
+    out += _route_handlers(cmap, nodes)
     written = (cmap.get("examples") or {}).get("entries", [])
     covered, keyed = {e.get("node") for e in written}, {(e.get("node"), e.get("key")) for e in written}
     entries = examples.entry_points(cmap)

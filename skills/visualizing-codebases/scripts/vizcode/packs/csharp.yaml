@@ -3,6 +3,7 @@
 # is ignored), and the longest matching prefix names the kind. ignore: the standard library, and the wiring of
 # ASP.NET Core and its generic host (`Microsoft.AspNetCore`, `Microsoft.Extensions`: their IO parts are imports
 # entries; MVC controllers and the `WebApplication` bootstrap in `Microsoft.AspNetCore.Builder` are the server).
+# A `when` also holds in every file of a project that has it as a `global using` or a .csproj `<Using Include>`.
 # A project with implicit usings (`<ImplicitUsings>`) names `Microsoft.AspNetCore.*` and `System.Net.Http` in no
 # file, so minimal APIs and `MapGroup` run without `when` (see the entries); for the sinks of such a file the agent adds what it needs.
 # routes: ASP.NET controllers (`form: annotated`: `[Route]` prefix with the `[controller]` token, `[HttpGet]`...;

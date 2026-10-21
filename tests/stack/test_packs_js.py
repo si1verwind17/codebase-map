@@ -137,8 +137,8 @@ def test_koa_router(make_repo):
     s = build(make_repo, {"package.json": '{"name": "x"}\n', "k.js": src})
     f = s["facts"]["k.js"]
     assert [(r["method"], r["path"], r["handler"], r["framework"]) for r in f["routes"]] == [
-        ("GET", "/orders/{id}", ".::_root_/k.js#getOrder/1", "koa-router"),
-        ("ANY", "/any", ".::_root_/k.js#getOrder/1", "koa-router")]
+        ("GET", "/v1/orders/{id}", ".::_root_/k.js#getOrder/1", "koa-router"),
+        ("ANY", "/v1/any", ".::_root_/k.js#getOrder/1", "koa-router")]
     assert [(m["path"], m["target"], m["framework"]) for m in f["mounts"]] == [
         ("/sub", None, "koa-router-use"), ("/v1", None, "koa-router-prefix")]
     legacy = src.replace("@koa/router", "koa-router")

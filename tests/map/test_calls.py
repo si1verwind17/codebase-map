@@ -686,7 +686,9 @@ def test_the_callers_declared_types_pick_the_implementation_it_holds(make_repo):
     # a layer that builds a Signer around another: Signer is what it is, so its type narrows nothing
     assert all(r.get("why") != "narrowed by the caller's declared types" for r in sites.get(("Signer.scala", 28), []))
     assert len(sites[("Signer.scala", 33)]) == 1 and sites[("Signer.scala", 33)][0]["to"] == p + "SecretKey#sign/1"
-    assert len(sites[("Signer.scala", 34)]) == 3
+    # `List[SecretKey]`: the two implementations sit two levels below SecretKey (through LocalKey and VaultKey,
+    # which do not declare sign) and fold into its method, as for one level
+    assert [r["to"] for r in sites[("Signer.scala", 34)]] == [p + "SecretKey#sign/1"]
 
 
 def test_scala_zio_accessor_call_drawn_again(make_repo):
@@ -959,3 +961,62 @@ def test_a_rust_arc_dyn_parameter_keeps_its_call(make_repo):
                        "pub fn run(repo: Arc<dyn Repo>) { repo.save(\"x\"); }\n",
     }, ["."])
     assert any(k[0].endswith("#run/1") and "Repo#save/" in k[1] for k in got), got
+
+
+def test_an_implementation_two_levels_down_folds_into_the_interface_method():
+    # Repo declares save; Base implements Repo without declaring it; PgRepo extends Base and declares it
+    nodes = [{"id": "svc:a", "kind": "service", "name": "a", "parent": None},
+             {"id": "a::p/", "kind": "package", "name": "p", "parent": "svc:a"},
+             {"id": "a::p.Repo", "kind": "class", "name": "Repo", "parent": "a::p/"},
+             {"id": "a::p.Repo#save/1", "kind": "method", "name": "save", "parent": "a::p.Repo"},
+             {"id": "a::p.Base", "kind": "class", "name": "Base", "parent": "a::p/", "implements": ["a::p.Repo"]},
+             {"id": "a::p.Base#close/0", "kind": "method", "name": "close", "parent": "a::p.Base"},
+             {"id": "a::p.PgRepo", "kind": "class", "name": "PgRepo", "parent": "a::p/", "implements": ["a::p.Base"]},
+             {"id": "a::p.PgRepo#save/1", "kind": "method", "name": "save", "parent": "a::p.PgRepo"},
+             {"id": "a::p.Api", "kind": "class", "name": "Api", "parent": "a::p/"},
+             {"id": "a::p.Api#post/1", "kind": "method", "name": "post", "parent": "a::p.Api",
+              "signature": {"params": [{"name": "repo", "type": "Repo", "refs": ["a::p.Repo"]}]}}]
+    by_id = {n["id"]: n for n in nodes}
+    assert calls._abstractions(by_id) == {"a::p.PgRepo#save/1": "a::p.Repo#save/1"}
+    rels, _ = calls.resolve(nodes, [], {"p/api.x": {"calls": [{"callee": "repo.save", "in": "a::p.Api#post/1",
+                                                                "line": 3, "args": 1}]}})
+    assert [(r["to"], r["confidence"]) for r in rels] == [("a::p.Repo#save/1", "confirmed")]
+
+
+def test_python_subclass_implements_its_repo_base(make_repo):
+    repo = make_repo({
+        "app/__init__.py": "",
+        "app/repo.py": "from abc import ABC, abstractmethod\n\n\nclass OrderRepo(ABC):\n    @abstractmethod\n"
+                       "    def save(self, order):\n        ...\n\n\nclass PgOrderRepo(OrderRepo):\n"
+                       "    def save(self, order):\n        return order\n",
+        "app/api.py": "from app.repo import OrderRepo\n\n\ndef place(repo: OrderRepo, order):\n    repo.save(order)\n",
+    })
+    s = structure.build(repo, "docs/viz-code")
+    n = {x["id"]: x for x in s["nodes"]}
+    assert n["app::app.repo.PgOrderRepo"]["implements"] == ["app::app.repo.OrderRepo"]
+    assert "implements" not in n["app::app.repo.OrderRepo"]      # ABC is the library's
+    meaning = {"nodes": [{"id": "svc:app", "kind": "service", "name": "app", "modules": ["app"],
+                          "evidence": [{"file": "app/__init__.py", "line": 1}]}]}
+    cmap = assemble(s, meaning)
+    assert [(r["to"], r["confidence"]) for r in cmap["relations"] if r["kind"] == "calls"] == \
+        [("app::app.repo.OrderRepo#save/1", "confirmed")]
+
+
+def test_a_call_on_a_field_typed_with_a_repo_class_reaches_that_class():
+    # `repo.save(o)` and `this.repo.find(id)` on a field `OrderRepository repo`: that interface's methods, not
+    # another class's same-named one; a field of a library type adds nothing
+    nodes = [{"id": "svc:a", "kind": "service", "name": "a", "parent": None},
+             {"id": "a::p/", "kind": "package", "name": "p", "parent": "svc:a"},
+             {"id": "a::p.OrderRepository", "kind": "class", "name": "OrderRepository", "parent": "a::p/"},
+             {"id": "a::p.OrderRepository#save/1", "kind": "method", "name": "save", "parent": "a::p.OrderRepository"},
+             {"id": "a::p.OrderRepository#find/1", "kind": "method", "name": "find", "parent": "a::p.OrderRepository"},
+             {"id": "a::p.AuditLog", "kind": "class", "name": "AuditLog", "parent": "a::p/"},
+             {"id": "a::p.AuditLog#save/1", "kind": "method", "name": "save", "parent": "a::p.AuditLog"},
+             {"id": "a::p.OrderService", "kind": "class", "name": "OrderService", "parent": "a::p/",
+              "fields": [{"name": "repo", "type": "OrderRepository"}, {"name": "names", "type": "List<String>"}]},
+             {"id": "a::p.OrderService#place/1", "kind": "method", "name": "place", "parent": "a::p.OrderService"}]
+    site = [{"callee": "repo.save", "in": "a::p.OrderService#place/1", "line": 3, "args": 1},
+            {"callee": "this.repo.find", "in": "a::p.OrderService#place/1", "line": 4, "args": 1}]
+    rels, _ = calls.resolve(nodes, [], {"p/s.java": {"calls": site}})
+    assert sorted((r["to"], r["confidence"]) for r in rels) == [("a::p.OrderRepository#find/1", "confirmed"),
+                                                               ("a::p.OrderRepository#save/1", "confirmed")]

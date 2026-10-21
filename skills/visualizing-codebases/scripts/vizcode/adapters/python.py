@@ -319,8 +319,15 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None)
 
     visit(root, file_id, dotted, file_node)
     _launch_plans(root, res["workflows"])
-    # route handlers nested in a factory function are not nodes; credit the enclosing function
+    # functions nested in a function are not nodes: a route on one credits the enclosing function, and structure
+    # makes the nested function a node (res["nested"])
     for n in walk(root):
+        if n.type == "function_definition" and n.start_byte not in scope_ids \
+                and (outer := enclosing_id(n, scope_ids)) is not None:
+            deco = n.parent if n.parent is not None and n.parent.type == "decorated_definition" else n
+            res["nested"].append({"name": text(n.child_by_field_name("name")), "start": deco.start_point[0] + 1,
+                                  "line": n.start_point[0] + 1, "end": n.end_point[0] + 1, "in": outer,
+                                  "params": _params(n, False)})
         if n.type == "decorated_definition":
             target = n.child_by_field_name("definition")
             if target.type == "function_definition" and target.start_byte not in scope_ids:

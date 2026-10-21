@@ -1,18 +1,18 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.7.0",
-  "rules_version": 3,
+  "scanner_version": "0.10.0",
+  "rules_version": 4,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "de45af0c6169e23195952f498a76792b79b3ec75",
-  "scanned_at": "2026-10-20T14:14:15Z",
+  "commit": "b7413dda9a43b5c6d359bdd83fb52fc0fdf9e4d0",
+  "scanned_at": "2026-10-20T20:46:15Z",
   "languages": [
    "python",
    "scala"
   ],
   "domain_context": null,
-  "stack": "f33e86a87126660a9ee719fbce41affd7b31e05ead3c9224b8d49a7855b64b4d"
+  "stack": "05ecc297c39f9790d94924422771e88556dd7a164d1ee444ff63c5d293fbc459"
  },
  "nodes": [
   {
@@ -281,7 +281,7 @@
    "evidence": [
     {
      "file": "deploy/register.sh",
-     "line": 13
+     "line": 14
     }
    ]
   },
@@ -311,7 +311,7 @@
    "evidence": [
     {
      "file": "deploy/register.sh",
-     "line": 10
+     "line": 11
     }
    ],
    "twins": [
@@ -328,7 +328,7 @@
    "evidence": [
     {
      "file": "deploy/register.sh",
-     "line": 7
+     "line": 8
     }
    ]
   },
@@ -1180,23 +1180,28 @@
    "fields": [
     {
      "name": "id",
-     "type": "UUID"
+     "type": "UUID",
+     "visibility": "public"
     },
     {
      "name": "reservationId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "driverId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "cents",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "status",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -1639,23 +1644,28 @@
    "fields": [
     {
      "name": "type",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "reservationId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "driverId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "zoneId",
-     "type": "Option[String]"
+     "type": "Option[String]",
+     "visibility": "public"
     },
     {
      "name": "amountCents",
-     "type": "Option[Long]"
+     "type": "Option[Long]",
+     "visibility": "public"
     }
    ]
   },
@@ -1747,7 +1757,8 @@
    "fields": [
     {
      "name": "settled",
-     "type": "Int"
+     "type": "Int",
+     "visibility": "public"
     }
    ]
   },
@@ -2118,23 +2129,28 @@
    "fields": [
     {
      "name": "host",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "port",
-     "type": "Int"
+     "type": "Int",
+     "visibility": "public"
     },
     {
      "name": "name",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "user",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "password",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -3243,58 +3259,53 @@
    }
   },
   {
-   "id": "features::features.workflows",
+   "id": "features::features.zone_features",
    "kind": "file",
    "parent": "features::features/",
-   "name": "workflows.py",
+   "name": "zone_features.py",
    "lang": "python",
-   "file": "features/workflows.py",
+   "file": "features/zone_features.py",
    "line": 1,
    "visibility": "public",
    "metrics": {
-    "loc": 44,
+    "loc": 47,
     "methods": 2
    }
   },
   {
-   "id": "features::features.workflows#compute_zone_features/1",
+   "id": "features::features.zone_features#zone_features/0",
    "kind": "method",
-   "parent": "features::features.workflows",
-   "name": "compute_zone_features",
+   "parent": "features::features.zone_features",
+   "name": "zone_features",
    "lang": "python",
-   "file": "features/workflows.py",
-   "line": 15,
+   "file": "features/zone_features.py",
+   "line": 23,
    "visibility": "public",
    "metrics": {
-    "loc": 16
+    "loc": 21
    },
    "signature": {
-    "params": [
-     {
-      "name": "days",
-      "type": "int"
-     }
-    ],
-    "returns": "str"
+    "params": [],
+    "returns": null
    }
   },
   {
-   "id": "features::features.workflows#features_wf/1",
+   "id": "features::features.zone_features#compute_zone_features/1",
    "kind": "method",
-   "parent": "features::features.workflows",
-   "name": "features_wf",
+   "parent": "features::features.zone_features",
+   "name": "compute_zone_features",
    "lang": "python",
-   "file": "features/workflows.py",
-   "line": 34,
+   "file": "features/zone_features.py",
+   "line": 25,
    "visibility": "public",
    "metrics": {
-    "loc": 2
+    "loc": 17
    },
    "signature": {
     "params": [
      {
-      "name": "days",
-      "type": "int",
+      "name": "params",
+      "type": null,
       "optional": true
      }
     ],
@@ -3302,71 +3313,44 @@
    }
   },
   {
-   "id": "forecast::forecast.workflows",
+   "id": "forecast::forecast.demand_forecast",
    "kind": "file",
    "parent": "forecast::forecast/",
-   "name": "workflows.py",
+   "name": "demand_forecast.py",
    "lang": "python",
-   "file": "forecast/workflows.py",
+   "file": "forecast/demand_forecast.py",
    "line": 1,
    "visibility": "public",
    "metrics": {
-    "loc": 78,
-    "methods": 5
+    "loc": 68,
+    "methods": 3
    }
   },
   {
-   "id": "forecast::forecast.workflows#compute_zone_features/1",
+   "id": "forecast::forecast.demand_forecast#demand_forecast/0",
    "kind": "method",
-   "parent": "forecast::forecast.workflows",
-   "name": "compute_zone_features",
+   "parent": "forecast::forecast.demand_forecast",
+   "name": "demand_forecast",
    "lang": "python",
-   "file": "forecast/workflows.py",
-   "line": 23,
+   "file": "forecast/demand_forecast.py",
+   "line": 25,
    "visibility": "public",
    "metrics": {
-    "loc": 3
+    "loc": 40
    },
    "signature": {
-    "params": [
-     {
-      "name": "days",
-      "type": "int"
-     }
-    ],
-    "returns": "str"
+    "params": [],
+    "returns": null
    }
   },
   {
-   "id": "forecast::forecast.workflows#load_features/1",
+   "id": "forecast::forecast.demand_forecast#history_check/0",
    "kind": "method",
-   "parent": "forecast::forecast.workflows",
-   "name": "load_features",
-   "lang": "python",
-   "file": "forecast/workflows.py",
-   "line": 29,
-   "visibility": "public",
-   "metrics": {
-    "loc": 2
-   },
-   "signature": {
-    "params": [
-     {
-      "name": "features_table",
-      "type": "str"
-     }
-    ],
-    "returns": "pd.DataFrame"
-   }
-  },
-  {
-   "id": "forecast::forecast.workflows#history_check/0",
-   "kind": "method",
-   "parent": "forecast::forecast.workflows",
+   "parent": "forecast::forecast.demand_forecast",
    "name": "history_check",
    "lang": "python",
-   "file": "forecast/workflows.py",
-   "line": 34,
+   "file": "forecast/demand_forecast.py",
+   "line": 36,
    "visibility": "public",
    "metrics": {
     "loc": 4
@@ -3377,49 +3361,22 @@
    }
   },
   {
-   "id": "forecast::forecast.workflows#write_forecast/2",
+   "id": "forecast::forecast.demand_forecast#write_forecast/1",
    "kind": "method",
-   "parent": "forecast::forecast.workflows",
+   "parent": "forecast::forecast.demand_forecast",
    "name": "write_forecast",
    "lang": "python",
-   "file": "forecast/workflows.py",
-   "line": 41,
+   "file": "forecast/demand_forecast.py",
+   "line": 42,
    "visibility": "public",
    "metrics": {
-    "loc": 20
+    "loc": 21
    },
    "signature": {
     "params": [
-     {
-      "name": "features",
-      "type": "pd.DataFrame"
-     },
      {
       "name": "recent_events",
       "type": "int"
-     }
-    ],
-    "returns": "int"
-   }
-  },
-  {
-   "id": "forecast::forecast.workflows#forecast_wf/1",
-   "kind": "method",
-   "parent": "forecast::forecast.workflows",
-   "name": "forecast_wf",
-   "lang": "python",
-   "file": "forecast/workflows.py",
-   "line": 64,
-   "visibility": "public",
-   "metrics": {
-    "loc": 6
-   },
-   "signature": {
-    "params": [
-     {
-      "name": "days",
-      "type": "int",
-      "optional": true
      }
     ],
     "returns": "int"
@@ -5248,19 +5205,23 @@
    "fields": [
     {
      "name": "zoneId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "cents",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "currency",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "surge",
-     "type": "Double"
+     "type": "Double",
+     "visibility": "public"
     }
    ]
   },
@@ -5280,7 +5241,8 @@
    "fields": [
     {
      "name": "error",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -5448,15 +5410,18 @@
    "fields": [
     {
      "name": "zoneId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "centsPerHour",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "currency",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -5476,23 +5441,28 @@
    "fields": [
     {
      "name": "id",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "name",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "address",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "lat",
-     "type": "Option[Double]"
+     "type": "Option[Double]",
+     "visibility": "public"
     },
     {
      "name": "lng",
-     "type": "Option[Double]"
+     "type": "Option[Double]",
+     "visibility": "public"
     }
    ]
   },
@@ -5974,23 +5944,28 @@
    "fields": [
     {
      "name": "driverId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "zoneId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "plate",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "startsAt",
-     "type": "Instant"
+     "type": "Instant",
+     "visibility": "public"
     },
     {
      "name": "endsAt",
-     "type": "Instant"
+     "type": "Instant",
+     "visibility": "public"
     }
    ]
   },
@@ -6010,39 +5985,48 @@
    "fields": [
     {
      "name": "id",
-     "type": "UUID"
+     "type": "UUID",
+     "visibility": "public"
     },
     {
      "name": "driverId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "zoneId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "plate",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "startsAt",
-     "type": "Instant"
+     "type": "Instant",
+     "visibility": "public"
     },
     {
      "name": "endsAt",
-     "type": "Instant"
+     "type": "Instant",
+     "visibility": "public"
     },
     {
      "name": "status",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "quoteCents",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "paymentIntentId",
-     "type": "Option[String]"
+     "type": "Option[String]",
+     "visibility": "public"
     }
    ]
   },
@@ -6062,19 +6046,23 @@
    "fields": [
     {
      "name": "zoneId",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "cents",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "currency",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "surge",
-     "type": "Double"
+     "type": "Double",
+     "visibility": "public"
     }
    ]
   },
@@ -6108,7 +6096,8 @@
    "fields": [
     {
      "name": "error",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -6686,19 +6675,23 @@
    "fields": [
     {
      "name": "id",
-     "type": "Long"
+     "type": "Long",
+     "visibility": "public"
     },
     {
      "name": "reservationId",
-     "type": "UUID"
+     "type": "UUID",
+     "visibility": "public"
     },
     {
      "name": "eventType",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     },
     {
      "name": "payload",
-     "type": "String"
+     "type": "String",
+     "visibility": "public"
     }
    ]
   },
@@ -7475,55 +7468,71 @@
   {
    "kind": "batch",
    "from": "svc:demand-forecast",
-   "to": "features::features.workflows#compute_zone_features/1",
-   "key": "task compute_zone_features",
+   "to": "features::features.zone_features#zone_features/0",
+   "key": "task zone_features",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 17
+     "file": "forecast/demand_forecast.py",
+     "line": 27
+    },
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 29
+    },
+    {
+     "file": "features/zone_features.py",
+     "line": 16
     }
    ],
-   "job": "reference_task features/compute_zone_features",
-   "id": "r:batch:svc:demand-forecast->features::features.workflows#compute_zone_features/1:task compute_zone_features",
+   "job": "refresh_zone_features",
+   "id": "r:batch:svc:demand-forecast->features::features.zone_features#zone_features/0:task zone_features",
    "data": "forward"
   },
   {
    "kind": "batch",
    "from": "svc:demand-forecast",
-   "to": "forecast::forecast.workflows#forecast_wf/1",
-   "key": "task forecast_wf",
+   "to": "forecast::forecast.demand_forecast#demand_forecast/0",
+   "key": "task demand_forecast",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 75
+     "file": "forecast/demand_forecast.py",
+     "line": 18
+    },
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 20
     }
    ],
    "schedule": [
     "30 1 * * *"
    ],
-   "job": "forecast_nightly",
-   "id": "r:batch:svc:demand-forecast->forecast::forecast.workflows#forecast_wf/1:task forecast_wf",
+   "job": "demand_forecast",
+   "id": "r:batch:svc:demand-forecast->forecast::forecast.demand_forecast#demand_forecast/0:task demand_forecast",
    "data": "forward"
   },
   {
    "kind": "batch",
    "from": "svc:feature-store",
-   "to": "features::features.workflows#features_wf/1",
-   "key": "task features_wf",
+   "to": "features::features.zone_features#zone_features/0",
+   "key": "task zone_features",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 41
+     "file": "features/zone_features.py",
+     "line": 15
+    },
+    {
+     "file": "features/zone_features.py",
+     "line": 17
     }
    ],
    "schedule": [
     "0 1 * * *"
    ],
-   "job": "features_nightly",
-   "id": "r:batch:svc:feature-store->features::features.workflows#features_wf/1:task features_wf",
+   "job": "zone_features",
+   "id": "r:batch:svc:feature-store->features::features.zone_features#zone_features/0:task zone_features",
    "data": "forward"
   },
   {
@@ -8403,192 +8412,178 @@
    "why": "matched by method name only"
   },
   {
-   "id": "r:calls:features::features.workflows#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#client/0:",
+   "id": "r:calls:features::features.zone_features#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#client/0:",
    "kind": "calls",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "pipelines_shared::pipelines_shared.warehouse#client/0",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 25
+     "file": "features/zone_features.py",
+     "line": 36
     }
    ]
   },
   {
-   "id": "r:calls:features::features.workflows#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
+   "id": "r:calls:features::features.zone_features#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
    "kind": "calls",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "pipelines_shared::pipelines_shared.warehouse#read_frame/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 17
+     "file": "features/zone_features.py",
+     "line": 28
     }
    ]
   },
   {
-   "id": "r:calls:features::features.workflows#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#table/1:",
+   "id": "r:calls:features::features.zone_features#compute_zone_features/1->pipelines_shared::pipelines_shared.warehouse#table/1:",
    "kind": "calls",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "pipelines_shared::pipelines_shared.warehouse#table/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 20
+     "file": "features/zone_features.py",
+     "line": 31
     },
     {
-     "file": "features/workflows.py",
-     "line": 27
+     "file": "features/zone_features.py",
+     "line": 38
     },
     {
-     "file": "features/workflows.py",
-     "line": 30
+     "file": "features/zone_features.py",
+     "line": 41
     }
    ]
   },
   {
-   "id": "r:calls:features::features.workflows#compute_zone_features/1->pipelines_shared::pipelines_shared.zone_math#hourly_occupancy/1:",
+   "id": "r:calls:features::features.zone_features#compute_zone_features/1->pipelines_shared::pipelines_shared.zone_math#hourly_occupancy/1:",
    "kind": "calls",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "pipelines_shared::pipelines_shared.zone_math#hourly_occupancy/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 24
-    }
-   ]
-  },
-  {
-   "id": "r:calls:features::features.workflows#features_wf/1->features::features.workflows#compute_zone_features/1:",
-   "kind": "calls",
-   "from": "features::features.workflows#features_wf/1",
-   "to": "features::features.workflows#compute_zone_features/1",
-   "key": null,
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "features/workflows.py",
+     "file": "features/zone_features.py",
      "line": 35
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#forecast_wf/1->forecast::forecast.workflows#compute_zone_features/1:",
+   "id": "r:calls:features::features.zone_features#zone_features/0->features::features.zone_features#compute_zone_features/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#forecast_wf/1",
-   "to": "forecast::forecast.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#zone_features/0",
+   "to": "features::features.zone_features#compute_zone_features/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 65
+     "file": "features/zone_features.py",
+     "line": 43
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#forecast_wf/1->forecast::forecast.workflows#history_check/0:",
+   "id": "r:calls:forecast::forecast.demand_forecast#demand_forecast/0->forecast::forecast.demand_forecast#history_check/0:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#forecast_wf/1",
-   "to": "forecast::forecast.workflows#history_check/0",
+   "from": "forecast::forecast.demand_forecast#demand_forecast/0",
+   "to": "forecast::forecast.demand_forecast#history_check/0",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 68
+     "file": "forecast/demand_forecast.py",
+     "line": 64
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#forecast_wf/1->forecast::forecast.workflows#load_features/1:",
+   "id": "r:calls:forecast::forecast.demand_forecast#demand_forecast/0->forecast::forecast.demand_forecast#write_forecast/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#forecast_wf/1",
-   "to": "forecast::forecast.workflows#load_features/1",
+   "from": "forecast::forecast.demand_forecast#demand_forecast/0",
+   "to": "forecast::forecast.demand_forecast#write_forecast/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 67
+     "file": "forecast/demand_forecast.py",
+     "line": 64
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#forecast_wf/1->forecast::forecast.workflows#write_forecast/2:",
+   "id": "r:calls:forecast::forecast.demand_forecast#history_check/0->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#forecast_wf/1",
-   "to": "forecast::forecast.workflows#write_forecast/2",
-   "key": null,
-   "confidence": "confirmed",
-   "evidence": [
-    {
-     "file": "forecast/workflows.py",
-     "line": 66
-    }
-   ]
-  },
-  {
-   "id": "r:calls:forecast::forecast.workflows#history_check/0->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
-   "kind": "calls",
-   "from": "forecast::forecast.workflows#history_check/0",
+   "from": "forecast::forecast.demand_forecast#history_check/0",
    "to": "pipelines_shared::pipelines_shared.warehouse#read_frame/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 36
+     "file": "forecast/demand_forecast.py",
+     "line": 38
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#history_check/0->pipelines_shared::pipelines_shared.warehouse#table/1:",
+   "id": "r:calls:forecast::forecast.demand_forecast#history_check/0->pipelines_shared::pipelines_shared.warehouse#table/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#history_check/0",
+   "from": "forecast::forecast.demand_forecast#history_check/0",
    "to": "pipelines_shared::pipelines_shared.warehouse#table/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 36
+     "file": "forecast/demand_forecast.py",
+     "line": 38
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#load_features/1->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
+   "id": "r:calls:forecast::forecast.demand_forecast#write_forecast/1->pipelines_shared::pipelines_shared.warehouse#read_frame/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#load_features/1",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
    "to": "pipelines_shared::pipelines_shared.warehouse#read_frame/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 30
+     "file": "forecast/demand_forecast.py",
+     "line": 45
     }
    ]
   },
   {
-   "id": "r:calls:forecast::forecast.workflows#write_forecast/2->pipelines_shared::pipelines_shared.zone_math#to_demand_index/1:",
+   "id": "r:calls:forecast::forecast.demand_forecast#write_forecast/1->pipelines_shared::pipelines_shared.warehouse#table/1:",
    "kind": "calls",
-   "from": "forecast::forecast.workflows#write_forecast/2",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
+   "to": "pipelines_shared::pipelines_shared.warehouse#table/1",
+   "key": null,
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "file": "forecast/demand_forecast.py",
+     "line": 45
+    }
+   ]
+  },
+  {
+   "id": "r:calls:forecast::forecast.demand_forecast#write_forecast/1->pipelines_shared::pipelines_shared.zone_math#to_demand_index/1:",
+   "kind": "calls",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
    "to": "pipelines_shared::pipelines_shared.zone_math#to_demand_index/1",
    "key": null,
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 44
+     "file": "forecast/demand_forecast.py",
+     "line": 46
     }
    ]
   },
@@ -10163,47 +10158,47 @@
   },
   {
    "kind": "db-read",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
    "key": "table analytics.bay_events",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 20
+     "file": "features/zone_features.py",
+     "line": 31
     }
    ],
-   "id": "r:db-read:features::features.workflows#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
+   "id": "r:db-read:features::features.zone_features#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
    "data": "back"
   },
   {
    "kind": "db-read",
-   "from": "forecast::forecast.workflows#history_check/0",
+   "from": "forecast::forecast.demand_forecast#history_check/0",
    "to": "db:bigquery:BQ_PROJECT/analytics.bay_events",
    "key": "table analytics.bay_events",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 36
+     "file": "forecast/demand_forecast.py",
+     "line": 38
     }
    ],
-   "id": "r:db-read:forecast::forecast.workflows#history_check/0->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
+   "id": "r:db-read:forecast::forecast.demand_forecast#history_check/0->db:bigquery:BQ_PROJECT/analytics.bay_events:table analytics.bay_events",
    "data": "back"
   },
   {
    "kind": "db-read",
-   "from": "forecast::forecast.workflows#load_features/1",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
    "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
    "key": "table analytics.zone_features",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 30
+     "file": "forecast/demand_forecast.py",
+     "line": 45
     }
    ],
-   "id": "r:db-read:forecast::forecast.workflows#load_features/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
+   "id": "r:db-read:forecast::forecast.demand_forecast#write_forecast/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
    "data": "back"
   },
   {
@@ -10726,36 +10721,36 @@
   },
   {
    "kind": "db-write",
-   "from": "features::features.workflows#compute_zone_features/1",
+   "from": "features::features.zone_features#compute_zone_features/1",
    "to": "db:bigquery:BQ_PROJECT/analytics.zone_features",
    "key": "table analytics.zone_features",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 25
+     "file": "features/zone_features.py",
+     "line": 36
     },
     {
-     "file": "features/workflows.py",
-     "line": 27
+     "file": "features/zone_features.py",
+     "line": 38
     }
    ],
-   "id": "r:db-write:features::features.workflows#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
+   "id": "r:db-write:features::features.zone_features#compute_zone_features/1->db:bigquery:BQ_PROJECT/analytics.zone_features:table analytics.zone_features",
    "data": "forward"
   },
   {
    "kind": "db-write",
-   "from": "forecast::forecast.workflows#write_forecast/2",
+   "from": "forecast::forecast.demand_forecast#write_forecast/1",
    "to": "db:postgres:DB_HOST/public.demand_forecast",
    "key": "table public.demand_forecast",
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "forecast/workflows.py",
-     "line": 54
+     "file": "forecast/demand_forecast.py",
+     "line": 56
     }
    ],
-   "id": "r:db-write:forecast::forecast.workflows#write_forecast/2->db:postgres:DB_HOST/public.demand_forecast:table public.demand_forecast",
+   "id": "r:db-write:forecast::forecast.demand_forecast#write_forecast/1->db:postgres:DB_HOST/public.demand_forecast:table public.demand_forecast",
    "data": "forward"
   },
   {
@@ -11612,8 +11607,8 @@
    "confidence": "confirmed",
    "evidence": [
     {
-     "file": "features/workflows.py",
-     "line": 10
+     "file": "features/zone_features.py",
+     "line": 11
     }
    ]
   },
@@ -11755,7 +11750,7 @@
   {
    "id": "nightly-demand-forecast-feeds-pricing",
    "title": "nightly demand forecast feeds pricing",
-   "start": "features::features.workflows#compute_zone_features/1",
+   "start": "features::features.zone_features#compute_zone_features/1",
    "direction": "downstream",
    "by": "agent"
   }
@@ -11898,28 +11893,18 @@
     "fingerprint": "c75bec0bb822"
    },
    {
-    "node": "features::features.workflows#compute_zone_features/1",
-    "key": "task compute_zone_features",
+    "node": "features::features.zone_features#zone_features/0",
+    "key": "task zone_features",
     "request": {
      "days": 28
     },
-    "fingerprint": "9d7a0fd92893"
+    "fingerprint": "6571c4042488"
    },
    {
-    "node": "features::features.workflows#features_wf/1",
-    "key": "task features_wf",
-    "request": {
-     "days": 28
-    },
-    "fingerprint": "9d7a0fd92893"
-   },
-   {
-    "node": "forecast::forecast.workflows#forecast_wf/1",
-    "key": "task forecast_wf",
-    "request": {
-     "days": 28
-    },
-    "fingerprint": "3111d490fb0c"
+    "node": "forecast::forecast.demand_forecast#demand_forecast/0",
+    "key": "task demand_forecast",
+    "request": {},
+    "fingerprint": "6571c4042488"
    },
    {
     "node": "jobs/dags::dags.bq_bay_events_export#bq_bay_events_export/0",
@@ -12125,6 +12110,25 @@
    },
    {
     "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
+    "key": "GET /v1/reservations/{id}",
+    "request": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
+    },
+    "response": {
+     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
+     "driverId": "drv-20931",
+     "zoneId": "z3",
+     "plate": "KT482LM",
+     "startsAt": "2026-10-14T08:30:00Z",
+     "endsAt": "2026-10-14T10:00:00Z",
+     "status": "PAID",
+     "quoteCents": 450,
+     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
+    },
+    "fingerprint": "31cc42437630"
+   },
+   {
+    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
     "key": "POST /v1/reservations",
     "request": {
      "driverId": "drv-20931",
@@ -12141,25 +12145,6 @@
      "startsAt": "2026-10-14T08:30:00Z",
      "endsAt": "2026-10-14T10:00:00Z",
      "status": "PENDING",
-     "quoteCents": 450,
-     "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
-    },
-    "fingerprint": "31cc42437630"
-   },
-   {
-    "node": "reservations::city.parking.reservations.ReservationEndpoints$#routes/1",
-    "key": "GET /v1/reservations/{id}",
-    "request": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14"
-    },
-    "response": {
-     "id": "7c1e4b52-9a3d-4f0e-8b61-2d5f9e3a7c14",
-     "driverId": "drv-20931",
-     "zoneId": "z3",
-     "plate": "KT482LM",
-     "startsAt": "2026-10-14T08:30:00Z",
-     "endsAt": "2026-10-14T10:00:00Z",
-     "status": "PAID",
      "quoteCents": 450,
      "paymentIntentId": "pi_3Q8kLm2eZvKYlo2C1x9aB7dE"
     },
@@ -12365,16 +12350,16 @@
    "node": "enforcement_worker/app::app.main",
    "parse_error": false
   },
-  "features/workflows.py": {
+  "features/zone_features.py": {
    "lang": "python",
    "module": "mod:features",
-   "node": "features::features.workflows",
+   "node": "features::features.zone_features",
    "parse_error": false
   },
-  "forecast/workflows.py": {
+  "forecast/demand_forecast.py": {
    "lang": "python",
    "module": "mod:forecast",
-   "node": "forecast::forecast.workflows",
+   "node": "forecast::forecast.demand_forecast",
    "parse_error": false
   },
   "jobs/dags/_common.py": {
@@ -12749,7 +12734,7 @@
    "source": "agent"
   },
   {
-   "text": "pipelines_shared is registered into both Flyte projects (feature-store, demand-forecast) so both services claim it.",
+   "text": "pipelines_shared is synced by both the features and the forecast Airflow registrations (feature-store, demand-forecast), so both services claim it.",
    "nodes": [
     "svc:feature-store",
     "svc:demand-forecast"
@@ -12774,9 +12759,9 @@
    "source": "agent"
   },
   {
-   "text": "Airflow @task functions nested in each @dag function were not scanned as methods; DAG relations attach to the DAG function. SUBTRACT_REFUNDS (pg_revenue_correction.py) is a module constant run by daily_revenue_rollup and is folded into its relations.",
+   "text": "SUBTRACT_REFUNDS (pg_revenue_correction.py) is a module constant run by the rollup task of daily_revenue_rollup and is folded into its relations.",
    "nodes": [
-    "jobs/dags::dags.daily_revenue_rollup#daily_revenue_rollup/0"
+    "jobs/dags::dags.daily_revenue_rollup#rollup/1"
    ],
    "source": "agent"
   },
@@ -12823,7 +12808,7 @@
    "source": "agent"
   },
   {
-   "text": "Platform boxes (Airflow, Flyte, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
+   "text": "Platform boxes (Airflow, Kafka brokers, GCP Pub/Sub, SQS, Kubernetes) are not nodes. No hand-launched (manual) jobs are documented, so no adhoc service.",
    "nodes": [],
    "source": "agent"
   },
@@ -14293,15 +14278,15 @@
     "utilities": [],
     "hubs": []
    },
-   "features::features.workflows": {
+   "features::features.zone_features": {
     "strategy": "layered",
     "items": {
-     "features::features.workflows#features_wf/1": {
+     "features::features.zone_features#zone_features/0": {
       "region": "line",
       "col": 0,
       "row": 0
      },
-     "features::features.workflows#compute_zone_features/1": {
+     "features::features.zone_features#compute_zone_features/1": {
       "region": "line",
       "col": 1,
       "row": 0
@@ -14315,7 +14300,7 @@
    "features::features/": {
     "strategy": "layered",
     "items": {
-     "features::features.workflows": {
+     "features::features.zone_features": {
       "region": "line",
       "col": 0,
       "row": 0
@@ -14326,33 +14311,23 @@
     "utilities": [],
     "hubs": []
    },
-   "forecast::forecast.workflows": {
+   "forecast::forecast.demand_forecast": {
     "strategy": "layered",
     "items": {
-     "forecast::forecast.workflows#forecast_wf/1": {
+     "forecast::forecast.demand_forecast#demand_forecast/0": {
       "region": "line",
       "col": 0,
       "row": 0
      },
-     "forecast::forecast.workflows#compute_zone_features/1": {
+     "forecast::forecast.demand_forecast#history_check/0": {
       "region": "line",
       "col": 1,
       "row": 0
      },
-     "forecast::forecast.workflows#history_check/0": {
+     "forecast::forecast.demand_forecast#write_forecast/1": {
       "region": "line",
       "col": 1,
       "row": 1
-     },
-     "forecast::forecast.workflows#load_features/1": {
-      "region": "line",
-      "col": 1,
-      "row": 2
-     },
-     "forecast::forecast.workflows#write_forecast/2": {
-      "region": "line",
-      "col": 1,
-      "row": 3
      }
     },
     "lanes": [],
@@ -14363,7 +14338,7 @@
    "forecast::forecast/": {
     "strategy": "layered",
     "items": {
-     "forecast::forecast.workflows": {
+     "forecast::forecast.demand_forecast": {
       "region": "line",
       "col": 0,
       "row": 0

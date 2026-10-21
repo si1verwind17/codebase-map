@@ -8,8 +8,9 @@
 # parts are imports entries).
 # routes: NestJS (`form: annotated`, `@Controller` prefix + `@Get`...; `setGlobalPrefix` is a mount); Express,
 # Koa router and Fastify (regex, each gated on its import; a `handler` group when the last argument is a name;
-# `app.use('/v1', router)`, Koa `prefix`, Fastify `register(r, {prefix})` are mounts, nested prefixes the agent
-# composes). tables: TypeORM `@Entity`, Prisma `prisma.<model>.<call>`, Sequelize `define` and `tableName`.
+# `app.use('/v1', router)`, Koa `prefix`, Fastify `register(r, {prefix})` are mounts, nested prefixes the
+# scanner joins to the routes registered on them in the same file and the agent composes elsewhere). tables:
+# TypeORM `@Entity`, Prisma `prisma.<model>.<call>`, Sequelize `define` and `tableName`.
 # queues: in-process queue creation sites (`new EventEmitter()`): candidates the agent confirms (SKILL.md § In-process queues).
 typescript:
   ignore: ["node:", fs, path, http, https, crypto, os, url, util, events, stream, child_process, buffer, zlib, net, tls, dns,

@@ -1,5 +1,6 @@
 import copy
 import json
+import subprocess
 
 import assemble as assemble_cli
 import extract
@@ -7,7 +8,7 @@ import validate as validate_cli
 from meaning_fixture import MEANING, POST
 
 from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.assemble import assemble, meaning_errors
 
 
 def built(shop_repo, meaning=MEANING):
@@ -73,10 +74,22 @@ def test_assemble_and_validate_cli(shop_repo, capsys):
     (out / "meaning.json").write_text(json.dumps(MEANING))
     assert assemble_cli.main([str(shop_repo)]) == 0
     assert validate_cli.main([str(out / "code-map.json")]) == 0
-    assert "docs/viz-code/code-map.json linguist-generated=true -diff" in (shop_repo / ".gitattributes").read_text()
+    assert "code-map.json linguist-generated=true -diff" in (out / ".gitattributes").read_text().splitlines()
+    assert not (shop_repo / ".gitattributes").exists()              # nothing outside the output folder
     assert "structure.json" in (out / ".gitignore").read_text()
+    (out / ".gitattributes").write_text("*.svg binary\n")           # the user's own lines stay
+    assert assemble_cli.main([str(shop_repo)]) == 0
     assert assemble_cli.main([str(shop_repo)]) == 0                 # idempotent: no duplicate line
-    assert (shop_repo / ".gitattributes").read_text().count("linguist-generated") == 1
+    assert (out / ".gitattributes").read_text().splitlines() == ["*.svg binary", "code-map.json linguist-generated=true -diff"]
+
+
+def test_git_applies_the_output_folders_gitattributes(shop_repo):
+    extract.main([str(shop_repo)])
+    (shop_repo / "docs/viz-code/meaning.json").write_text(json.dumps(MEANING))
+    assert assemble_cli.main([str(shop_repo)]) == 0
+    attrs = subprocess.run(["git", "check-attr", "-a", "docs/viz-code/code-map.json"], cwd=shop_repo,
+                           capture_output=True, text=True, check=True).stdout
+    assert "linguist-generated: true" in attrs and "diff: unset" in attrs
 
 
 def test_audit_md_is_gitignored():
@@ -193,6 +206,21 @@ def test_two_relations_with_the_same_content_are_reported(shop_repo, capsys):
     meaning["relations"].append(twin)
     code, err = _run_with(shop_repo, meaning, capsys)
     assert code == 1 and "relation 4 duplicates relation 2" in err
+
+
+def test_one_method_enqueuing_two_jobs_on_one_queue_keys_each_job():
+    """A job queue is a topic; each enqueue is an `event` keyed by its job, so two jobs one method enqueues on the
+    same queue are two relations, and each job's run method is a consumer of its own key."""
+    enqueue, queue = "web::shop.orders#place/1", "topic:redis:default"
+    rel = lambda frm, to, key: {"kind": "event", "from": frm, "to": to, "key": key, "confidence": "confirmed",
+                                "evidence": [{"file": "shop/orders.py", "line": 3}]}
+    meaning = {"relations": [rel(enqueue, queue, "job SendReceipt"), rel(enqueue, queue, "job ReserveStock"),
+                             rel(queue, "worker::jobs.SendReceipt#perform/1", "job SendReceipt"),
+                             rel(queue, "worker::jobs.ReserveStock#perform/1", "job ReserveStock")]}
+    assert meaning_errors(meaning, {"nodes": []}) == []
+    meaning["relations"].append(rel(enqueue, queue, "job SendReceipt"))
+    errors = meaning_errors(meaning, {"nodes": []})
+    assert len(errors) == 1 and "relation 5 duplicates relation 1" in errors[0] and "job queue" in errors[0]
 
 
 def test_a_service_must_cite_evidence(shop_repo):

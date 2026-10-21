@@ -157,7 +157,7 @@ def test_java_spans_feed_pattern_routes():
     pat = stack.RoutePattern("java", "spring-get", re.compile(r'@GetMapping\("(?P<path>[^"]+)"\)'),
                              "literal", None, "GET", "stack.yaml")
     res = parse(GOLDEN)
-    got = structure._pattern_routes(stack.Stack(patterns=[pat]), "java", GOLDEN.encode(), res, MOD)
+    got = structure._pattern_routes(stack.Stack(patterns=[pat]), "java", GOLDEN.encode(), res, MOD, [])
     assert [(r["method"], r["path"], r["handler"], r["line"]) for r in got] == [("GET", "/{id}", f"{CTRL}#find/1", 16)]
 
 

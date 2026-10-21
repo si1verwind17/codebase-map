@@ -24,10 +24,12 @@ Environment on the Airflow workers: `DB_HOST`, `DB_USER`, `DB_PASSWORD`,
 
 ## Registration
 
-The project is deployed by syncing `dags/` to the Airflow DAG bucket:
+The project is deployed by syncing `dags/` to the Airflow DAG bucket, leaving
+the folders of the `features` and `forecast` projects there alone:
 
 ```bash
-gsutil -m rsync -r -d jobs/dags "gs://${AIRFLOW_DAGS_BUCKET}/dags"   # registers service nightly-jobs
+gsutil -m rsync -r -d -x '^(features|forecast|pipelines_shared)/' jobs/dags "gs://${AIRFLOW_DAGS_BUCKET}/dags"   # registers service nightly-jobs
 ```
 
-`deploy/register.sh` runs this together with the Flyte registrations.
+`deploy/register.sh` runs this together with the two other Airflow projects'
+registrations.

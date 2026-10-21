@@ -2,10 +2,10 @@
 """Merge structure.json and the agent's meaning.json into a validated code-map.json, and write index.html
 (the viewer with the map built in) beside it.
 
-Usage: assemble.py REPO [--out-dir docs/viz-code] [--relayout]
+Usage: assemble.py REPO [--out-dir docs/viz-code] [--relayout] [--full-audit]
 Exit 1 (and write code-map.invalid.json) when the map fails validation; exit 3 when the map is valid
 but the viewer page could not be written. On exit 0 it then runs audit.py (VIZ_AUDIT=0 skips its drawing checks)
-and prints the audit's summary line last.
+and prints the audit's summary line last (--full-audit: the drawing checks on every floor, no budget).
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("repo", type=Path)
     ap.add_argument("--out-dir", default="docs/viz-code")
     ap.add_argument("--relayout", action="store_true", help="place every item afresh instead of keeping positions")
+    ap.add_argument("--full-audit", action="store_true", help="check every floor's drawing, with no budget (slower)")
     a = ap.parse_args(argv)
     try:
         out_dir = gitsrc.rel_out_dir(a.repo, a.out_dir)
@@ -68,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"code-map.json is valid; index.html not written: {e}", file=sys.stderr)
         return 3
     (out / "meaning.previous.json").unlink(missing_ok=True)   # the full rescan it seeded is done
-    print(audit.audit_out(out, out_dir))   # never blocks: the map is written
+    print(audit.audit_out(out, out_dir, full=a.full_audit))   # never blocks: the map is written
     return 0
 
 

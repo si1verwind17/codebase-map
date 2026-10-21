@@ -87,3 +87,154 @@ def test_mount_needs_no_method(tmp_path):
                           "      regex: '(?P<path>x)'\n"))
     assert next(p for p in st.patterns if p.name == "m").mount is True
 
+
+
+GO_MUX = ("go:\n  routes:\n    - name: mux\n      path: literal\n      method: GET\n"
+          "      regex: '\\.HandleFunc\\(\\s*\"(?P<path>[^\"]*)\"\\s*,\\s*(?P<handler>[\\w.]+)\\s*\\)"
+          "(?:\\.Methods\\((?P<methods>[^)]*)\\))?'\n"
+          "    - name: verb-call\n      path: literal\n"
+          "      regex: '\\.Add\\(\\s*(?P<method>[\\w.:]+)\\s*,\\s*\"(?P<path>[^\"]*)\"'\n")
+
+
+def test_methods_given_as_qualified_constants(make_repo):
+    # `http.MethodHead`, `HttpMethod.GET`, `Method::POST`: the last part names the verb, case-insensitively
+    s = build(make_repo, {
+        "go.mod": "module example.com/shop\n",
+        "main.go": 'package main\n\nfunc main() {\n'
+                   '\tr.HandleFunc("/cart", viewCart).Methods(http.MethodGet, http.MethodHead)\n'
+                   '\tr.HandleFunc("/pay", pay).Methods("POST")\n'
+                   '\tr.Add(HttpMethod.DELETE, "/cart")\n\tr.Add(Method::PATCH, "/cart")\n\tr.Add(get, "/x")\n}\n\n'
+                   'func viewCart() {}\n\nfunc pay() {}\n'}, GO_MUX)
+    got = sorted((r["method"], r["path"]) for r in s["facts"]["main.go"]["routes"])
+    assert got == [("DELETE", "/cart"), ("GET", "/cart"), ("GET", "/x"), ("HEAD", "/cart"), ("PATCH", "/cart"),
+                   ("POST", "/pay")]
+
+
+def _paths(s, f):
+    return sorted((r["method"], r["path"]) for r in s["facts"][f]["routes"])
+
+
+def test_mount_prefix_composes_onto_routes_on_its_variable(make_repo):
+    # a group bound to a variable: routes on that variable (and on groups made from it) take its prefix
+    s = build(make_repo, {
+        "go.mod": "module example.com/shop\n\nrequire github.com/gin-gonic/gin v1.9.0\n",
+        "main.go": 'package main\n\nimport "github.com/gin-gonic/gin"\n\nfunc main() {\n\tr := gin.Default()\n'
+                   '\tr.GET("/health", health)\n\tv1 := r.Group("/v1")\n\t{\n\t\tv1.GET("/orders/:id", getOrder)\n'
+                   '\t\tadmin := v1.Group("/admin")\n\t\tadmin.POST("/orders", addOrder)\n\t}\n}\n\n'
+                   'func health() {}\nfunc getOrder() {}\nfunc addOrder() {}\n'}, "")
+    assert _paths(s, "main.go") == [("GET", "/health"), ("GET", "/v1/orders/{id}"), ("POST", "/v1/admin/orders")]
+    assert [(m["path"], m.get("composed")) for m in s["facts"]["main.go"]["mounts"]] == [("/v1", 2), ("/admin", 1)]
+    md = structure.summary_md(s)
+    assert "- **mounts:** /v1 (main.go:8, composed onto 2 routes); /admin (main.go:11, composed onto 1 route)\n" in md
+
+
+def test_mount_prefix_composes_inside_its_call_and_along_its_chain(make_repo):
+    # routes registered inside the mount's own call (a closure, an inline router) or chained on what it returns
+    s = build(make_repo, {
+        "go.mod": "module example.com/shop\n",
+        "main.go": 'package main\n\nimport "github.com/go-chi/chi/v5"\n\nfunc main() {\n\tr := chi.NewRouter()\n'
+                   '\tr.Route("/orders", func(r chi.Router) {\n\t\t// don\'t cache\n\t\tr.Get("/", list)\n'
+                   '\t\tr.Route("/{id:[0-9]+}", func(r chi.Router) {\n\t\t\tr.Get("/", get)\n\t\t})\n\t})\n'
+                   '\tr.Mount("/admin", adminRouter())\n\tr.Get("/ping", ping)\n}\n\n'
+                   'func list() {}\nfunc get() {}\nfunc ping() {}\n'}, "")
+    assert _paths(s, "main.go") == [("GET", "/orders"), ("GET", "/orders/{id}"), ("GET", "/ping")]
+    mounts = {m["path"]: m.get("composed") for m in s["facts"]["main.go"]["mounts"]}
+    assert mounts == {"/orders": 2, "/{id}": 1, "/admin": None}
+
+
+def test_mount_with_a_target_does_not_reach_the_chain_after_it(make_repo):
+    # `.nest("/api", x)` returns the outer router: a route chained after it is not under /api
+    stack_text = ("rust:\n  routes:\n    - name: route-to\n      path: literal\n"
+                  "      regex: '\\.route\\(\\s*\"(?P<path>[^\"]*)\"\\s*,\\s*web::(?P<method>get|post)\\(\\)'\n")
+    s = build(make_repo, {
+        "Cargo.toml": '[package]\nname = "shop"\n',
+        "src/main.rs": 'use axum::Router;\nuse actix_web::web;\n\nfn app() {\n'
+                       '    Router::new().nest("/api", Router::new().route("/a", web::get().to(a))).route("/b", web::get().to(b));\n'
+                       '    App::new().service(web::scope("/admin").route("/c", web::post().to(c))).route("/d", web::get().to(d));\n'
+                       '}\n'}, stack_text)
+    assert _paths(s, "src/main.rs") == [("GET", "/api/a"), ("GET", "/b"), ("GET", "/d"), ("POST", "/admin/c")]
+
+
+@pytest.mark.parametrize("files,f,want", [
+    ({"Api/Api.csproj": "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>\n",
+      "Api/Program.cs": "var app = builder.Build();\nvar api = app.MapGroup(\"api/catalog\").WithTags(\"x\");\n"
+                        "api.MapGet(\"/items/{id:int}\", GetItem);\napp.MapGet(\"/health\", Health);\n"},
+     "Api/Program.cs", [("GET", "/api/catalog/items/{id}"), ("GET", "/health")]),
+    ({"build.gradle.kts": "", "src/main/kotlin/App.kt":
+      "import io.ktor.server.routing.*\n\nfun Application.module() {\n    routing {\n"
+      "        route(\"/v1\") {\n            get(\"/orders\") { call.respond(1) }\n        }\n"
+      "        get(\"/ping\") { call.respond(2) }\n    }\n}\n"},
+     "src/main/kotlin/App.kt", [("GET", "/ping"), ("GET", "/v1/orders")]),
+    ({"composer.json": "{}", "routes/api.php":
+      "<?php\nuse Illuminate\\Support\\Facades\\Route;\n\nRoute::prefix('admin')->group(function () {\n"
+      "    Route::get('/users', [UserController::class, 'index']);\n});\nRoute::get('/up', [Up::class, 'show']);\n"},
+     "routes/api.php", [("GET", "/admin/users"), ("GET", "/up")]),
+    ({"package.json": '{"name": "api"}\n', "src/orders.js":
+      "const Router = require('@koa/router');\nconst router = new Router({ prefix: '/orders' });\n"
+      "router.get('/:id', show);\nfunction show() {}\n"},
+     "src/orders.js", [("GET", "/orders/{id}")]),
+])
+def test_mount_composition_in_other_languages(make_repo, files, f, want):
+    s = build(make_repo, files, "")
+    assert _paths(s, f) == want
+
+
+def _handlers(s, f):
+    return {(r["method"], r["path"]): r["handler"] for r in s["facts"][f]["routes"]}
+
+
+def test_handler_follows_the_imports_and_prefers_a_free_function(make_repo):
+    # two `set_email` in the crate: the one the routing file imports; `sign_out` is a free function and a method
+    s = build(make_repo, {
+        "Cargo.toml": '[package]\nname = "shop"\n',
+        "src/lib.rs": "pub mod routes;\npub mod auth;\npub mod session;\npub mod startup;\n",
+        "src/routes.rs": "pub fn set_email() {}\npub fn sign_out() {}\n",
+        "src/auth.rs": "pub fn set_email(user: u32) {}\n",
+        "src/session.rs": "pub struct Session;\nimpl Session {\n    pub fn sign_out(&self) {}\n}\n",
+        "src/startup.rs": "use axum::Router;\nuse axum::routing::post;\nuse crate::routes::set_email;\n\n"
+                          "pub fn run() -> Router {\n    Router::new()\n"
+                          "        .route(\"/email\", post(set_email))\n"
+                          "        .route(\"/signout\", post(sign_out))\n        .route(\"/gone\", post(nowhere))\n}\n",
+    }, "")
+    hs = _handlers(s, "src/startup.rs")
+    assert hs[("POST", "/email")] == ".::src/routes.rs#set_email/0"
+    assert hs[("POST", "/signout")] == ".::src/routes.rs#sign_out/0"
+    # a name that resolves to nothing: the file, never `run`, the function that registers the routes
+    assert hs[("POST", "/gone")] == ".::src/startup.rs"
+
+
+def test_handler_nested_in_the_registering_function_becomes_a_node(make_repo):
+    s = build(make_repo, {
+        "package.json": '{"name": "api"}\n',
+        "src/server.js": "const express = require('express');\n\nfunction serve() {\n  const app = express();\n"
+                         "  const listOrders = async (req, res) => {\n    res.json(await db.query('SELECT id FROM orders'));\n"
+                         "  };\n  app.get('/orders', listOrders);\n  app.listen(80);\n}\n",
+    })
+    h = _handlers(s, "src/server.js")[("GET", "/orders")]
+    assert h == ".::src/server.js#serve.listOrders/2"
+    node = next(n for n in s["nodes"] if n["id"] == h)
+    assert (node["name"], node["parent"], node["line"], node["metrics"]["loc"]) == \
+        ("listOrders", ".::src/server.js", 5, 3)
+    calls = {c["callee"]: c["in"] for c in s["facts"]["src/server.js"]["calls"]}
+    assert calls["db.query"] == h and calls["app.listen"] == ".::src/server.js#serve/0"
+    assert [q["in"] for q in s["facts"]["src/server.js"]["sql"]] == [h]
+
+
+FLASK_ROUTE = ("python:\n  routes:\n    - name: flask\n      path: literal\n      method: GET\n"
+               "      regex: '@\\w+\\.route\\(\\s*[\"''](?P<path>[^\"'']*)[\"'']'\n")
+
+
+def test_decorated_route_nested_in_a_factory_is_its_own_function(make_repo):
+    s = build(make_repo, {
+        "app/__init__.py": "",
+        "app/main.py": "from fastapi import FastAPI\nfrom flask import Flask\n\n\ndef make_app():\n"
+                       "    app = Flask(__name__)\n\n    @app.route('/chat')\n    def talk(q):\n        return answer(q)\n\n"
+                       "    api = FastAPI()\n\n    @api.get('/health')\n    def health():\n        return 'ok'\n\n"
+                       "    return app\n\n\ndef answer(q):\n    return q\n",
+    }, FLASK_ROUTE)
+    hs = _handlers(s, "app/main.py")
+    assert hs == {("GET", "/chat"): "app::app.main#make_app.talk/1",
+                  ("GET", "/health"): "app::app.main#make_app.health/0"}
+    calls = {c["callee"]: c["in"] for c in s["facts"]["app/main.py"]["calls"]}
+    assert calls["answer"] == "app::app.main#make_app.talk/1" and calls["Flask"] == "app::app.main#make_app/0"
+    assert all("nested_handler" not in r for r in s["facts"]["app/main.py"]["routes"])

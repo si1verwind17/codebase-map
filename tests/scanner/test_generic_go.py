@@ -155,3 +155,23 @@ def test_go_exported_is_any_unicode_upper_case_first_letter():
     res = parse("package orders\n\nfunc Δelta() {}\nfunc δelta() {}\nfunc Ärger() {}\nfunc _x() {}\n")
     assert [(n["name"], n["visibility"]) for n in res["nodes"] if n["kind"] == "method"] == [
         ("Δelta", "public"), ("δelta", "private"), ("Ärger", "public"), ("_x", "private")]
+
+
+def test_go_struct_implements_an_interface_whose_methods_it_has(make_repo):
+    """Go interfaces are structural: a struct with every method of a repo interface (name and arity) implements
+    it, so a call on the interface reaches the struct's method (calls.py `_abstractions`)."""
+    repo = make_repo({
+        "go.mod": "module example.com/shop\n",
+        "orders/repo.go": "package orders\n\ntype OrderRepository interface {\n\tSave(o Order) error\n"
+                          "\tFind(id string) (Order, error)\n}\n\ntype Order struct{}\n",
+        "orders/pg.go": "package orders\n\ntype PgOrderRepository struct{}\n\n"
+                        "func (r *PgOrderRepository) Save(o Order) error { return nil }\n"
+                        "func (r *PgOrderRepository) Find(id string) (Order, error) { return Order{}, nil }\n",
+        "orders/mem.go": "package orders\n\ntype MemRepo struct{}\n\nfunc (m MemRepo) Save(o Order) error { return nil }\n",
+    })
+    s = structure.build(repo)
+    by_name = {n["name"]: n for n in s["nodes"] if n["kind"] == "class"}
+    iface = by_name["OrderRepository"]["id"]
+    assert by_name["PgOrderRepository"].get("implements") == [iface]
+    assert "implements" not in by_name["MemRepo"] and "implements" not in by_name["OrderRepository"]
+    assert "implements" not in by_name["Order"]

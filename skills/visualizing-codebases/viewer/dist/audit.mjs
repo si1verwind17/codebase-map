@@ -1,4 +1,4 @@
-// audit-inputs: 74cdae2eabbe1cfe47d428d67ddaeedde08b80d40a7023ef9317529002aa8521
+// audit-inputs: 75375da39f127ef8b496521a5eedaf56f4d975705d377bf9e2ae3e80ac1c5b1e
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -1028,6 +1028,23 @@ var ROWS = /* @__PURE__ */ new Set([
 	"hubs"
 ]);
 var ROW_TILES = 60;
+function laneGaps(tf) {
+	const order = tf.lanes.map((_, i) => i).sort((a, b) => tf.lanes[a].y - tf.lanes[b].y);
+	const out = [];
+	for (let k = 0; k + 1 < order.length; k++) {
+		const a = tf.lanes[order[k]], b = tf.lanes[order[k + 1]];
+		const g = {
+			above: order[k],
+			below: order[k + 1],
+			x0: Math.max(a.x0, b.x0),
+			x1: Math.min(a.x1, b.x1),
+			y0: a.y + 3,
+			y1: b.y
+		};
+		if (g.x1 > g.x0 && g.y1 > g.y0) out.push(g);
+	}
+	return out;
+}
 function layoutTiles(model, container, doors = [], opts = {}) {
 	return settleChests(soleCaches(model, container).keys(), (laned) => layoutOnce(model, container, doors, laned.size ? {
 		...opts,
@@ -1298,7 +1315,7 @@ function layoutOnce(model, container, doors, opts) {
 				x1: Math.max(x1, x + b.w + 6),
 				y: y + Math.floor((b.h - 3) / 2)
 			});
-			y += Math.max(b.h, 3) + 2 + gap;
+			y += Math.max(b.h, 3) + 2 + gap + (opts.laneGaps?.[lanes.length - 1] ?? 0);
 		}
 		return y;
 	};
@@ -2880,6 +2897,317 @@ function webhookDocks(model, tf, bundles, routes) {
 	};
 }
 //#endregion
+//#region src/factory/clear.ts
+var ZONE_FONT = 9.5;
+/** A zone name's size in world px at scale 1, estimated (never measured, so layout cannot depend on font loading): a
+*  bold capital is at most 0.72 em wide, and the line box is 13 px tall. The drawn text is never larger. */
+var zoneTextSize = (name) => ({
+	w: Math.ceil(name.length * ZONE_FONT * .72),
+	h: 13
+});
+var SHADOW = 5;
+var ABOVE = 20;
+var LINE_HALF = 6;
+var MARGIN = 2;
+/** Everything a zone name must stay off: machines with their shadows, chimneys and tabs; lanes; every line piece
+*  (housings and junction plates sit on piece tiles); drone and failed lines as drawn (flight paths). */
+function floorObstacles(tf, routes) {
+	const out = [];
+	for (const b of tf.boxes.values()) {
+		const x0 = b.x * 24, y0 = b.y * 24;
+		out.push({
+			x0,
+			y0: b.foot === "door" ? y0 : y0 - ABOVE,
+			x1: x0 + b.w * 24 + SHADOW,
+			y1: y0 + b.h * 24 + SHADOW
+		});
+	}
+	for (const l of tf.lanes) out.push({
+		x0: l.x0 * 24,
+		y0: l.y * 24,
+		x1: l.x1 * 24,
+		y1: (l.y + 3) * 24
+	});
+	for (const r of reservedRects(tf)) out.push({
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	});
+	for (const r of routes) out.push(...routeRects(r));
+	return out;
+}
+/** A line as drawn: its piece tiles (only those on top with `top`: a tunnel's pieces are under the floor), or, with no
+*  pieces (a drone or failed line drawn point to point), its segments `LINE_HALF` wide. */
+function routeRects(r, top = false) {
+	const out = [];
+	for (const p of r.pieces) if (!top || !p.under) out.push({
+		x0: p.x * 24,
+		y0: p.y * 24,
+		x1: (p.x + 1) * 24,
+		y1: (p.y + 1) * 24
+	});
+	if (r.pieces.length) return out;
+	for (let i = 1; i < r.points.length; i++) {
+		const a = r.points[i - 1], b = r.points[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / LINE_HALF));
+		for (let k = 0; k <= n; k++) {
+			const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
+			out.push({
+				x0: x - LINE_HALF,
+				y0: y - LINE_HALF,
+				x1: x + LINE_HALF,
+				y1: y + LINE_HALF
+			});
+		}
+	}
+	return out;
+}
+var hit$1 = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+/** Obstacles indexed by the tiles they touch: a query looks only at its own tiles. */
+var Clearance = class {
+	cols;
+	cells = /* @__PURE__ */ new Map();
+	constructor(rects = [], cols = 4096) {
+		this.cols = cols;
+		for (const r of rects) this.add(r);
+	}
+	each(r, f) {
+		for (let ty = Math.floor(r.y0 / 24); ty <= Math.floor((r.y1 - 1e-6) / 24); ty++) for (let tx = Math.floor(r.x0 / 24); tx <= Math.floor((r.x1 - 1e-6) / 24); tx++) if (f(ty * this.cols + tx)) return true;
+		return false;
+	}
+	add(r) {
+		this.each(r, (k) => {
+			const l = this.cells.get(k);
+			if (l) l.push(r);
+			else this.cells.set(k, [r]);
+		});
+	}
+	/** Does `r`, with a small margin, touch no obstacle? */
+	free(r) {
+		const q = {
+			x0: r.x0 - MARGIN,
+			y0: r.y0 - MARGIN,
+			x1: r.x1 + MARGIN,
+			y1: r.y1 + MARGIN
+		};
+		return !this.each(q, (k) => this.cells.get(k)?.some((o) => hit$1(q, o)));
+	}
+};
+var labelBox = (p, k) => ({
+	x0: p.ax,
+	y0: p.ay - p.h * k,
+	x1: p.ax + p.w * k,
+	y1: p.ay
+});
+/** The best spot for a zone's name: bottom-left anchors on every tile column of the zone's bottom three rows, each
+*  grown (up and right) as far as it stays inside the zone and clear of every obstacle; the largest wins, the lowest
+*  and leftmost on a tie. The winning box is added to `clear`, so the next zone's name keeps off it. A zone with no
+*  clear spot keeps the old corner at scale 1 (it hides itself when that is too small to read). */
+function planZoneLabel(z, clear) {
+	const { w, h } = zoneTextSize(z.name);
+	const inner = {
+		x0: z.x * 24 + 2,
+		y0: z.y * 24 + 2,
+		x1: (z.x + z.w) * 24 - 2,
+		y1: (z.y + z.h) * 24 - 2
+	};
+	const ok = (p, k) => {
+		const b = labelBox({
+			...p,
+			w,
+			h
+		}, k);
+		return b.x0 >= inner.x0 && b.x1 <= inner.x1 && b.y0 >= inner.y0 && b.y1 <= inner.y1 && clear.free(b);
+	};
+	let best;
+	for (let j = 0; j < z.h && (j < 3 || !best); j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
+		const p = {
+			ax: tx * 24 + 6,
+			ay: (z.y + z.h) * 24 - 5 - j * 24,
+			w,
+			h,
+			maxK: 1,
+			clear: true
+		};
+		if (!ok(p, 1)) continue;
+		let lo = 1, hi = 4;
+		if (ok(p, hi)) lo = hi;
+		else for (let i = 0; i < 12; i++) {
+			const mid = (lo + hi) / 2;
+			if (ok(p, mid)) lo = mid;
+			else hi = mid;
+		}
+		p.maxK = Math.floor(lo * 100) / 100;
+		if (!best || p.maxK > best.maxK + 1e-9) best = p;
+	}
+	const plan = best ?? {
+		ax: z.x * 24 + 6,
+		ay: (z.y + z.h) * 24 - 5,
+		w,
+		h,
+		maxK: 1,
+		clear: false
+	};
+	clear.add(labelBox(plan, plan.maxK));
+	return plan;
+}
+var BADGE_FONT = 10.5;
+/** A `used by N` badge's size in world px at scale 1, estimated as `zoneTextSize` is (a bold character is at most
+*  0.62 em wide here, plus 4 px padding each side): the drawn badge is never larger, so its spot holds it. */
+var badgeSize = (n) => ({
+	w: Math.ceil(`used by ${n}`.length * BADGE_FONT * .62) + 8,
+	h: 14
+});
+var badgeBox = (p, k) => {
+	const w = p.w * k, h = p.h * k, x0 = p.ax + p.ox * w, y0 = p.ay + p.oy * h;
+	return {
+		x0,
+		y0,
+		x1: x0 + w,
+		y1: y0 + h
+	};
+};
+var SLIDE = 40;
+/** The best spot for a `w`×`h` badge beside machine `m` (world px): the one that grows furthest while clear. First the
+*  plain spots (right and left centred on the box, below and above from its left edge), right first on a tie, then
+*  below, left, above; then each side's sliding spots, nearest the plain one first: on the right and left an anchor at
+*  every 2 px from `SLIDE` above the box to `SLIDE` below it, the badge growing down or up from it; below and above, at
+*  every 2 px along the box (never past its ends, so no line runs between it and its box), growing right or left. A
+*  later spot wins only by growing further. The
+*  winning box (at its `maxK`) joins `clear`. With no clear spot even at scale 1, it stands below at scale 1. */
+function planBadge(m, w, h, clear) {
+	const gap = 3, cy = m.y + m.h / 2;
+	const R = m.x + m.w + SHADOW + gap, L = m.x - gap, B = m.y + m.h + SHADOW + gap, A = m.y - ABOVE - gap;
+	const at = (side, ax, ay, ox, oy) => ({
+		side,
+		ax,
+		ay,
+		ox,
+		oy,
+		w,
+		h,
+		maxK: 1,
+		clear: true
+	});
+	const plain = [
+		at("right", R, cy, 0, -.5),
+		at("below", m.x, B, 0, 0),
+		at("left", L, cy, -1, -.5),
+		at("above", m.x, A, 0, -1)
+	];
+	const slid = [];
+	for (let y = m.y - SLIDE; y <= m.y + m.h + SLIDE; y += 2) for (const oy of [0, -1]) for (const [side, ax, ox] of [[
+		"right",
+		R,
+		0
+	], [
+		"left",
+		L,
+		-1
+	]]) slid.push({
+		p: at(side, ax, y, ox, oy),
+		d: Math.abs(y + oy * h + h / 2 - cy)
+	});
+	for (let x = m.x; x <= m.x + m.w; x += 2) for (const ox of [0, -1]) for (const [side, ay, oy] of [[
+		"below",
+		B,
+		0
+	], [
+		"above",
+		A,
+		-1
+	]]) slid.push({
+		p: at(side, x, ay, ox, oy),
+		d: Math.abs(x + ox * w - m.x)
+	});
+	const order = {
+		right: 0,
+		below: 1,
+		left: 2,
+		above: 3
+	};
+	slid.sort((a, b) => a.d - b.d || order[a.p.side] - order[b.p.side]);
+	let best;
+	for (const p of [...plain, ...slid.map((s) => s.p)]) {
+		if (best?.maxK === 4) break;
+		if (!clear.free(badgeBox(p, 1))) continue;
+		let lo = 1, hi = 4;
+		if (clear.free(badgeBox(p, hi))) lo = hi;
+		else for (let i = 0; i < 12; i++) {
+			const mid = (lo + hi) / 2;
+			if (clear.free(badgeBox(p, mid))) lo = mid;
+			else hi = mid;
+		}
+		p.maxK = Math.floor(lo * 100) / 100;
+		if (!best || p.maxK > best.maxK + 1e-9) best = p;
+	}
+	const plan = best ?? {
+		...plain[1],
+		clear: false
+	};
+	clear.add(badgeBox(plan, plan.maxK));
+	return plan;
+}
+function placeBadges(items, clear, layerTiles, spots = /* @__PURE__ */ new Map()) {
+	if (items.some((i) => !spots.has(i.id))) for (const r of layerTiles) clear.add(r);
+	for (const i of items) if (!spots.has(i.id)) spots.set(i.id, planBadge(i.m, i.w, i.h, clear));
+	return spots;
+}
+/** Every layer's lines as drawn: the tiles of their top pieces, and drone or failed lines point to point. */
+function layerTileRects(layers) {
+	return Object.values(layers ?? {}).flatMap((l) => l.routes.flatMap((r) => routeRects(r, true)));
+}
+/** Where a lane's name sits: from the left, the first gap between crossing lines wide enough for the name scaled to
+*  `kWant`; else the widest gap. `room` is that gap's width from the name's left edge. A line past the lane's end
+*  bounds no gap: the last one ends at the lane's end. Pure, for the test. */
+function laneLabelSpot(x0, x1, w, blocked, kWant, pad = 6) {
+	const gaps = [];
+	let start = x0 + pad;
+	for (const b of blocked.filter((b) => b > x0 && b < x1).sort((p, q) => p - q)) {
+		if (b - pad > start) gaps.push({
+			s: start,
+			e: b - pad
+		});
+		start = Math.max(start, b + pad + 2);
+	}
+	gaps.push({
+		s: start,
+		e: x1 - pad
+	});
+	const g = gaps.find((q) => q.e - q.s >= w * kWant) ?? gaps.reduce((best, q) => q.e - q.s > best.e - best.s ? q : best);
+	return {
+		x: g.s,
+		room: g.e - g.s
+	};
+}
+/** The lane name's scale the spot is chosen for: 3x its size is readable down to a zoom of 0.25. */
+var LANE_WANT = 3;
+var LANE_LABEL_H = 17;
+var LANE_CHAR = .56;
+/** A lane's name plate width at scale 1, estimated (the drawing measures the text): for the router and the audit. */
+var laneNameWidth = (name) => Math.ceil(name.length * 12 * LANE_CHAR) + 10;
+/** The tiles at a short lane's start where its name sits, as [x0, x1): a lane too short to hold its name twice over,
+*  so a line crossing it or ending on it there leaves the name no room (the router keeps lines off them where it can);
+*  undefined on a longer lane, whose name finds a gap between the lines. */
+function laneNameTiles(l, name) {
+	const w = laneNameWidth(name);
+	if ((l.x1 - l.x0) * 24 >= 2 * (w + 12 + 2)) return void 0;
+	return [l.x0, Math.min(l.x1, l.x0 + Math.ceil((w + 12 + 2) / 24))];
+}
+/** A lane's name plate, `w` px wide at scale 1 (its text plus 10): its top-left corner, its height, and the largest
+*  scale its spot holds. Pure, for the map audit (text.ts), which estimates `w` where the drawing measures it. */
+function laneLabelPlan(l, w, blocked) {
+	const tall = Math.max(1, 66 / LANE_LABEL_H);
+	const spot = laneLabelSpot(l.x0 * 24, l.x1 * 24, w, blocked, Math.min(tall, LANE_WANT));
+	return {
+		x: spot.x,
+		y: l.y * 24 + 4,
+		w,
+		h: LANE_LABEL_H,
+		maxK: Math.max(1, Math.min(tall, spot.room / w))
+	};
+}
+//#endregion
 //#region src/factory/router.ts
 var TURN = 3;
 var UNDER = 6;
@@ -2908,6 +3236,7 @@ var BADGE_ROOM = {
 	w: 7,
 	h: 2
 };
+var NAME = 3;
 function lineKind(b, tap) {
 	if (tap) return b.kinds["db-write"] && b.kinds["db-read"] ? "tapRW" : b.kinds["db-write"] ? "tapW" : "tapR";
 	if (flies(b.kind)) return "drone";
@@ -2971,9 +3300,19 @@ function routeTiles(tf, bundles, base) {
 		for (let y = z.y; y < z.y + z.h; y++) for (const x of [z.x, z.x + z.w - 1]) if (ok(x, y)) edge[at(x, y)] = EDGE;
 	}
 	for (const z of tf.zones) for (let x = z.x; x < z.x + z.w; x++) if (ok(x, z.y + z.h - 1)) edge[at(x, z.y + z.h - 1)] = EDGE;
+	for (const g of laneGaps(tf)) if (g.y1 - g.y0 > 2) {
+		for (const y of [g.y0, g.y1 - 1]) for (let x = g.x0; x < g.x1; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], EDGE);
+	}
 	for (const b of tf.boxes.values()) if (b.region === "hubs") {
 		const y0 = b.y + Math.floor(b.h / 2) - BADGE_ROOM.h;
 		for (let y = y0; y < y0 + BADGE_ROOM.h; y++) for (let x = b.x + b.w; x < b.x + b.w + BADGE_ROOM.w; x++) if (ok(x, y)) edge[at(x, y)] = Math.max(edge[at(x, y)], BADGE);
+	}
+	const named = new Uint8Array(cols * rows);
+	for (const l of tf.lanes) {
+		const n = laneNameTiles(l, l.label);
+		if (n) {
+			for (let y = l.y; y < l.y + 3; y++) for (let x = n[0]; x < n[1]; x++) if (ok(x, y)) named[at(x, y)] = 1;
+		}
 	}
 	const MANY = -9;
 	const nb = new Int32Array(cols * rows * 2).fill(-1);
@@ -3061,7 +3400,8 @@ function routeTiles(tf, bundles, base) {
 				reverse: fromLane,
 				tap: store ? lane.id : void 0,
 				est: Math.abs(box.y - lane.y),
-				to: laneBox.id
+				to: laneBox.id,
+				lane: true
 			});
 			continue;
 		}
@@ -3264,7 +3604,7 @@ function routeTiles(tf, bundles, base) {
 		const closed = [];
 		try {
 			for (let n = 0; n < 4; n++) {
-				const cells = search(j.src, j.dst, maxUnder, j.to, j.rail, j.into);
+				const cells = search(j.src, j.dst, maxUnder, j.to, j.rail, j.into, j.lane);
 				if (!cells) return null;
 				const seen = /* @__PURE__ */ new Set();
 				const again = cells.find((p) => {
@@ -3332,7 +3672,7 @@ function routeTiles(tf, bundles, base) {
 	/** A* from any side of `src` to any tile beside `dst` (with `entry`, only running into it that way); null when walled in. A rail (`rail`) starts only on its own
 	*  platform's exit, or on another exit of its yard where a trunk it rides starts, and ends only on an end of its
 	*  station, running into it along the destination's wall. */
-	function search(src, dst, maxUnder, dstId, rail, entry) {
+	function search(src, dst, maxUnder, dstId, rail, entry, lane = false) {
 		const mine = [index.get(src.id), dstId === void 0 ? void 0 : index.get(dstId)];
 		curEnds = cur ? flowEnds(cur) : null;
 		meSrc = me ? index.get(me.src.id) ?? NaN : NaN;
@@ -3416,7 +3756,8 @@ function routeTiles(tf, bundles, base) {
 			const leaves = !(riding && !dstMode) || canLeave(here);
 			const lock = lead !== null && lead.get(here) === di ? di : -1;
 			if (into && (only < 0 || into === DIRS[only]) && leaves) {
-				const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into)) : 0;
+				const end = next(here, dirIdx(into));
+				const off = hv === FREE ? endCost(dst, into, offMid(dst, x, y, into), lane) + (end >= 0 && named[end] ? NAME : 0) : 0;
 				if (off === 0) return build(k, into);
 				if (!goaled[k]) {
 					goaled[k] = 1;
@@ -3451,16 +3792,18 @@ function routeTiles(tf, bundles, base) {
 					if (ni !== di || riding) continue;
 					if (prev[k] >= 0 && occ[prev[k] >> 2] >= 0) continue;
 					let hidden = mateAlong(at(nx, ny), ni);
+					let name = named[nt];
 					for (let s = 2; s <= maxUnder + 1 && !hidden; s++) {
 						const tx = x + dx * s, ty = y + dy * s;
 						if (!ok(tx, ty)) break;
 						const tv = eff(at(tx, ty));
 						if (tv === BOX) break;
 						if (tv === FREE) {
-							relax(key(tx, ty, ni), g[k] + s + UNDER, k, tx, ty);
+							relax(key(tx, ty, ni), g[k] + s + UNDER + (name ? NAME : 0), k, tx, ty);
 							break;
 						}
 						hidden = mateAlong(at(tx, ty), ni);
+						name |= named[at(tx, ty)];
 					}
 				}
 			}
@@ -3514,9 +3857,11 @@ function cornerTile(b, d, off) {
 	const n = d === "n" || d === "s" ? b.w : b.h;
 	return n >= 3 && off === (n - 1) / 2;
 }
-/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. */
-function endCost(b, d, off) {
-	return Math.max(off * OFF, cornerTile(b, d, off) ? CORNER : 0);
+/** What an end `off` tiles from a side's middle costs: OFF a tile, at least CORNER on the outermost tile. A lane
+*  (`lane`) runs under every machine above it: no tile of its side is better than another, so a line drops straight
+*  onto it and only its outermost tile costs CORNER. */
+function endCost(b, d, off, lane = false) {
+	return Math.max(lane ? 0 : off * OFF, cornerTile(b, d, off) ? CORNER : 0);
 }
 /** Tiles just outside one side of a box, with each tile's distance from the middle of that side. */
 function side(b, d) {
@@ -3678,9 +4023,37 @@ function trafficGaps(tf, routes) {
 		rowGaps
 	} : void 0;
 }
+/** Lane gaps whose lines run along more rows than the gap has inner rows (rows next to no lane): a line then runs along
+*  a row next to a lane, where the lanes' taps end and their underground runs come up, so it passes those stubs as if it
+*  touched them. A gap of two rows has no inner row. Each with the first line along it and where. */
+function crowdedLaneGaps(tf, routes) {
+	const out = [];
+	for (const g of laneGaps(tf)) {
+		const rect = {
+			x: g.x0,
+			y: g.y0,
+			w: g.x1 - g.x0,
+			h: g.y1 - g.y0
+		};
+		const along = routes.flatMap((r) => r.pieces.filter((p) => !p.under && alongRow(p) && inside(rect, p.x, p.y)).map((p) => ({
+			key: r.key,
+			at: {
+				x: p.x,
+				y: p.y
+			}
+		})));
+		if (new Set(along.map((a) => a.at.y)).size > g.y1 - g.y0 - 2) out.push({
+			gap: g,
+			...along[0]
+		});
+	}
+	return out;
+}
+/** A piece that enters or leaves its tile sideways: its line runs along the row there. */
+var alongRow = (p) => p.in === "e" || p.in === "w" || p.out === "e" || p.out === "w";
 var failures = (routes) => routes.filter((r) => r.failed).length;
 /** Crossings as drawn: underground runs, a trunk going under counted once however many lines ride it. */
-function crossings(routes) {
+function crossings$1(routes) {
 	const runs = /* @__PURE__ */ new Set();
 	for (const r of routes) r.pieces.forEach((p, i) => {
 		if (!p.under || i === 0 || r.pieces[i - 1].under) return;
@@ -3734,10 +4107,11 @@ function routeLayers(base, layered) {
 }
 /** Route once; widen the crowded corridors and route a second time, kept only if no more lines fail and it crosses
 *  strictly less. Only a floor with no crowded corridor, whose lines still fail, gets the old retry (every corridor
-*  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time. When the traffic pass already routed,
-*  its answer stands, failures included. A floor where some yard sends more than one platform's rail out by one exit is
-*  planned once more with that yard a ladder (`yardLadders`; twice when an exit leaves from a group's middle row: its
-*  top end, or its bottom end when that crosses strictly less), kept if no more lines fail and no more rails go unplaced. */
+*  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time, but for a full lane gap's one more row
+*  (`roomierLanes`). When the traffic pass already routed, its answer stands, failures included. A floor where some
+*  yard sends more than one platform's rail out by one exit is planned once more with that yard a ladder (`yardLadders`;
+*  twice when an exit leaves from a group's middle row: its top end, or its bottom end when that crosses strictly
+*  less), kept if no more lines fail and no more rails go unplaced. */
 function planBase(model, container, doors, bundles) {
 	let best = routeFloor(model, container, doors, bundles);
 	const top = yardLadders(best.tf, best.routes, "top");
@@ -3749,7 +4123,7 @@ function planBase(model, container, doors, bundles) {
 		let laddered;
 		for (const l of same ? [top] : [top, bottom]) {
 			const q = routeFloor(model, container, doors, bundles, l);
-			if (ok(q) && (!laddered || crossings(q.routes) < crossings(laddered.routes))) laddered = q;
+			if (ok(q) && (!laddered || crossings$1(q.routes) < crossings$1(laddered.routes))) laddered = q;
 		}
 		if (laddered) best = laddered;
 	}
@@ -3760,7 +4134,8 @@ function planBase(model, container, doors, bundles) {
 }
 function routeFloor(model, container, doors, bundles, ladders) {
 	const gap = startGap(bundles);
-	const tf = layFloor(model, container, doors, bundles, { gap }, ladders);
+	let opts = { gap };
+	const tf = layFloor(model, container, doors, bundles, opts, ladders);
 	let best = {
 		tf,
 		routes: routeTiles(tf, bundles),
@@ -3773,19 +4148,47 @@ function routeFloor(model, container, doors, bundles, ladders) {
 			...widths
 		}, ladders);
 		const routes2 = routeTiles(tf2, bundles);
-		if (failures(routes2) <= failures(best.routes) && crossings(routes2) < crossings(best.routes)) best = {
-			tf: tf2,
-			routes: routes2,
-			gap
-		};
+		if (failures(routes2) <= failures(best.routes) && crossings$1(routes2) < crossings$1(best.routes)) {
+			best = {
+				tf: tf2,
+				routes: routes2,
+				gap
+			};
+			opts = {
+				gap,
+				...widths
+			};
+		}
 	}
-	if (widths || !failures(best.routes)) return best;
-	const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
-	const routes3 = routeTiles(wider, bundles);
-	return failures(routes3) <= failures(best.routes) ? {
-		tf: wider,
-		routes: routes3,
-		gap: gap + WIDEN
+	if (!widths && failures(best.routes)) {
+		const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
+		const routes3 = routeTiles(wider, bundles);
+		if (failures(routes3) <= failures(best.routes)) {
+			best = {
+				tf: wider,
+				routes: routes3,
+				gap: gap + WIDEN
+			};
+			opts = { gap: gap + WIDEN };
+		}
+	}
+	return roomierLanes(model, container, doors, bundles, ladders, best, opts);
+}
+/** A plan whose lane gaps are full (`crowdedLaneGaps`) laid out once more with one more row in each, kept if no more
+*  lines fail and fewer gaps are full: the owner's 2026-10-21 comment, lanes too close where lines crowd the gap. */
+function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
+	const full = crowdedLaneGaps(best.tf, best.routes);
+	if (!full.length) return best;
+	const laneGaps = best.tf.lanes.map((_, i) => full.some((f) => f.gap.above === i) ? 1 : 0);
+	const tf = layFloor(model, container, doors, bundles, {
+		...opts,
+		laneGaps
+	}, ladders);
+	const routes = routeTiles(tf, bundles);
+	return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? {
+		...best,
+		tf,
+		routes
 	} : best;
 }
 //#endregion
@@ -4108,6 +4511,93 @@ function plateWallViolations(tf, r) {
 	}
 	return out;
 }
+var laneAt = (tf, x, y) => tf.lanes.find((l) => x >= l.x0 && x < l.x1 && y >= l.y && y < l.y + 3);
+/** A line onto a lane that turns sideways next to a lane (in a gap between lanes, or on the row along a lane's edge)
+*  while heading for its lane, over it, where going straight on to the lane is free: no machine, dock or line on top in
+*  the tiles between (a lane it would pass under is no obstacle). The owner's 2026-10-21 comment: a tap left its
+*  splitter sideways and hooked before it dropped, where a straight drop would do. Turns farther up, among the machines,
+*  are the trunks' (lines into one lane merge). */
+function laneDropViolations(tf, routes) {
+	const held = /* @__PURE__ */ new Set();
+	for (const r of routes) for (const p of r.pieces) if (!p.under) held.add(`${p.x},${p.y}`);
+	const walls = [...tf.boxes.values(), ...reservedRects(tf)];
+	const free = (x, y) => !held.has(`${x},${y}`) && !walls.some((w) => inside(w, x, y));
+	const gaps = laneGaps(tf).map((g) => ({
+		x: g.x0,
+		y: g.y0,
+		w: g.x1 - g.x0,
+		h: g.y1 - g.y0
+	}));
+	const out = [];
+	for (const r of routes) {
+		if (!r.pieces.length) continue;
+		const f = r.pieces[0], l = r.pieces[r.pieces.length - 1];
+		const into = laneAt(tf, l.x + STEP[l.out][0], l.y + STEP[l.out][1]);
+		const lane = into ?? laneAt(tf, f.x - STEP[f.in][0], f.y - STEP[f.in][1]);
+		if (!lane) continue;
+		const walk = into ? r.pieces : reversed(r.pieces);
+		const d = walk[walk.length - 1].out;
+		if (d !== "n" && d !== "s") continue;
+		const dy = STEP[d][1];
+		for (const p of walk) {
+			if (p.under || p.in !== d || p.out === d || p.x < lane.x0 || p.x >= lane.x1) continue;
+			if (!laneAt(tf, p.x, p.y - 1) && !laneAt(tf, p.x, p.y + 1) && !gaps.some((g) => inside(g, p.x, p.y))) continue;
+			let y = p.y + dy, ok = true;
+			for (; y >= 0 && y < tf.rows && laneAt(tf, p.x, y) !== lane && ok; y += dy) ok = !!laneAt(tf, p.x, y) || free(p.x, y);
+			if (ok && laneAt(tf, p.x, y) === lane) out.push({
+				detail: `${r.key} turns ${p.out} at ${p.x},${p.y} on its way to lane ${lane.id}, where it could go straight on`,
+				at: {
+					x: p.x,
+					y: p.y
+				}
+			});
+		}
+	}
+	return out;
+}
+/** A line along a lane gap that another line passes under in the same underground run as a lane: that line comes up
+*  only on the line's other side, past the lane, so its stub ends right on the line, as if the two touched. The owner's
+*  2026-10-21 comment: a crossing between lanes must read as passing under. */
+function gapStubViolations(tf, routes) {
+	const below = /* @__PURE__ */ new Map();
+	for (const r of routes) r.pieces.forEach((p, i) => {
+		if (p.under) {
+			const k = `${p.x},${p.y}`;
+			(below.get(k) ?? below.set(k, []).get(k)).push({
+				r,
+				i
+			});
+		}
+	});
+	const out = [];
+	for (const g of laneGaps(tf)) for (const r of routes) for (const p of r.pieces) {
+		if (p.under || !alongRow(p) || p.x < g.x0 || p.x >= g.x1 || p.y < g.y0 || p.y >= g.y1) continue;
+		for (const { r: o, i } of below.get(`${p.x},${p.y}`) ?? []) {
+			if (o === r) continue;
+			let a = i, b = i;
+			while (o.pieces[a - 1]?.under) a--;
+			while (o.pieces[b + 1]?.under) b++;
+			const lane = o.pieces.slice(a, b + 1).map((q) => laneAt(tf, q.x, q.y)).find((x) => x);
+			if (lane) out.push({
+				detail: `${o.key} passes under ${r.key} at ${p.x},${p.y} and under lane ${lane.id} in one run: its stub ends on the line`,
+				at: {
+					x: p.x,
+					y: p.y
+				}
+			});
+		}
+	}
+	return out;
+}
+/** Lane gaps whose lines run along more rows than the gap has rows next to no lane (plan.ts `crowdedLaneGaps`): a line
+*  runs among the lanes' stubs and tap ends, and the gap is full. The owner's 2026-10-21 comment: lanes too close where
+*  lines crowd the gap (the layout gives such a gap one more row). */
+function laneGapViolations(tf, routes) {
+	return crowdedLaneGaps(tf, routes).map(({ gap, key, at }) => ({
+		detail: `the gap between lanes ${tf.lanes[gap.above].id} and ${tf.lanes[gap.below].id} (${gap.y1 - gap.y0} rows) is full: ${key} runs along it next to a lane`,
+		at
+	}));
+}
 /** Failed routes: any on a floor of fewer than 100 routes, more than 1% of them on a bigger one. */
 function failedViolations(routes) {
 	const failed = routes.filter((r) => r.failed);
@@ -4190,267 +4680,6 @@ function subline(model, floorBundles, m) {
 	if (m.kind === "external") return ["external", splitEndpoint(model.label(m.id)).endpoint].filter(Boolean).join(" · ");
 	const children = model.map.nodes.filter((x) => x.parent === real).length;
 	return `${n?.role ? `${n.role} · ` : ""}${m.kind}${children ? ` · ${children} inside` : ""}`;
-}
-//#endregion
-//#region src/factory/clear.ts
-var ZONE_FONT = 9.5;
-/** A zone name's size in world px at scale 1, estimated (never measured, so layout cannot depend on font loading): a
-*  bold capital is at most 0.72 em wide, and the line box is 13 px tall. The drawn text is never larger. */
-var zoneTextSize = (name) => ({
-	w: Math.ceil(name.length * ZONE_FONT * .72),
-	h: 13
-});
-var SHADOW = 5;
-var ABOVE = 20;
-var LINE_HALF = 6;
-var MARGIN = 2;
-/** Everything a zone name must stay off: machines with their shadows, chimneys and tabs; lanes; every line piece
-*  (housings and junction plates sit on piece tiles); drone and failed lines as drawn (flight paths). */
-function floorObstacles(tf, routes) {
-	const out = [];
-	for (const b of tf.boxes.values()) {
-		const x0 = b.x * 24, y0 = b.y * 24;
-		out.push({
-			x0,
-			y0: b.foot === "door" ? y0 : y0 - ABOVE,
-			x1: x0 + b.w * 24 + SHADOW,
-			y1: y0 + b.h * 24 + SHADOW
-		});
-	}
-	for (const l of tf.lanes) out.push({
-		x0: l.x0 * 24,
-		y0: l.y * 24,
-		x1: l.x1 * 24,
-		y1: (l.y + 3) * 24
-	});
-	for (const r of reservedRects(tf)) out.push({
-		x0: r.x * 24,
-		y0: r.y * 24,
-		x1: (r.x + r.w) * 24,
-		y1: (r.y + r.h) * 24
-	});
-	for (const r of routes) out.push(...routeRects(r));
-	return out;
-}
-/** A line as drawn: its piece tiles (only those on top with `top`: a tunnel's pieces are under the floor), or, with no
-*  pieces (a drone or failed line drawn point to point), its segments `LINE_HALF` wide. */
-function routeRects(r, top = false) {
-	const out = [];
-	for (const p of r.pieces) if (!top || !p.under) out.push({
-		x0: p.x * 24,
-		y0: p.y * 24,
-		x1: (p.x + 1) * 24,
-		y1: (p.y + 1) * 24
-	});
-	if (r.pieces.length) return out;
-	for (let i = 1; i < r.points.length; i++) {
-		const a = r.points[i - 1], b = r.points[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / LINE_HALF));
-		for (let k = 0; k <= n; k++) {
-			const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
-			out.push({
-				x0: x - LINE_HALF,
-				y0: y - LINE_HALF,
-				x1: x + LINE_HALF,
-				y1: y + LINE_HALF
-			});
-		}
-	}
-	return out;
-}
-var hit$1 = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
-/** Obstacles indexed by the tiles they touch: a query looks only at its own tiles. */
-var Clearance = class {
-	cols;
-	cells = /* @__PURE__ */ new Map();
-	constructor(rects = [], cols = 4096) {
-		this.cols = cols;
-		for (const r of rects) this.add(r);
-	}
-	each(r, f) {
-		for (let ty = Math.floor(r.y0 / 24); ty <= Math.floor((r.y1 - 1e-6) / 24); ty++) for (let tx = Math.floor(r.x0 / 24); tx <= Math.floor((r.x1 - 1e-6) / 24); tx++) if (f(ty * this.cols + tx)) return true;
-		return false;
-	}
-	add(r) {
-		this.each(r, (k) => {
-			const l = this.cells.get(k);
-			if (l) l.push(r);
-			else this.cells.set(k, [r]);
-		});
-	}
-	/** Does `r`, with a small margin, touch no obstacle? */
-	free(r) {
-		const q = {
-			x0: r.x0 - MARGIN,
-			y0: r.y0 - MARGIN,
-			x1: r.x1 + MARGIN,
-			y1: r.y1 + MARGIN
-		};
-		return !this.each(q, (k) => this.cells.get(k)?.some((o) => hit$1(q, o)));
-	}
-};
-var labelBox = (p, k) => ({
-	x0: p.ax,
-	y0: p.ay - p.h * k,
-	x1: p.ax + p.w * k,
-	y1: p.ay
-});
-/** The best spot for a zone's name: bottom-left anchors on every tile column of the zone's bottom three rows, each
-*  grown (up and right) as far as it stays inside the zone and clear of every obstacle; the largest wins, the lowest
-*  and leftmost on a tie. The winning box is added to `clear`, so the next zone's name keeps off it. A zone with no
-*  clear spot keeps the old corner at scale 1 (it hides itself when that is too small to read). */
-function planZoneLabel(z, clear) {
-	const { w, h } = zoneTextSize(z.name);
-	const inner = {
-		x0: z.x * 24 + 2,
-		y0: z.y * 24 + 2,
-		x1: (z.x + z.w) * 24 - 2,
-		y1: (z.y + z.h) * 24 - 2
-	};
-	const ok = (p, k) => {
-		const b = labelBox({
-			...p,
-			w,
-			h
-		}, k);
-		return b.x0 >= inner.x0 && b.x1 <= inner.x1 && b.y0 >= inner.y0 && b.y1 <= inner.y1 && clear.free(b);
-	};
-	let best;
-	for (let j = 0; j < z.h && (j < 3 || !best); j++) for (let tx = z.x; tx < z.x + z.w; tx++) {
-		const p = {
-			ax: tx * 24 + 6,
-			ay: (z.y + z.h) * 24 - 5 - j * 24,
-			w,
-			h,
-			maxK: 1,
-			clear: true
-		};
-		if (!ok(p, 1)) continue;
-		let lo = 1, hi = 4;
-		if (ok(p, hi)) lo = hi;
-		else for (let i = 0; i < 12; i++) {
-			const mid = (lo + hi) / 2;
-			if (ok(p, mid)) lo = mid;
-			else hi = mid;
-		}
-		p.maxK = Math.floor(lo * 100) / 100;
-		if (!best || p.maxK > best.maxK + 1e-9) best = p;
-	}
-	const plan = best ?? {
-		ax: z.x * 24 + 6,
-		ay: (z.y + z.h) * 24 - 5,
-		w,
-		h,
-		maxK: 1,
-		clear: false
-	};
-	clear.add(labelBox(plan, plan.maxK));
-	return plan;
-}
-var BADGE_FONT = 10.5;
-/** A `used by N` badge's size in world px at scale 1, estimated as `zoneTextSize` is (a bold character is at most
-*  0.62 em wide here, plus 4 px padding each side): the drawn badge is never larger, so its spot holds it. */
-var badgeSize = (n) => ({
-	w: Math.ceil(`used by ${n}`.length * BADGE_FONT * .62) + 8,
-	h: 14
-});
-var badgeBox = (p, k) => {
-	const w = p.w * k, h = p.h * k, x0 = p.ax + p.ox * w, y0 = p.ay + p.oy * h;
-	return {
-		x0,
-		y0,
-		x1: x0 + w,
-		y1: y0 + h
-	};
-};
-var SLIDE = 40;
-/** The best spot for a `w`×`h` badge beside machine `m` (world px): the one that grows furthest while clear. First the
-*  plain spots (right and left centred on the box, below and above from its left edge), right first on a tie, then
-*  below, left, above; then each side's sliding spots, nearest the plain one first: on the right and left an anchor at
-*  every 2 px from `SLIDE` above the box to `SLIDE` below it, the badge growing down or up from it; below and above, at
-*  every 2 px along the box (never past its ends, so no line runs between it and its box), growing right or left. A
-*  later spot wins only by growing further. The
-*  winning box (at its `maxK`) joins `clear`. With no clear spot even at scale 1, it stands below at scale 1. */
-function planBadge(m, w, h, clear) {
-	const gap = 3, cy = m.y + m.h / 2;
-	const R = m.x + m.w + SHADOW + gap, L = m.x - gap, B = m.y + m.h + SHADOW + gap, A = m.y - ABOVE - gap;
-	const at = (side, ax, ay, ox, oy) => ({
-		side,
-		ax,
-		ay,
-		ox,
-		oy,
-		w,
-		h,
-		maxK: 1,
-		clear: true
-	});
-	const plain = [
-		at("right", R, cy, 0, -.5),
-		at("below", m.x, B, 0, 0),
-		at("left", L, cy, -1, -.5),
-		at("above", m.x, A, 0, -1)
-	];
-	const slid = [];
-	for (let y = m.y - SLIDE; y <= m.y + m.h + SLIDE; y += 2) for (const oy of [0, -1]) for (const [side, ax, ox] of [[
-		"right",
-		R,
-		0
-	], [
-		"left",
-		L,
-		-1
-	]]) slid.push({
-		p: at(side, ax, y, ox, oy),
-		d: Math.abs(y + oy * h + h / 2 - cy)
-	});
-	for (let x = m.x; x <= m.x + m.w; x += 2) for (const ox of [0, -1]) for (const [side, ay, oy] of [[
-		"below",
-		B,
-		0
-	], [
-		"above",
-		A,
-		-1
-	]]) slid.push({
-		p: at(side, x, ay, ox, oy),
-		d: Math.abs(x + ox * w - m.x)
-	});
-	const order = {
-		right: 0,
-		below: 1,
-		left: 2,
-		above: 3
-	};
-	slid.sort((a, b) => a.d - b.d || order[a.p.side] - order[b.p.side]);
-	let best;
-	for (const p of [...plain, ...slid.map((s) => s.p)]) {
-		if (best?.maxK === 4) break;
-		if (!clear.free(badgeBox(p, 1))) continue;
-		let lo = 1, hi = 4;
-		if (clear.free(badgeBox(p, hi))) lo = hi;
-		else for (let i = 0; i < 12; i++) {
-			const mid = (lo + hi) / 2;
-			if (clear.free(badgeBox(p, mid))) lo = mid;
-			else hi = mid;
-		}
-		p.maxK = Math.floor(lo * 100) / 100;
-		if (!best || p.maxK > best.maxK + 1e-9) best = p;
-	}
-	const plan = best ?? {
-		...plain[1],
-		clear: false
-	};
-	clear.add(badgeBox(plan, plan.maxK));
-	return plan;
-}
-function placeBadges(items, clear, layerTiles, spots = /* @__PURE__ */ new Map()) {
-	if (items.some((i) => !spots.has(i.id))) for (const r of layerTiles) clear.add(r);
-	for (const i of items) if (!spots.has(i.id)) spots.set(i.id, planBadge(i.m, i.w, i.h, clear));
-	return spots;
-}
-/** Every layer's lines as drawn: the tiles of their top pieces, and drone or failed lines point to point. */
-function layerTileRects(layers) {
-	return Object.values(layers ?? {}).flatMap((l) => l.routes.flatMap((r) => routeRects(r, true)));
 }
 //#endregion
 //#region src/factory/flights.ts
@@ -4546,7 +4775,7 @@ function coveredKeys(paths, bundles) {
 	return new Set(bundles.filter((b) => keys.has(b.key) && b.relations.length > 0 && b.relations.every((r) => carried.has(r.id))).map((b) => b.key));
 }
 /** Small squares along a path: what a label must stay off (a diagonal path's bounding box would block far too much). */
-function pathRects(pts, half = DOT) {
+function pathRects$1(pts, half = DOT) {
 	const out = [];
 	for (let i = 1; i < pts.length; i++) {
 		const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(len / half));
@@ -4565,7 +4794,7 @@ function pathRects(pts, half = DOT) {
 /** What labels on this floor keep off: everything `floorObstacles` lists, without the drone routes the flight paths
 *  replace, plus the flight paths themselves. A floor with no hub gets exactly `floorObstacles(tf, routes)`. */
 function messagingObstacles(tf, routes, paths, covered) {
-	return [...floorObstacles(tf, covered.size ? routes.filter((r) => !covered.has(r.key)) : routes), ...paths.flatMap((p) => pathRects(p.points))];
+	return [...floorObstacles(tf, covered.size ? routes.filter((r) => !covered.has(r.key)) : routes), ...paths.flatMap((p) => pathRects$1(p.points))];
 }
 /** Where along a path a plate is tried: the middle first, then stepping out to either end (not onto the pad or hub). */
 var STEPS = [.5, ...Array.from({ length: 13 }, (_, i) => [.5 - (i + 1) * .03, .5 + (i + 1) * .03]).flat()];
@@ -5015,6 +5244,46 @@ function floorLayers(model, container) {
 	return out;
 }
 //#endregion
+//#region src/floor/lane.ts
+/** x positions where a vertical run crosses, or ends on, the lane band at `y` (± half its height). */
+function crossings(routes, y, half) {
+	const xs = /* @__PURE__ */ new Set();
+	for (const r of routes) for (let i = 1; i < r.points.length; i++) {
+		const a = r.points[i - 1], b = r.points[i];
+		if (a.x !== b.x) continue;
+		const lo = Math.min(a.y, b.y), hi = Math.max(a.y, b.y);
+		if (lo <= y + half && hi >= y - half) xs.add(a.x);
+	}
+	return [...xs].sort((p, q) => p - q);
+}
+/** The paths drawn point to point over a floor: drone lines no flight carries, and the flights. */
+function pointPaths(routes, flights, covered) {
+	return [...routes.filter((r) => r.kind === "drone" && !covered.has(r.key)).map((r) => r.points), ...flights.map((f) => f.points)];
+}
+var PATH_STEP = 8;
+/** x positions a lane's name keeps off (clear.ts `laneLabelSpot`): where a vertical run crosses or ends on the lane
+*  (`crossings`), and every PATH_STEP px along where a drone or flight path (`paths`, `pointPaths`) runs over it. */
+function laneCrossings(l, routes, paths) {
+	const y0 = l.y * 24, y1 = (l.y + 3) * 24;
+	const xs = new Set(crossings(routes, (y0 + y1) / 2, (y1 - y0) / 2));
+	for (const pts of paths) for (let i = 1; i < pts.length; i++) {
+		const a = pts[i - 1], b = pts[i];
+		const t0 = a.y === b.y ? a.y >= y0 && a.y <= y1 ? 0 : 1 : Math.max(0, Math.min((y0 - a.y) / (b.y - a.y), (y1 - a.y) / (b.y - a.y)));
+		const t1 = a.y === b.y ? a.y >= y0 && a.y <= y1 ? 1 : 0 : Math.min(1, Math.max((y0 - a.y) / (b.y - a.y), (y1 - a.y) / (b.y - a.y)));
+		if (t1 < t0) continue;
+		const xa = a.x + (b.x - a.x) * t0, xb = a.x + (b.x - a.x) * t1, lo = Math.min(xa, xb), hi = Math.max(xa, xb);
+		for (let x = lo; x < hi; x += PATH_STEP) xs.add(x);
+		xs.add(hi);
+	}
+	return [...xs].sort((p, q) => p - q);
+}
+/** Travel speed in px/s: belts and pipes keep a steady 60; a train crosses its rail (`length`) in at most TRAIN_SECS.
+*  A drone (event) passes its floor's longest flight as `length`, so every drone on a floor flies at one speed, a
+*  short hop takes less time than a long one, and the longest crosses in at most FLIGHT_SECS. */
+function moverSpeed(kind, length) {
+	return flies(kind) ? Math.max(60, length / 5) : kind === "train" ? Math.max(60, length / 3) : 60;
+}
+//#endregion
 //#region src/audit/text.ts
 /** The fitting functions the drawing uses; a test may pass others to prove the check sees a cut. */
 var FITS = {
@@ -5080,8 +5349,7 @@ var LINE_WORD = {
 /** The labels the plan places, as factory-draw.ts places them and in its order (each joins the floor's clear room, so
 *  the order decides the spots): the zone names, the messaging labels, the rail labels (placed only so the badges see
 *  the room they take: not checked here), then the `used by N` badges, beside their machines, clear of every layer's
-*  lines. Lane labels are not checked: the drawing sizes them from the measured text (ground.ts `paintLane`), so the
-*  plan has no spot for them, and an estimate could report a false overlap or miss a real one. */
+*  lines. Lane names are `laneLabelRects`: they take no clear room. */
 function labelRects(model, container, plan, bundles) {
 	const { tf, routes } = plan;
 	let msg = plan.msg;
@@ -5158,10 +5426,46 @@ function labelRects(model, container, plan, bundles) {
 	}
 	return out;
 }
+/** Each lane's name plate as the drawing places it (ground.ts `paintLane`, clear.ts `laneLabelPlan`, between the base's
+*  lines and the `paths` crossing the lane), at its estimated width: at scale 1 and at its largest. A store's lane
+*  shows its label, a busy item's lane the item's name as the floor list shows it. */
+function laneLabelRects(model, plan, paths) {
+	const { tf, routes } = plan;
+	const prefix = floorPrefix(model, [...tf.boxes.values()].filter((b) => b.kind !== "door").map((b) => b.id));
+	return tf.lanes.map((l) => {
+		const name = tf.boxes.has(l.id) && model.kindOf(l.id) !== "datastore" ? shownName(model, l.id, prefix) : l.label;
+		const p = laneLabelPlan(l, laneNameWidth(name), laneCrossings(l, routes, paths));
+		const box = (k) => ({
+			x0: p.x,
+			y0: p.y,
+			x1: p.x + p.w * k,
+			y1: p.y + p.h * k
+		});
+		return {
+			what: `lane '${name}' name`,
+			boxes: [box(1), box(p.maxK)]
+		};
+	});
+}
+/** A path drawn point to point (a drone line, a flight) as squares along each segment, `half` px either side. */
+var pathRects = (pts, half) => pts.slice(1).flatMap((b, i) => {
+	const a = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / half));
+	return Array.from({ length: n + 1 }, (_, k) => {
+		const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
+		return {
+			x0: x - half,
+			y0: y - half,
+			x1: x + half,
+			y1: y + half
+		};
+	});
+});
+var PATH_HALF = 2;
 /** Every label the plan places (`labelRects`) that overlaps a line tile on top or a machine box: in the base view
 *  against the base's lines, and in each layer view against that layer's lines (a layer shows over the base). A consumer
 *  tag placed inside its machine's free band is not over that machine. Flight paths are not tiles: a plate stands on its
-*  own flight by design. */
+*  own flight by design. A lane's name (`laneLabelRects`) is checked against the same line tiles and against the drone
+*  and flight paths too: it sits where tiles cross the lane, so a path or the lane's end is what it can run into. */
 function overLineViolations(model, container, plan, bundles) {
 	const { tf } = plan;
 	const tiles = (routes) => routes.flatMap((r) => r.pieces.filter((p) => !p.under).map((p) => ({
@@ -5184,6 +5488,26 @@ function overLineViolations(model, container, plan, bundles) {
 		}
 	}));
 	const out = [];
+	const flights = plan.msg?.flights ?? flightPaths(tf), covered = plan.msg?.covered ?? coveredKeys(flights, bundles);
+	const paths = [...plan.routes.filter((r) => r.kind === "drone" && !covered.has(r.key)), ...flights].map((q) => ({
+		key: q.key,
+		rects: pathRects(q.points, PATH_HALF)
+	}));
+	for (const l of laneLabelRects(model, plan, pointPaths(plan.routes, flights, covered))) {
+		const at = tileAt(l.boxes[0].x0, l.boxes[0].y0);
+		for (const [view, ts] of views) {
+			const t = ts.find((q) => l.boxes.some((r) => hit(r, q.rect)));
+			if (t) out.push({
+				detail: `${l.what} over a ${t.word}${view}`,
+				at
+			});
+		}
+		const q = paths.find((q) => q.rects.some((a) => l.boxes.some((r) => hit(r, a))));
+		if (q) out.push({
+			detail: `${l.what} over the path of ${q.key}`,
+			at
+		});
+	}
 	for (const l of labelRects(model, container, plan, bundles)) {
 		const at = tileAt(l.boxes[0].x0, l.boxes[0].y0);
 		const box = boxes.find((b) => b.id !== l.inside && l.boxes.some((r) => hit(r, b.rect)));
@@ -5218,12 +5542,6 @@ function narrowZoneViolations(plan) {
 		});
 	}
 	return out;
-}
-/** Travel speed in px/s: belts and pipes keep a steady 60; a train crosses its rail (`length`) in at most TRAIN_SECS.
-*  A drone (event) passes its floor's longest flight as `length`, so every drone on a floor flies at one speed, a
-*  short hop takes less time than a long one, and the longest crosses in at most FLIGHT_SECS. */
-function moverSpeed(kind, length) {
-	return flies(kind) ? Math.max(60, length / 5) : kind === "train" ? Math.max(60, length / 3) : 60;
 }
 //#endregion
 //#region src/floor/fitscale.ts
@@ -5389,6 +5707,9 @@ var ROW = {
 	"lines.under": "2",
 	"lines.mid-side": "13",
 	"lines.plate-wall": "30",
+	"lines.lane-drop": "—",
+	"lines.gap-stub": "—",
+	"lines.lane-gap": "—",
 	"text.cut": "5",
 	"text.over-line": "7, 8, 45",
 	"zone.narrow": "26",
@@ -5422,6 +5743,9 @@ function checks(model, c, plan, measured) {
 			detail: v.detail + view
 		})))]],
 		["lines.plate-wall", () => perRoute(plan, (r) => plateWallViolations(tf, r))],
+		["lines.lane-drop", () => perView(plan, (routes) => laneDropViolations(tf, routes))],
+		["lines.gap-stub", () => perView(plan, (routes) => gapStubViolations(tf, routes))],
+		["lines.lane-gap", () => perView(plan, (routes) => laneGapViolations(tf, routes))],
 		["text.cut", () => cutViolations(model, c, plan)],
 		["text.over-line", () => overLineViolations(model, c, plan, bundles)],
 		["zone.narrow", () => narrowZoneViolations(plan)],
@@ -5431,11 +5755,15 @@ function checks(model, c, plan, measured) {
 		["floor.wide", () => wideViolations(measured(), plan)]
 	];
 }
-/** Audits every floor of `map` within `budgetMs` (read off `now`): floors not reached go to `skipped`. Each floor gets
-*  one result per check (the first violation and how many more), or one `plan.crashed` when its plan throws; an empty
-*  floor is checked with no results. `measured` holds each planned floor's numbers by its code. */
-function auditMap(map, budgetMs = 45e3, now = Date.now) {
-	const start = now();
+/** What the audit may spend, in boxes: each floor costs its box count plus FLOOR_COST, for the work every floor takes
+*  whatever its size. Counted in work, not time, so the same map always checks the same floors on any machine (about
+*  30 s on the largest maps known). */
+var BUDGET = 2500;
+/** Audits the floors of `map`, in order, until they have spent `budget` (BUDGET): the floors after that go to
+*  `skipped`. Each floor gets one result per check (the first violation and how many more), or one `plan.crashed` when
+*  its plan throws; an empty floor is checked with no results. `measured` holds each planned floor's numbers by its
+*  code. */
+function auditMap(map, budget = BUDGET) {
 	const model = new Model(map);
 	const containers = map.layout.containers;
 	const size = (c) => Object.keys(containers[c].items ?? {}).length;
@@ -5447,12 +5775,14 @@ function auditMap(map, budgetMs = 45e3, now = Date.now) {
 		results: [],
 		measured: {}
 	};
+	let spent = 0;
 	for (const c of floors) {
-		if (now() - start > budgetMs) {
+		if (spent >= budget) {
 			out.skipped.push(c);
 			out.skippedCodes.push(model.codes.get(c) ?? c);
 			continue;
 		}
+		spent += size(c) + 3;
 		out.checked.push(c);
 		if (!size(c)) continue;
 		const code = model.codes.get(c) ?? c;
@@ -5507,10 +5837,11 @@ function auditMap(map, budgetMs = 45e3, now = Date.now) {
 }
 //#endregion
 //#region src/audit/cli.ts
-var path = process.argv[2];
+var args = process.argv.slice(2);
+var path = args.find((a) => !a.startsWith("--"));
 var map;
 try {
-	if (!path) throw new Error("usage: node audit.mjs <code-map.json>");
+	if (!path) throw new Error("usage: node audit.mjs <code-map.json> [--full]");
 	map = JSON.parse(readFileSync(path, "utf8"));
 } catch (e) {
 	process.stderr.write(`audit: cannot read the map: ${String(e instanceof Error ? e.message : e).split("\n")[0]}\n`);
@@ -5518,7 +5849,7 @@ try {
 }
 var report;
 try {
-	report = auditMap(map);
+	report = auditMap(map, args.includes("--full") ? Infinity : BUDGET);
 } catch (e) {
 	process.stderr.write(`audit: ${String(e instanceof Error ? e.message : e).split("\n")[0]}\n`);
 	process.exit(2);

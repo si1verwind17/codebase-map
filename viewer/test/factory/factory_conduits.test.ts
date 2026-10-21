@@ -67,14 +67,14 @@ describe("code conduits", () => {
   it("stays visible at Fit: on screen a dot is 1.5 px across and 4 px from the next; zoomed in it keeps its world size", () => {
     const m = demo(), { geo } = site(m), { w, h } = geo.bounds;
     const z = Math.max(0.12, Math.min(1.4, fitScale(w, h, 1440 - 232 - 312, 900, true)));   // the floor's canvas at 1440×900
-    // the demo F0 (2208×1704 px) at Fit is zoomed well out: world-size dots (1.5 px at a 3.5 px pitch) would show 0.57 px
-    // across at 1.34 px, so the floor sets in: dots of a 1.97 px world radius at a 10.49 px pitch
-    expect([w, h]).toEqual([2208, 1704]);
-    expect(z).toBeCloseTo(0.3814, 4);
+    // the demo F0 (2256×1728 px) at Fit is zoomed well out: world-size dots (1.5 px at a 3.5 px pitch) would show 0.56 px
+    // across at 1.31 px, so the floor sets in: dots of a 2.01 px world radius at a 10.71 px pitch
+    expect([w, h]).toEqual([2256, 1728]);
+    expect(z).toBeCloseTo(0.3733, 4);
     const c = codeConduits(m, SITE, geo.machines, true)[0];
     const fit = conduitDots(c.points, [], z);
-    expect(fit.r).toBeCloseTo(1.9662, 4);
-    expect(fit.pitch).toBeCloseTo(10.4863, 4);
+    expect(fit.r).toBeCloseTo(2.0089, 4);
+    expect(fit.pitch).toBeCloseTo(10.7143, 4);
     expect(2 * fit.r * z).toBeCloseTo(1.5, 9);
     expect(fit.pitch * z).toBeCloseTo(4, 9);
     const deep = conduitDots(c.points, [], 3);

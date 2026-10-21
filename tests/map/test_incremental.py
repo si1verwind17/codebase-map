@@ -4,6 +4,7 @@ import assemble as assemble_cli
 import diff as diff_cli
 import extract
 from helpers import OUT, scan
+from vizcode import SCANNER_VERSION
 from conftest import commit_all, git, with_stack, write_files
 from meaning_fixture import CALL, MEANING, POST, WRITE
 
@@ -16,23 +17,35 @@ def rescan_plan(repo):
     return stale, meaning
 
 
+def edit(repo, path, old, new, message="edit"):
+    """Replace `old` (once) in a committed file and commit."""
+    src = (repo / path).read_text()
+    assert src.count(old) == 1, old
+    write_files(repo, {path: src.replace(old, new)})
+    commit_all(repo, message)
+
+
+def touch_run(repo):
+    """Change the line of worker.main#run that POST cites."""
+    edit(repo, "worker/main.py", 'json={"job": job_id})', 'json={"job": job_id}, timeout=5)', "touch run")
+
+
 def test_map_commit_alone_changes_nothing(shop_repo, capsys):
     scan(shop_repo)
     stale, meaning = rescan_plan(shop_repo)
     assert stale["mode"] == "none"
-    # files under docs/viz-code/ are ignored; only the scanner's .gitattributes line remains
-    assert [c["path"] for c in stale["changed"]] == [".gitattributes"]
+    assert stale["changed"] == []   # everything the scan writes is under docs/viz-code/, which is ignored
 
 
 def test_edit_one_file_marks_only_its_facts_stale(shop_repo):
     scan(shop_repo)
     before = json.loads((shop_repo.joinpath(*OUT) / "code-map.json").read_text())
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch worker")
+    touch_run(shop_repo)
     stale, meaning = rescan_plan(shop_repo)
     assert stale["mode"] == "incremental"
     assert stale["stale_examples"] == []   # its signatures did not change
     assert [r["id"] for r in stale["stale_relations"]] == [POST]
+    assert stale["why"] == {POST: ["worker/main.py:13 changed"]}
     kept = {r["id"]: r for r in meaning["relations"]}
     assert set(kept) == {WRITE, CALL, POST}  # stale facts stay, so doing nothing never loses data
     assert kept[POST]["stale"] is True
@@ -43,8 +56,7 @@ def test_edit_one_file_marks_only_its_facts_stale(shop_repo):
 
 def test_assemble_refuses_unresolved_stale_facts(shop_repo, capsys):
     scan(shop_repo)
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch worker")
+    touch_run(shop_repo)
     rescan_plan(shop_repo)
     capsys.readouterr()
     assert assemble_cli.main([str(shop_repo)]) == 1
@@ -62,8 +74,10 @@ def test_removed_method_reports_orphans(shop_repo):
     # the file node held only top-level defs, so it disappears with helper
     assert stale["removed_nodes"] == ["shop::io.demo.shop.repo/OrderRepo.scala",
                                       "shop::io.demo.shop.repo/OrderRepo.scala#helper/1"]
-    assert [r["id"] for r in stale["stale_relations"]] == [WRITE]  # its evidence file changed
-    assert next(r for r in meaning["relations"] if r["id"] == WRITE)["stale"] is True
+    assert stale["stale_relations"] == []   # the removed lines were after the line WRITE cites
+    write = next(r for r in meaning["relations"] if r["id"] == WRITE)
+    assert "stale" not in write
+    assert write["evidence"] == [{"file": "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala", "line": 11}]
     orphan = [p for p in meaning["problems"] if p.get("source") == "diff"]
     assert orphan and "shop::io.demo.shop.repo/OrderRepo.scala#helper/1" in orphan[0]["removed"]
 
@@ -92,8 +106,7 @@ def test_rewritten_history_forces_full(shop_repo):
 
 def test_incremental_round_trip_is_valid(shop_repo):
     scan(shop_repo)
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch worker")
+    touch_run(shop_repo)
     before = json.loads((shop_repo.joinpath(*OUT) / "code-map.json").read_text())
     stale, meaning = rescan_plan(shop_repo)
     # the agent re-resolves each stale fact as still true: it clears the flag
@@ -155,11 +168,11 @@ def test_topic_with_evidence_in_changed_file_goes_stale(shop_repo):
     (shop_repo.joinpath(*OUT) / "meaning.json").write_text(json.dumps(m))
     assert assemble_cli.main([str(shop_repo)]) == 0
     commit_all(shop_repo, "add code map")
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch")
+    edit(shop_repo, "worker/main.py", "import os\nimport requests\n", "import os, sys\nimport requests as rq\n")
     stale, meaning = rescan_plan(shop_repo)
     assert stale["mode"] == "incremental"
     assert stale["stale_nodes"] == ["topic:kafka:orders"]
+    assert stale["why"]["topic:kafka:orders"] == ["worker/main.py:1 changed"]
     kept = {n["id"]: n for n in meaning["nodes"]}
     assert kept["topic:kafka:orders"]["stale"] is True and kept["topic:kafka:orders"]["delivery"] == "fan-out"
     assert not kept["svc:shop"].get("stale")
@@ -194,7 +207,7 @@ def test_full_rescan_keeps_the_previous_meaning(shop_repo):
     cmap = _bump_scanner(shop_repo)
     stale, meaning = rescan_plan(shop_repo)
     out = shop_repo.joinpath(*OUT)
-    assert stale["mode"] == "full" and "version" in stale["reason"]
+    assert stale["mode"] == "full" and stale["reason"] == f"scanner version changed: 0.0.0 → {SCANNER_VERSION}"
     assert stale["previous_meaning"] == "meaning.previous.json"
     assert meaning is None and not (out / "meaning.json").exists()
     prev = json.loads((out / "meaning.previous.json").read_text())
@@ -212,16 +225,19 @@ def test_full_rescan_keeps_the_previous_meaning(shop_repo):
 def test_full_rescan_flags_facts_on_missing_ids_and_changed_files(shop_repo):
     scan(shop_repo)
     _bump_scanner(shop_repo, ("pylib::pylib.client#call/0", "pylib::pylib.client#call_old/0"))
-    src = (shop_repo / "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala").read_text()
-    write_files(shop_repo, {"shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala": src + "\n// touched\n"})
-    commit_all(shop_repo, "touch the repo")
+    edit(shop_repo, "shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala", "(id, total)", "(id, total_cents)")
     stale, _ = rescan_plan(shop_repo)
     out = shop_repo.joinpath(*OUT)
     prev = json.loads((out / "meaning.previous.json").read_text())
     flagged = {r["id"] for r in prev["relations"] if r.get("stale")}
-    assert flagged == {CALL, WRITE}           # via missing from the new structure; evidence file changed
+    assert flagged == {CALL, WRITE}           # via missing from the new structure; evidence line changed
     assert next(r for r in prev["relations"] if r["id"] == POST).get("stale") is None
-    assert stale["mode"] == "full"
+    assert stale["mode"] == "full" and "version" in stale["reason"]
+    # a full rescan lists what it flagged, and why, like an incremental one
+    assert {r["id"] for r in stale["stale_relations"]} == {CALL, WRITE}
+    assert stale["why"] == {CALL: ["pylib::pylib.client#call_old/0 is not in the new structure"],
+                            WRITE: ["shop/src/main/scala/io/demo/shop/repo/OrderRepo.scala:11 is in "
+                                    "shop::io.demo.shop.repo.PgOrderRepo#save/2, which changed"]}
     # a later incremental run drops the seed
     scan_again = json.loads((out / "meaning.previous.json").read_text())
     for k in ("nodes", "relations"):
@@ -234,8 +250,7 @@ def test_full_rescan_flags_facts_on_missing_ids_and_changed_files(shop_repo):
     (out / "meaning.previous.json").write_text("{}")   # as if assemble never ran to exit 0
     assert assemble_cli.main([str(shop_repo)]) == 0
     commit_all(shop_repo, "map at the new scanner")
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch worker")
+    touch_run(shop_repo)
     (out / "meaning.previous.json").write_text("{}")
     stale, _ = rescan_plan(shop_repo)
     assert stale["mode"] == "incremental" and "previous_meaning" not in stale
@@ -253,6 +268,7 @@ def test_a_different_scanned_folder_forces_full(shop_repo):
     assert stale["mode"] == "full" and "scanned folder" in stale["reason"]
     prev = json.loads((shop_repo.joinpath(*OUT) / "meaning.previous.json").read_text())
     assert all(r.get("stale") for r in prev["relations"])    # what changed is unknown: every fact is suspect
+    assert set(stale["why"][POST]) == {"what changed since the map's commit is unknown"}
 
 
 def _none_summary(repo, capsys):
@@ -291,8 +307,7 @@ def test_none_with_a_broken_viewer_reports_and_exits_0(shop_repo, tmp_path, monk
 
 def test_incremental_does_not_refresh(shop_repo, capsys):
     scan(shop_repo)
-    write_files(shop_repo, {"worker/main.py": (shop_repo / "worker/main.py").read_text() + "\n# touched\n"})
-    commit_all(shop_repo, "touch worker")
+    touch_run(shop_repo)
     extract.main([str(shop_repo)])
     capsys.readouterr()
     assert diff_cli.main([str(shop_repo)]) == 0
@@ -330,6 +345,15 @@ def test_changed_stack_file_forces_full(shop_repo):
 def test_unchanged_stack_file_is_not_full(shop_repo):
     with_stack(shop_repo, STACK_A)
     scan(shop_repo)
+    stale, _ = rescan_plan(shop_repo)
+    assert stale["mode"] == "none"
+
+
+def test_comment_and_whitespace_edit_of_stack_file_is_not_a_stack_change(shop_repo):
+    with_stack(shop_repo, STACK_A)
+    scan(shop_repo)
+    with_stack(shop_repo, STACK_A.replace("python:\n  ignore: [alpha]\n",
+                                          "# alpha is a type library\npython:\n  ignore:   [ alpha ]   # types\n\n"))
     stale, _ = rescan_plan(shop_repo)
     assert stale["mode"] == "none"
 
@@ -375,3 +399,104 @@ def test_python_scala_map_with_unchanged_languages_is_unchanged(shop_repo):
     assert _map(shop_repo)["meta"]["languages"] == ["python", "scala"]
     stale, _ = rescan_plan(shop_repo)
     assert stale["mode"] == "none" and stale["reason"] is None
+
+
+ORDER_API = "shop/src/main/scala/io/demo/shop/api/OrderApi.scala"
+BUILD = ('lazy val common = (project in file("common"))\n'
+         'lazy val shop = (project in file("shop")).dependsOn(common)\n'
+         '  .settings(libraryDependencies += "org.example" %% "json" % "1.4.0")\n')
+COMPOSE = ("services:\n  shop: {build: .}\n  worker: {build: ., command: python -m worker.main}\n"
+           "  db: {image: postgres:15}\n")
+DOCKERFILE = 'FROM python:3.12-slim\nRUN pip install requests==2.31.0\nCMD ["python", "-m", "worker.main"]\n'
+
+
+def deployed_shop(repo):
+    write_files(repo, {"build.sbt": BUILD, "docker-compose.yml": COMPOSE, "Dockerfile": DOCKERFILE})
+    commit_all(repo, "deploy files")
+    scan(repo)
+
+
+def test_dependency_bumps_and_build_edits_stay_incremental(shop_repo):
+    """Version bumps and edits that leave the deployables, their entry points and the modules as they were."""
+    deployed_shop(shop_repo)
+    write_files(shop_repo, {
+        "build.sbt": BUILD.replace("1.4.0", "1.5.2"),
+        "docker-compose.yml": "# local stack\n" + COMPOSE.replace("postgres:15", "postgres:16"),
+        "Dockerfile": DOCKERFILE.replace("2.31.0", "2.32.3").replace("CMD", "ENV PYTHONUNBUFFERED=1\nCMD")})
+    commit_all(shop_repo, "bump dependencies")
+    stale, meaning = rescan_plan(shop_repo)
+    assert stale["mode"] == "incremental" and stale["reason"] is None
+    assert stale["stale_relations"] == [] and stale["stale_nodes"] == [] and stale["why"] == {}
+    # the services' compose lines moved down one: their evidence follows, so assemble brings the map up to date
+    kept = {n["id"]: n for n in meaning["nodes"]}
+    assert kept["svc:shop"]["evidence"] == [{"file": "docker-compose.yml", "line": 3}]
+    assert kept["svc:worker"]["evidence"] == [{"file": "docker-compose.yml", "line": 4}]
+    assert stale["moved_evidence"] == 2
+    for n in meaning["nodes"]:
+        assert not n.get("stale")
+    (shop_repo.joinpath(*OUT) / "meaning.json").write_text(json.dumps(meaning))
+    assert assemble_cli.main([str(shop_repo)]) == 0
+
+
+def test_deployable_changes_force_full_and_say_which(shop_repo):
+    deployed_shop(shop_repo)
+    write_files(shop_repo, {"docker-compose.yml": COMPOSE + "  billing: {build: ./billing}\n"})
+    commit_all(shop_repo, "a billing service")
+    stale, meaning = rescan_plan(shop_repo)
+    assert stale["mode"] == "full" and meaning is None
+    assert stale["reason"] == "deployable definitions changed: docker-compose.yml: service billing added"
+
+
+def test_changed_entry_points_force_full(shop_repo):
+    deployed_shop(shop_repo)
+    write_files(shop_repo, {"docker-compose.yml": COMPOSE.replace("command: python -m worker.main",
+                                                                  "command: python -m worker.batch"),
+                            "Dockerfile": DOCKERFILE.replace('"worker.main"', '"worker.batch"')})
+    commit_all(shop_repo, "run the batch")
+    stale, _ = rescan_plan(shop_repo)
+    assert stale["mode"] == "full"
+    assert stale["reason"] == ("deployable definitions changed: Dockerfile: ENTRYPOINT/CMD changed; "
+                               "docker-compose.yml: service worker command changed")
+
+
+def test_a_module_added_forces_full(shop_repo):
+    deployed_shop(shop_repo)
+    write_files(shop_repo, {"build.sbt": BUILD + 'lazy val billing = (project in file("billing"))\n',
+                            "billing/src/main/scala/io/demo/billing/Bill.scala":
+                                "package io.demo.billing\n\nobject Bill {\n  def total(): Int = 0\n}\n"})
+    commit_all(shop_repo, "billing module")
+    stale, _ = rescan_plan(shop_repo)
+    assert stale["mode"] == "full" and stale["reason"] == "modules changed: added mod:billing"
+
+
+def test_one_changed_line_flags_only_the_facts_that_depend_on_it(shop_repo):
+    """getEndpoint's route changes: CALL cites that line, POST cites another method of the same file."""
+    scan(shop_repo)
+    edit(shop_repo, ORDER_API, 'path[String]("id")', 'path[String]("orderId")')
+    stale, meaning = rescan_plan(shop_repo)
+    assert stale["mode"] == "incremental"
+    assert [r["id"] for r in stale["stale_relations"]] == [CALL]
+    assert stale["why"] == {CALL: [f"{ORDER_API}:10 changed", "route GET /v1/orders/{id} of "
+                                   "shop::io.demo.shop.api.OrderApi$#getEndpoint/0 changed"]}
+    kept = {r["id"]: r for r in meaning["relations"]}
+    assert not kept[POST].get("stale") and not kept[WRITE].get("stale")
+
+
+def test_lines_added_above_a_fact_move_its_evidence_not_flag_it(shop_repo):
+    scan(shop_repo)
+    edit(shop_repo, "worker/main.py", "import os\n", "import os\nimport sys\n")
+    stale, meaning = rescan_plan(shop_repo)
+    assert stale["mode"] == "incremental" and stale["stale_relations"] == []
+    post = next(r for r in meaning["relations"] if r["id"] == POST)
+    assert post["evidence"][0] == {"file": "worker/main.py", "line": 14}
+
+
+def test_a_renamed_file_carries_its_evidence(shop_repo):
+    scan(shop_repo)
+    git(shop_repo, "mv", "pylib/client.py", "pylib/http_client.py")
+    commit_all(shop_repo, "rename client")
+    stale, meaning = rescan_plan(shop_repo)
+    call = next(r for r in meaning["relations"] if r["id"] == CALL)
+    # its via moved with the file, so the fact is re-checked; the evidence already names the new path
+    assert call["stale"] is True and call["evidence"][0] == {"file": "pylib/http_client.py", "line": 4}
+    assert stale["why"][CALL] == ["pylib::pylib.client#call/0 is not in the new structure"]

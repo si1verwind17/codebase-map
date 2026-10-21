@@ -2,7 +2,7 @@
 # are NOT started here: they are reached through the env keys below
 # (DB_HOST, REDIS_URL, SHARED_CACHE_URL, KAFKA_BROKERS, ...).
 #
-# The Airflow project (jobs/) and the Flyte projects (forecast/, features/)
+# The three Airflow projects (jobs/, forecast/, features/)
 # are deployed by registration, see deploy/register.sh.
 
 x-db: &db

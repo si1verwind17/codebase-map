@@ -107,6 +107,15 @@ describe("the trace graph, fold rule edge cases", () => {
     expect(g.next(bm, 1)).toEqual([]);
   });
 
+  it("an implementation below a class that does not declare the method unfolds from the nearest one that does", () => {
+    const b = new MapBuilder();
+    const s = b.owner("pricing");
+    const a = b.cls(s, "A"), base = b.cls(s, "Base", undefined, [a]);
+    b.cls(s, "Live", undefined, [base]);
+    const am = b.method(s, "A", "quote"), lm = b.method(s, "Live", "quote");
+    expect(new TraceGraph(b.model()).next(am, 1).map((e) => [e.kind, e.to])).toEqual([["implements", lm]]);
+  });
+
   it("two same-name, same-arity trait methods are ambiguous: no unfolding edge", () => {
     const b = new MapBuilder();
     const s = b.owner("pricing");

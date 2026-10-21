@@ -31,19 +31,19 @@ describe("batch model", () => {
 
   it("gives feature-store one self job, signed with its time", () => {
     const y = yard(site, "svc:feature-store");
-    expect(y.selfJobs.map((j) => j.job)).toEqual(["features_nightly"]);
+    expect(y.selfJobs.map((j) => j.job)).toEqual(["zone_features"]);
     expect(y.platforms).toEqual([]);
     expect(y.sign).toBe("daily 01:00");
   });
 
-  it("gives demand-forecast a platform to feature-store for the reference task, beside its own job", () => {
+  it("gives demand-forecast a platform to feature-store for the DAG it triggers, beside its own job", () => {
     const y = yard(site, "svc:demand-forecast");
-    expect(y.selfJobs.map((j) => j.job)).toEqual(["forecast_nightly"]);
+    expect(y.selfJobs.map((j) => j.job)).toEqual(["demand_forecast"]);
     expect(y.platforms).toHaveLength(1);
     const p = y.platforms[0];
     expect(p.dest).toBe("svc:feature-store");
     expect(p.jobs.map((j) => [j.job, j.schedule, j.target])).toEqual([
-      ["reference_task features/compute_zone_features", null, "features::features.workflows#compute_zone_features/1"],
+      ["refresh_zone_features", null, "features::features.zone_features#zone_features/0"],
     ]);
     expect(p.runsPerDay).toBeNull();
     expect(y.sign).toBe("2 jobs · 1×/day + on demand");
@@ -85,7 +85,7 @@ describe("batch model", () => {
     expect(y.platforms.map((p) => p.dest)).toEqual(["door:svc:feature-store", "forecast::forecast/"]);
     const door = y.platforms[0];
     expect(tf("svc:demand-forecast").boxes.get(door.dest)!.kind).toBe("door");
-    expect(door.jobs.map((j) => j.job)).toEqual(["reference_task features/compute_zone_features"]);
+    expect(door.jobs.map((j) => j.job)).toEqual(["refresh_zone_features"]);
     expect(y.sign).toBe("2 jobs · 1×/day + on demand");
   });
 

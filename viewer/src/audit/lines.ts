@@ -1,8 +1,9 @@
 // The line checks of the map audit: plug-in ends, the trunk rules, underground runs, mid-side ends, junction plates
-// off the walls, failed routes. Each is pure and returns its violations ([] when the rule holds). No Pixi here.
+// off the walls, drops onto lanes and the gaps between lanes, failed routes. Each is pure and returns its violations ([] when the rule holds). No Pixi here.
 import { reservedRects } from "../factory/pads";
-import type { TileFloor } from "../factory/layout";
-import type { TileRoute } from "../factory/router";
+import { laneGaps, type TileFloor, type TileLane } from "../factory/layout";
+import { reversed, type TileRoute } from "../factory/router";
+import { alongRow, crowdedLaneGaps } from "../factory/plan";
 import { LANE_H, OPP, STEP, inside, joinEdge, type Dir, type Piece, type Rect } from "../factory/tiles";
 import { stationId, yardId } from "../factory/yards";
 import { webhookDockId } from "../factory/pads";
@@ -241,6 +242,71 @@ export function plateWallViolations(tf: TileFloor, r: TileRoute): Violation[] {
     for (const b of tf.boxes.values()) for (const d of ["n", "e", "s", "w"] as Dir[])
       if (inside(b, p.x + STEP[d][0], p.y + STEP[d][1])) out.push({ detail: `${r.key} junction ${p.x},${p.y} touches ${b.id} (${d})`, at: { x: p.x, y: p.y } });
   return out;
+}
+
+const laneAt = (tf: TileFloor, x: number, y: number): TileLane | undefined =>
+  tf.lanes.find((l) => x >= l.x0 && x < l.x1 && y >= l.y && y < l.y + LANE_H);
+
+/** A line onto a lane that turns sideways next to a lane (in a gap between lanes, or on the row along a lane's edge)
+ *  while heading for its lane, over it, where going straight on to the lane is free: no machine, dock or line on top in
+ *  the tiles between (a lane it would pass under is no obstacle). The owner's 2026-10-21 comment: a tap left its
+ *  splitter sideways and hooked before it dropped, where a straight drop would do. Turns farther up, among the machines,
+ *  are the trunks' (lines into one lane merge). */
+export function laneDropViolations(tf: TileFloor, routes: TileRoute[]): Violation[] {
+  const held = new Set<string>();
+  for (const r of routes) for (const p of r.pieces) if (!p.under) held.add(`${p.x},${p.y}`);
+  const walls = [...tf.boxes.values(), ...reservedRects(tf)];
+  const free = (x: number, y: number) => !held.has(`${x},${y}`) && !walls.some((w) => inside(w, x, y));
+  const gaps = laneGaps(tf).map((g) => ({ x: g.x0, y: g.y0, w: g.x1 - g.x0, h: g.y1 - g.y0 }));
+  const out: Violation[] = [];
+  for (const r of routes) {
+    if (!r.pieces.length) continue;
+    const f = r.pieces[0], l = r.pieces[r.pieces.length - 1];
+    const into = laneAt(tf, l.x + STEP[l.out][0], l.y + STEP[l.out][1]);
+    const lane = into ?? laneAt(tf, f.x - STEP[f.in][0], f.y - STEP[f.in][1]);
+    if (!lane) continue;
+    const walk = into ? r.pieces : reversed(r.pieces);   // towards the lane
+    const d = walk[walk.length - 1].out;
+    if (d !== "n" && d !== "s") continue;
+    const dy = STEP[d][1];
+    for (const p of walk) {
+      if (p.under || p.in !== d || p.out === d || p.x < lane.x0 || p.x >= lane.x1) continue;
+      if (!laneAt(tf, p.x, p.y - 1) && !laneAt(tf, p.x, p.y + 1) && !gaps.some((g) => inside(g, p.x, p.y))) continue;
+      let y = p.y + dy, ok = true;
+      for (; y >= 0 && y < tf.rows && laneAt(tf, p.x, y) !== lane && ok; y += dy) ok = !!laneAt(tf, p.x, y) || free(p.x, y);
+      if (ok && laneAt(tf, p.x, y) === lane) out.push({ detail: `${r.key} turns ${p.out} at ${p.x},${p.y} on its way to lane ${lane.id}, where it could go straight on`, at: { x: p.x, y: p.y } });
+    }
+  }
+  return out;
+}
+
+/** A line along a lane gap that another line passes under in the same underground run as a lane: that line comes up
+ *  only on the line's other side, past the lane, so its stub ends right on the line, as if the two touched. The owner's
+ *  2026-10-21 comment: a crossing between lanes must read as passing under. */
+export function gapStubViolations(tf: TileFloor, routes: TileRoute[]): Violation[] {
+  const below = new Map<string, { r: TileRoute; i: number }[]>();
+  for (const r of routes) r.pieces.forEach((p, i) => { if (p.under) { const k = `${p.x},${p.y}`; (below.get(k) ?? below.set(k, []).get(k)!).push({ r, i }); } });
+  const out: Violation[] = [];
+  for (const g of laneGaps(tf)) for (const r of routes) for (const p of r.pieces) {
+    if (p.under || !alongRow(p) || p.x < g.x0 || p.x >= g.x1 || p.y < g.y0 || p.y >= g.y1) continue;
+    for (const { r: o, i } of below.get(`${p.x},${p.y}`) ?? []) {
+      if (o === r) continue;
+      let a = i, b = i;
+      while (o.pieces[a - 1]?.under) a--;
+      while (o.pieces[b + 1]?.under) b++;
+      const lane = o.pieces.slice(a, b + 1).map((q) => laneAt(tf, q.x, q.y)).find((x) => x);
+      if (lane) out.push({ detail: `${o.key} passes under ${r.key} at ${p.x},${p.y} and under lane ${lane.id} in one run: its stub ends on the line`, at: { x: p.x, y: p.y } });
+    }
+  }
+  return out;
+}
+
+/** Lane gaps whose lines run along more rows than the gap has rows next to no lane (plan.ts `crowdedLaneGaps`): a line
+ *  runs among the lanes' stubs and tap ends, and the gap is full. The owner's 2026-10-21 comment: lanes too close where
+ *  lines crowd the gap (the layout gives such a gap one more row). */
+export function laneGapViolations(tf: TileFloor, routes: TileRoute[]): Violation[] {
+  return crowdedLaneGaps(tf, routes).map(({ gap, key, at }) => ({
+    detail: `the gap between lanes ${tf.lanes[gap.above].id} and ${tf.lanes[gap.below].id} (${gap.y1 - gap.y0} rows) is full: ${key} runs along it next to a lane`, at }));
 }
 
 /** Failed routes: any on a floor of fewer than 100 routes, more than 1% of them on a bigger one. */

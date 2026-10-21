@@ -13,6 +13,8 @@ FILES: list[tuple[str, str, str, bool]] = [
      "the agent; you may edit", True),
     ("map-notes.md", "your standing notes on the map", "you", True),
     ("README.md", "this file", "`assemble.py`", True),
+    (".gitignore", "keeps the files not committed out of git", "`assemble.py`; you may add lines", True),
+    (".gitattributes", "marks `code-map.json` generated, so diffs fold it", "`assemble.py`; you may add lines", True),
     ("index.html", "the map viewer page", "`assemble.py`, `view.py`", False),
     ("audit.md", "drawing and content checks, findings", "`assemble.py`, `audit.py`", False),
     ("structure.json", "the scanner's facts, and the digest the agent reads", "`extract.py`", False),
@@ -27,7 +29,8 @@ FILES: list[tuple[str, str, str, bool]] = [
 ]
 
 # several files share one table row
-_ROWS = [["code-map.json"], ["stack.yaml"], ["map-notes.md"], ["README.md"], ["index.html"],
+_ROWS = [["code-map.json"], ["stack.yaml"], ["map-notes.md"], ["README.md"], [".gitignore"], [".gitattributes"],
+         ["index.html"],
          ["audit.md"], ["structure.json", "summary.md"], ["meaning.json", "meaning.previous.json", "stale.json"],
          ["export-comment.md"], ["code-map.invalid.json"], ["feedback.md"]]
 

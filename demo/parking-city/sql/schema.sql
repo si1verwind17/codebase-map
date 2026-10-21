@@ -83,7 +83,7 @@ CREATE TABLE zone_utilisation (
     PRIMARY KEY (day, zone_id)
 );
 
--- owner: demand-forecast (Flyte)
+-- owner: demand-forecast (Airflow)
 CREATE TABLE demand_forecast (
     zone_id      TEXT             NOT NULL,
     hour_of_day  INT              NOT NULL,

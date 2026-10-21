@@ -115,9 +115,10 @@ def group_children(container: str, children: list[str], by_id: dict[str, dict],
     if sticky is not None:   # the last map's range groups keep their ids and members; loose items stay loose
         grouped = {m for g in sticky for m in g["members"]}
         return [c for c in rest if c not in grouped] + [g["id"] for g in groups + sticky], groups + sticky
-    if len(rest) + len(groups) > limit:
+    if len(rest) + len(groups) > limit and len(rest) > max(1, limit - len(groups)):
         # group only the overflow, in ranges of at least RANGE_MIN: a floor just over the limit keeps most
-        # items in view instead of hiding all of them in pairs
+        # items in view instead of hiding all of them in pairs; a lone item beside a floor that twins or groups
+        # already fill stays loose
         n, free = len(rest), max(1, limit - len(groups))
         size = max(RANGE_MIN, -(-n // free))
         count = min(-(-(n - free) // (size - 1)), -(-n // size))

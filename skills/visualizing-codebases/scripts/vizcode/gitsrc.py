@@ -1,6 +1,7 @@
 """Read committed code only: the stamped commit and an exported copy of its tree."""
 from __future__ import annotations
 
+import re
 import subprocess
 import tarfile
 from pathlib import Path
@@ -90,4 +91,34 @@ def changed_files(repo: Path, old: str, new: str) -> list[dict]:
             out.append({"status": "R", "old_path": parts[1], "path": parts[2]})
         else:
             out.append({"status": status, "path": parts[1]})
+    return out
+
+
+def show(repo: Path, commit: str, path: str) -> str | None:
+    """A file's text at a commit (path relative to repo), or None when the commit has no such file."""
+    r = subprocess.run(["git", "-C", str(repo), "show", f"{commit}:./{path}"], capture_output=True)
+    return r.stdout.decode("utf-8", errors="replace") if r.returncode == 0 else None
+
+
+HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+def changed_lines(repo: Path, old: str, new: str) -> dict[str, list[tuple[int, int, int, int]]]:
+    """The hunks of each file changed between two commits with a line diff, by its old path (relative to repo):
+    (old start, old count, new start, new count), no context lines. A file with no old side (added) or no line
+    diff (binary, a pure rename) is absent."""
+    out: dict[str, list[tuple[int, int, int, int]]] = {}
+    cur, header = None, False
+    text = _git(repo, "-c", "core.quotePath=false", "diff", "--relative", "-M", "-U0", "--no-color", "--no-ext-diff",
+                "--src-prefix=a/", "--dst-prefix=b/", old, new)
+    for line in text.splitlines():
+        if line.startswith("diff --git "):
+            cur, header = None, True
+        elif header and line.startswith("--- "):
+            cur = line[6:] if line.startswith("--- a/") else None
+        elif m := HUNK.match(line):
+            header = False
+            if cur is not None:
+                a, b, c, d = m.groups()
+                out.setdefault(cur, []).append((int(a), 1 if b is None else int(b), int(c), 1 if d is None else int(d)))
     return out
