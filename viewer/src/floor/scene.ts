@@ -13,7 +13,7 @@ import { C, F } from "./palette";
 import { toGeometry } from "../factory/layout";
 import { planJob } from "../factory/plan-job";
 import { flightKeepOff } from "../factory/flights";
-import { createRunner, idleScheduler, nextFloors, type Runner, type Scheduler } from "./precompute";
+import { createRunner, idleScheduler, nextFloors, type Deadline, type Runner, type Scheduler } from "./precompute";
 import { mainPlanner, type Planner } from "./planner";
 import type { RailLine, TrainPath } from "../factory/rail-place";
 import { createState, type SceneEvents, type SceneState, type Target } from "./state";
@@ -43,8 +43,11 @@ export class FloorScene {
   private unpause = () => {};   // undoes the hidden-tab pause (init)
   /** The floor `ready` last waited for a plan for: its `show` reports no plan hit. */
   private waited: string | null = null;
+  /** The floors whose bundles and door landings the page's model holds already (`warm`), for `warmedFor`. */
+  private warmed = new Set<string>();
+  private warmedFor: Model | null = null;
 
-  constructor(events: SceneEvents, schedule: Scheduler = idleScheduler, private readonly planners: (m: Model) => Planner = mainPlanner) {
+  constructor(events: SceneEvents, private readonly schedule: Scheduler = idleScheduler, private readonly planners: (m: Model) => Planner = mainPlanner) {
     this.s = createState(events);
     this.precompute = createRunner({
       schedule,
@@ -55,12 +58,25 @@ export class FloorScene {
         if (!model) return;
         return this.ask(model, c, false).then(() => this.showPlans(), () => this.showPlans());
       },
+      warm: (c) => !!this.s.model && this.warm(this.s.model, c),
       onSettled: () => this.showPlans(),
     });
   }
 
+  /** Works out floor `c`'s bundles and its doors' landings on the page's model, as `show`, its first draw and the
+   *  inspector need them: the worker's model caches its own and cannot share them, so entering a floor would pay for
+   *  them in the press task. True when there was work to do. */
+  private warm(model: Model, c: string): boolean {
+    if (this.warmedFor !== model) { this.warmed.clear(); this.warmedFor = model; }
+    if (this.warmed.has(c) || !model.floor(c)) return false;
+    this.warmed.add(c);
+    const b = model.bundles(c);
+    for (const d of b.doors) model.doorLanding(c, d.anchor);
+    return true;
+  }
+
   get app() { return this.s.app; }
-  /** One path per rail on this floor, platform to buffer stop (Task 4's trains run them). */
+  /** One path per rail on this floor, platform to buffer stop (the trains run them). */
   get trainPaths(): TrainPath[] { return this.s.trainPaths; }
   /** Screen pixels kept clear at the bottom (room for a bottom panel), so focus centres above it. */
   get bottomInset() { return this.s.bottomInset; }
@@ -88,6 +104,7 @@ export class FloorScene {
   show(model: Model, container: string, fade = false) {
     this.s.model = model;
     this.s.container = container;
+    this.warm(model, container);   // a no-op when idle time did it; marks it done when it did not (the draw needs it all)
     const b = model.bundles(container);
     this.s.doors = new Map(b.doors.map((d) => [d.id, d]));
     this.s.bundles = b.bundles;
@@ -118,7 +135,21 @@ export class FloorScene {
     this.app.canvas.dataset.camera = "moving";
     this.waited = container;
     this.s.planWaits++;   // a camera ease ending meanwhile leaves the flag at "moving" (camera.ts): the show that follows rests it
-    try { await this.ask(model, container, true); } catch { /* show plans it */ } finally { this.s.planWaits--; }
+    const unwarm = this.warmWhileIdle(model, container);   // the main thread idles while the worker plans
+    try { await this.ask(model, container, true); } catch { /* show plans it */ } finally { this.s.planWaits--; unwarm(); }
+  }
+
+  /** `warm` floor `c` in an idle slice that has time left (the scene's scheduler), trying again until it runs; returns
+   *  a way to cancel it. */
+  private warmWhileIdle(model: Model, c: string): () => void {
+    let cancel = () => {};
+    const slice = (d?: Deadline) => {
+      if (d && !(d.timeRemaining() > 0)) { cancel = this.schedule(slice); return; }
+      cancel = () => {};
+      this.warm(model, c);
+    };
+    cancel = this.schedule(slice);
+    return () => cancel();
   }
 
   /** Floor `container`'s plan from the planner, cached when it is still for the scene's model. */

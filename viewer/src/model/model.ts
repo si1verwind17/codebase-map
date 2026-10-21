@@ -43,6 +43,10 @@ export interface Door {
 }
 
 /** Relation kinds in the order a line is drawn by: a bundle takes the first kind it carries. */
+/** `localeCompare(…, undefined, { numeric: true })` made once: the same order (numeric runs as numbers), without a
+ *  collator per comparison. Every code-order sort shares it. */
+export const numericCollator = new Intl.Collator(undefined, { numeric: true });
+
 export const DRAW_ORDER: readonly RelationKind[] = ["stream", "event", "hand-off", "batch", "request", "ext-call", "db-write", "db-read", "calls", "uses-code"];
 
 export class Model {
@@ -420,7 +424,7 @@ export class Model {
       const who = this.liftTo(SITE, r.from);
       if (who) (r.kind === "db-write" ? writers : readers).add(this.codes.get(who) ?? who);
     }
-    const sort = (s: Set<string>) => [...s].sort((p, q) => p.localeCompare(q, undefined, { numeric: true }));
+    const sort = (s: Set<string>) => [...s].sort(numericCollator.compare);
     return { writers: sort(writers), readers: sort(readers) };
   }
 

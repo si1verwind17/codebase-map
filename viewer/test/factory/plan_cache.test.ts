@@ -10,16 +10,18 @@ import type { FloorPlan, SceneState } from "../../src/floor/state";
 import { PLAN_CACHE } from "../../src/floor/state";
 import { FloorScene } from "../../src/floor/scene";
 import { Lru } from "../../src/floor/lru";
+import { planJob } from "../../src/factory/plan-job";
+import type { Deadline, Scheduler } from "../../src/floor/precompute";
 
 const DEMO = new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url);
 
 /** A scene with no renderer and no idle planning, node's missing text measuring stood in for (render_groups.test.ts). */
-function bareScene() {
+function bareScene(schedule: Scheduler = () => () => {}, planners?: ConstructorParameters<typeof FloorScene>[2]) {
   vi.spyOn(CanvasTextMetrics, "measureText").mockImplementation((text = " ") => {
     const w = text.length * 7;
     return { text, width: w, height: 14, lines: [text], lineWidths: [w], lineHeight: 14, maxLineWidth: w, fontProperties: { ascent: 11, descent: 3, fontSize: 14 } } as unknown as CanvasTextMetrics;
   });
-  const scene = new FloorScene({ select: () => {}, enter: () => {}, up: () => {}, door: () => {} }, () => () => {});
+  const scene = new FloorScene({ select: () => {}, enter: () => {}, up: () => {}, door: () => {} }, schedule, planners);
   const st = (scene as unknown as { s: SceneState }).s;
   (st as { app: unknown }).app = { canvas: { dataset: {} }, screen: { width: 1440, height: 900 } };
   return { scene, st };
@@ -65,5 +67,59 @@ describe("plan cache", () => {
       expect(again.badges).toEqual(before.badges);
       expect(st.tf).toBe(again.tf);
     }
+  }, 120_000);
+});
+
+/** A planner on a model of its own, as the worker's is: nothing it works out reaches the page's model. */
+const ownModelPlanner = () => {
+  const own = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+  return () => ({ where: "worker" as const, plan: async (c: string) => planJob(own, c, own.bundles(c)), dispose: () => {} });
+};
+
+describe("warming the page's model", () => {
+  afterEach(() => vi.restoreAllMocks());
+  const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+  const idle: Deadline = { timeRemaining: () => 20 };
+
+  it("a floor planned ahead has its bundles and door landings cached on the page's model afterwards", async () => {
+    const slices: ((d?: Deadline) => void)[] = [];
+    const { scene, st } = bareScene((s) => { slices.push(s); return () => {}; }, ownModelPlanner());
+    const model = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    scene.show(model, SITE);
+    const next = Object.keys(model.floor(SITE)!.items).find((id) => model.floor(id))!;
+    const worked = vi.spyOn(model as unknown as { bundlesOf: (c: string, l: boolean) => unknown }, "bundlesOf");
+    const landed = vi.spyOn(model as unknown as { landing: (c: string, a: string) => unknown }, "landing");
+    for (let i = 0; i < 40 && !st.plans.has(next); i++) { slices.shift()?.(idle); await settle(); }
+    expect(st.plans.has(next), "the nearby floor was planned").toBe(true);
+    expect(worked.mock.calls.filter(([c]) => c === next), "planning it left the page's model cold").toHaveLength(0);
+    slices.shift()?.(idle);
+    expect(worked.mock.calls.filter(([c]) => c === next), "the slice after warmed its bundles").toHaveLength(1);
+    const doors = model.bundles(next).doors;
+    expect(doors.length, "a floor with doors").toBeGreaterThan(0);
+    expect(landed.mock.calls.filter(([c]) => c === next), "and its doors' landings").toHaveLength(doors.length);
+    worked.mockClear(); landed.mockClear();
+    scene.show(model, next);
+    expect(worked, "entering it works out no bundles").not.toHaveBeenCalled();
+    expect(landed, "nor door landings").not.toHaveBeenCalled();
+  }, 120_000);
+
+  it("a floor waited for is warmed in idle time during the wait", async () => {
+    const slices: ((d?: Deadline) => void)[] = [];
+    const { scene, st } = bareScene((s) => { slices.push(s); return () => {}; }, ownModelPlanner());
+    const model = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    scene.show(model, SITE);
+    slices.length = 0;
+    const far = Object.keys(model.map.layout.containers).filter((c) => model.floor(c) && !st.plans.has(c)).sort().at(-1)!;
+    const worked = vi.spyOn(model as unknown as { bundlesOf: (c: string, l: boolean) => unknown }, "bundlesOf");
+    const wait = scene.ready(model, far);
+    expect(slices, "a slice is asked for").toHaveLength(1);
+    slices.shift()!({ timeRemaining: () => 0 });
+    expect(worked.mock.calls.filter(([c]) => c === far), "not with no idle time left").toHaveLength(0);
+    slices.shift()!(idle);
+    expect(worked.mock.calls.filter(([c]) => c === far)).toHaveLength(1);
+    await wait;
+    worked.mockClear();
+    scene.show(model, far);
+    expect(worked).not.toHaveBeenCalled();
   }, 120_000);
 });

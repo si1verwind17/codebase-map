@@ -159,6 +159,61 @@ describe("createRunner", () => {
     expect(t.waiting, "a plan ending after stop schedules nothing").toHaveLength(0);
   });
 
+  /** A runner with an async plan and a `warm` step that records the floors it warms. */
+  const warming = (planned = new Set<string>()) => {
+    const t = manual(), started: string[] = [], warmed: string[] = [], answer: ((ok: boolean) => void)[] = [];
+    const runner = createRunner({ schedule: t.schedule, busy: () => false, planned: (c) => planned.has(c),
+      plan: (c) => { started.push(c); return new Promise<void>((r, j) => answer.push((ok) => { if (ok) { planned.add(c); r(); } else j(new Error("no")); })); },
+      warm: (c) => { if (warmed.includes(c)) return false; warmed.push(c); return true; } });
+    return { t, started, warmed, answer, runner };
+  };
+
+  it("warms a floor in the slice after its plan answers, then plans the next", async () => {
+    const { t, started, warmed, answer, runner } = warming();
+    runner.start(["a", "b"]);
+    t.step();
+    answer[0](true);
+    await settle();
+    expect(runner.pending, "b queued, a to warm").toBe(2);
+    t.step();
+    expect(warmed).toEqual(["a"]);
+    expect(started, "one floor per slice").toEqual(["a"]);
+    t.step();
+    expect(started).toEqual(["a", "b"]);
+  });
+
+  it("warms a queued floor already planned in its own slice, and skips one already warm", () => {
+    const { t, started, warmed, runner } = warming(new Set(["a", "b"]));
+    runner.start(["a", "b", "c"]);
+    t.step();
+    expect(warmed).toEqual(["a"]);
+    expect(started).toEqual([]);
+    t.step();
+    expect(warmed).toEqual(["a", "b"]);
+    runner.start(["a", "b", "c"]);
+    t.step();
+    expect(warmed, "a and b warm already: c is planned in the same slice").toEqual(["a", "b"]);
+    expect(started).toEqual(["c"]);
+  });
+
+  it("warms nothing for a plan that failed, nor while idle time has run out", async () => {
+    const { t, warmed, answer, runner } = warming();
+    runner.start(["a", "b"]);
+    t.step();
+    answer[0](false);
+    await settle();
+    t.step({ timeRemaining: () => 0 });
+    expect(warmed).toEqual([]);
+    t.step({ timeRemaining: () => 10 });
+    answer[1](true);
+    await settle();
+    t.step({ timeRemaining: () => 0 });
+    expect(warmed).toEqual([]);
+    t.step({ timeRemaining: () => 10 });
+    expect(warmed).toEqual(["b"]);
+    expect(runner.pending).toBe(0);
+  });
+
   it("a slice with no idle time left plans nothing and schedules again", () => {
     const { t, done, runner } = make();
     runner.start(["a"]);

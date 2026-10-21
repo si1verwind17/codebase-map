@@ -47,15 +47,18 @@ export interface Runner {
 
 /** One `plan` per slice, nearest first, skipping floors `planned` already holds. A plan that answers with a promise (the
  *  worker's) is awaited before the next slice, so one floor at most is ever being planned. A slice plans nothing, and
- *  is scheduled again, while `busy` (a floor move is animating) or when its idle time has run out. */
-export function createRunner(o: { schedule: Scheduler; busy: () => boolean; planned: (c: string) => boolean; plan: (c: string) => void | Promise<unknown>; onSettled?: () => void }): Runner {
+ *  is scheduled again, while `busy` (a floor move is animating) or when its idle time has run out. `warm`, when given,
+ *  readies the page's side of a planned floor (true when it had work to do): the slice after a plan answers warms that
+ *  floor, and a queued floor already planned is warmed in the slice that reaches it; one floor per slice either way. */
+export function createRunner(o: { schedule: Scheduler; busy: () => boolean; planned: (c: string) => boolean; plan: (c: string) => void | Promise<unknown>; warm?: (c: string) => boolean; onSettled?: () => void }): Runner {
   let queue: string[] = [];
+  let warmNext: string | null = null;   // the floor whose plan just answered: the next slice warms it
   let cancel: (() => void) | null = null;
   let live = 0;   // bumped by every start/stop: a slice scheduled before that (a scheduler whose cancel came too late) does nothing
   let running = false;   // start was called and stop was not since
   let flying = false;    // a plan is in flight: the next slice is scheduled when it ends
   const next = (mine: number) => {
-    if (queue.length) cancel = o.schedule((d) => slice(mine, d));
+    if (queue.length || warmNext !== null) cancel = o.schedule((d) => slice(mine, d));
     else o.onSettled?.();
   };
   const slice = (mine: number, deadline?: Deadline) => {
@@ -63,18 +66,22 @@ export function createRunner(o: { schedule: Scheduler; busy: () => boolean; plan
     cancel = null;
     if (flying) return;
     if (o.busy() || (deadline && !(deadline.timeRemaining() > 0))) { cancel = o.schedule((d) => slice(mine, d)); return; }
+    if (warmNext !== null) { const w = warmNext; warmNext = null; o.warm?.(w); next(mine); return; }
     let c = queue.shift();
-    while (c !== undefined && o.planned(c)) c = queue.shift();
+    while (c !== undefined && o.planned(c)) {
+      if (o.warm?.(c)) { next(mine); return; }
+      c = queue.shift();
+    }
     const job = c === undefined ? undefined : o.plan(c);
     if (job) {
       flying = true;
       const done = () => { flying = false; if (running) next(live); };
-      job.then(done, done);
+      job.then(() => { if (running && o.warm) warmNext = c!; done(); }, done);
       return;
     }
     next(mine);
   };
-  const stop = () => { live++; running = false; cancel?.(); cancel = null; queue = []; };
+  const stop = () => { live++; running = false; cancel?.(); cancel = null; queue = []; warmNext = null; };
   return {
     start(containers) {
       stop();
@@ -84,6 +91,6 @@ export function createRunner(o: { schedule: Scheduler; busy: () => boolean; plan
       if (queue.length) { const mine = live; cancel = o.schedule((d) => slice(mine, d)); } else o.onSettled?.();
     },
     stop,
-    get pending() { return queue.length + (flying ? 1 : 0); },
+    get pending() { return queue.length + (flying ? 1 : 0) + (warmNext !== null ? 1 : 0); },
   };
 }

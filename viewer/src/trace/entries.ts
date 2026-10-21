@@ -3,7 +3,7 @@
 // at its boundary methods (methods inside it at one end of a traced relation whose other end is outside it), else at
 // itself; a line at the nodes at both ends of what it carries. An entry point is a route's handler (`files[].routes`) or
 // a method a request, event, stream or batch arrives at. The Python checklist uses the same rule (vizcode/examples.seeds).
-import type { Model } from "../model/model";
+import { numericCollator, type Model } from "../model/model";
 import type { Target } from "../floor/state";
 import type { Relation } from "../model/types";
 import { TRACE_KINDS } from "./graph";
@@ -48,9 +48,7 @@ export function entryPoints(model: Model, owner: string): EntryPoint[] {
 
 /** `ids` sorted in place by code (numeric runs as numbers), an id without a code by itself. */
 const byCode = (model: Model, ids: string[]): string[] =>
-  ids.sort((a, b) => numeric.compare(model.codes.get(a) ?? a, model.codes.get(b) ?? b));
-/** `localeCompare(…, undefined, { numeric: true })` made once: the same order, without a collator per comparison. */
-const numeric = new Intl.Collator(undefined, { numeric: true });
+  ids.sort((a, b) => numericCollator.compare(model.codes.get(a) ?? a, model.codes.get(b) ?? b));
 
 /** Every method inside `id` (a package, file or class), in code order. */
 export function methodsIn(model: Model, id: string): string[] {

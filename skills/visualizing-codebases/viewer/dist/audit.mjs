@@ -1,4 +1,4 @@
-// audit-inputs: 936de24163a1e3616ce7b44fc2c5174e7052a861d7bee663aa82ae74a27c17ee
+// audit-inputs: 81590b0af12330570b0cb561b06373932c9ba6eb4f3f7583d570f95777de3e35
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -19,6 +19,9 @@ var DOOR = "door:";
 /** The item a box stands for: a door's anchor (`door:<anchor>`, see `Model.doorId`), else the id itself. */
 var doorAnchor = (id) => id.startsWith(DOOR) ? id.slice(5) : id;
 /** Relation kinds in the order a line is drawn by: a bundle takes the first kind it carries. */
+/** `localeCompare(…, undefined, { numeric: true })` made once: the same order (numeric runs as numbers), without a
+*  collator per comparison. Every code-order sort shares it. */
+var numericCollator = new Intl.Collator(void 0, { numeric: true });
 var DRAW_ORDER = [
 	"stream",
 	"event",
@@ -415,7 +418,7 @@ var Model = class {
 			const who = this.liftTo(SITE, r.from);
 			if (who) (r.kind === "db-write" ? writers : readers).add(this.codes.get(who) ?? who);
 		}
-		const sort = (s) => [...s].sort((p, q) => p.localeCompare(q, void 0, { numeric: true }));
+		const sort = (s) => [...s].sort(numericCollator.compare);
 		return {
 			writers: sort(writers),
 			readers: sort(readers)

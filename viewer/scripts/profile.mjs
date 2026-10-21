@@ -148,10 +148,11 @@ async function idle(page) {
     && !document.querySelector(".floors button[aria-current=page]")?.disabled, null, { timeout: WAIT, polling: 50 });
 }
 
-/** Selects the item named `label` on the current floor from the rail's floor list and at once presses the
- *  inspector's Open sub-assembly, as a double-click on it would (no idle moment between: a selected item's floor is
- *  the first the idle planner plans). Returns, from the press: when the canvas showed another floor, when the camera
- *  came to rest, and whether that floor's plan was ready (data-plan-hit). */
+/** Selects the item named `label` on the current floor from the rail's floor list and presses the inspector's Open
+ *  sub-assembly one task later, as a real click after it would: the selection's own work stays in its task, out of the
+ *  entry's. The task between is a message, not a frame, so the idle planner gets no idle moment to plan the selected
+ *  item's floor first. Returns, from the press: when the canvas showed another floor, when the camera came to rest,
+ *  and whether that floor's plan was ready (data-plan-hit). */
 async function enter(page, label) {
   await idle(page);   // a floor change still under way would ignore the press, and clear the selection when it ends
   return page.evaluate(async ([label, wait]) => {
@@ -160,8 +161,9 @@ async function enter(page, label) {
     const named = [...document.querySelectorAll("#rail-floor button.item")].filter((b) => name(b) && label.endsWith(name(b)));
     if (!named.length) throw new Error(`no item named ${label} on this floor`);
     named.sort((x, y) => name(y).length - name(x).length)[0].click();
+    await new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = r; ch.port2.postMessage(0); });
     const open = () => [...document.querySelectorAll("button.open")].find((b) => b.textContent.includes("Open sub-assembly"));
-    for (let i = 0; i < 50 && !open(); i++) await Promise.resolve();   // the inspector updates in a microtask
+    for (let i = 0; i < 50 && !open(); i++) await Promise.resolve();   // the inspector has updated (a microtask) by now
     const btn = open();
     if (!btn) throw new Error("no Open sub-assembly button");
     const c = document.querySelector("canvas"), from = c.dataset.floor;

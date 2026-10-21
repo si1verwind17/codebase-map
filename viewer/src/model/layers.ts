@@ -54,7 +54,7 @@ export function peekKeys(layered: readonly Pick<LayerBundle, "key" | "a" | "b" |
 }
 
 /** Relation id to the names (map codes) of the layers whose lines carry it, for the relations no base line carries (the
- *  inspector's "in layer" note). From one `model.bundles` result, which is not cached. */
+ *  inspector's "in layer" note). From one `model.bundles` result, cached and shared by the model: read, never changed. */
 export function layersOfRelations(model: Model, b: { bundles: readonly Bundle[]; layered: readonly LayerBundle[] }): Map<string, string[]> {
   const onBase = new Set(b.bundles.flatMap((x) => x.relations.map((r) => r.id))), out = new Map<string, string[]>();
   for (const x of b.layered) for (const r of x.relations) {

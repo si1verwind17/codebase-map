@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Target } from "../floor/scene";
-  import { type Model } from "../model/model";
+  import { numericCollator, type Model } from "../model/model";
   import { floorPrefix, shownName } from "../floor/names";
   import Floors from "./Floors.svelte";
   import type { ShownPin } from "../trace/pins";
@@ -19,7 +19,7 @@
   let results = $derived(model.search(query, 12));
   let path = $derived(model.path(container));
   let items = $derived(
-    Object.keys(model.floor(container)?.items ?? {}).sort((a, b) => (model.codes.get(a) ?? a).localeCompare(model.codes.get(b) ?? b, undefined, { numeric: true })),
+    Object.keys(model.floor(container)?.items ?? {}).sort((a, b) => numericCollator.compare(model.codes.get(a) ?? a, model.codes.get(b) ?? b)),
   );
   let meta = $derived(model.map.meta);
   // the same short names the floor draws: drop the prefix every item here shares

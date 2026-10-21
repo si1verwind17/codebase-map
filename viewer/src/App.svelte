@@ -344,9 +344,19 @@
   const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, reduced ? 0 : ms));
   let travelling = $state(false);   // one move at a time: presses during a move are ignored
 
+  /** Floor `c`'s plan ready (scene.ready) while the side panels stay on this floor, so they change floor with the
+   *  canvas; false when the floor, map or scene changed during the wait. */
+  async function readyFor(c: string): Promise<boolean> {
+    const m = model, s = scene, was = container;
+    if (!m || !s) return false;
+    await s.ready(m, c);
+    return model === m && scene === s && container === was;
+  }
+
   /** Come out to floor `c`: the building we leave takes the place of the floor we were on. */
   async function riseTo(c: string) {
     if (c === container || !model || !scene) return;
+    if (!(await readyFor(c))) return;
     const from = model.liftTo(c, container);
     container = c;
     await scene.leave(model, c, from);
@@ -356,6 +366,7 @@
   async function diveTo(c: string, node?: string) {
     if (!model || !scene) return;
     if (c !== container) {
+      if (!(await readyFor(c))) return;
       const down = model.path(c)[model.path(container).length];
       container = c;
       await scene.enter(model, c, down);

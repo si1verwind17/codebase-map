@@ -1,5 +1,5 @@
 // What a class is built from (its constructor fact) and, the other way round, which classes are built from it.
-import { SITE, type Model } from "./model";
+import { numericCollator, SITE, type Model } from "./model";
 
 export type Need = { name: string; type: string | null; refs: string[] };
 
@@ -47,7 +47,7 @@ export function neededBy(model: Model, id: string): { id: string; through: strin
   found.delete(id);
   return [...found]
     .map(([cid, through]) => ({ id: cid, through }))
-    .sort((a, b) => (model.codes.get(a.id) ?? a.id).localeCompare(model.codes.get(b.id) ?? b.id, undefined, { numeric: true }));
+    .sort((a, b) => numericCollator.compare(model.codes.get(a.id) ?? a.id, model.codes.get(b.id) ?? b.id));
 }
 
 /** The service `id` sits in; undefined for a library, an external or the site. */
