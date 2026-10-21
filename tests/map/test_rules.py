@@ -150,8 +150,8 @@ def test_behind_explains_a_changes_file_that_does_not_match(monkeypatch):
         rules.behind(cmap_at(1), TEXT.split("## Rules 2")[0].replace("Rules 3", "Rules 2"))
 
 
-def test_rules_two_to_four_follow_the_baseline():
-    assert RULES_VERSION == 4
+def test_rules_two_to_five_follow_the_baseline():
+    assert RULES_VERSION == 5
     parsed = rules.parse_changes(rules.CHANGES.read_text(encoding="utf-8"))
     assert parsed[1] == ["Baseline: nothing to re-check."]
     assert len(parsed[2]) == 2 and parsed[2][0].startswith("In-process queues (SKILL.md § In-process queues)")
@@ -161,6 +161,7 @@ def test_rules_two_to_four_follow_the_baseline():
     assert parsed[4][1].startswith("Route handlers (SKILL.md step 5)")
     assert parsed[4][2].startswith("Deployables (SKILL.md § Deployables, not folders)")
     assert parsed[4][3].startswith("Queues in a store or a job system")
+    assert len(parsed[5]) == 1 and parsed[5][0].startswith("Job triggers (SKILL.md")
 
 
 def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):

@@ -308,12 +308,13 @@ launch by hand on the orchestrator (`pyflyte run`, `airflow dags trigger`)
 form one more service (e.g. `adhoc`), with that doc line as evidence; when
 they sit in the same folder as scheduled jobs, both services claim that
 module and the code sits under the one a deploy file runs (the scheduler),
-the hand-run service showing a twin. A job that triggers a
-job owned by another project (`reference_task`, `TriggerDagRunOperator`, an
-external task sensor) is a `batch` relation from the calling service to the
-target task method, keyed `task <name>`. The platform the code runs on (the
-orchestrator itself, a Spark cluster, a Hive metastore, Kubernetes) is not a
-node: name it in `problems` only when a reviewer needs to know. Why: the map
+the hand-run service showing a twin. A job that triggers another job
+(`reference_task`, `TriggerDagRunOperator`, an external task sensor) is a
+`batch` relation to the target task method, keyed `task <name>`: from the
+calling service when the target job is in another service, from the calling
+job's method when the target job is in the same service. The platform the
+code runs on (the orchestrator itself, a Spark cluster, a Hive metastore,
+Kubernetes) is not a node: name it in `problems` only when a reviewer needs to know. Why: the map
 shows what the application does; platform boxes would sit on every floor and
 say nothing.
 

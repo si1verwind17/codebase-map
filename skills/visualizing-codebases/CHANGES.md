@@ -3,6 +3,9 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 5 — 2026-10-21
+- Job triggers (SKILL.md § Deployables, not folders): a job that triggers a job of its own service is a `batch` relation too, from the calling job's method to the target task method, keyed `task <name>`; turn a `problems` entry that records such a trigger into that relation.
+
 ## Rules 4 — 2026-10-21
 - Route keys (SKILL.md § Stack): a path parameter is written `{name}` whatever the framework writes around it (`{id:int}`, `{id?}`, `{*id}`, `:id(\d+)` → `{id}`), and a route's path already holds the prefix of a mount in its own file that the scanner joined (`composed onto N routes` in `summary.md`): rewrite `request` keys and example keys that spell a route otherwise.
 - Route handlers (SKILL.md step 5): a route whose handler is a file or the function that registers it (`route.file-handler`, `route.setup-handler`) gets its real handler from a `stack.yaml` handler group, or a `problems` entry saying why there is none.

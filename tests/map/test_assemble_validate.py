@@ -308,3 +308,20 @@ def test_a_shared_module_sits_under_the_deployed_service_not_the_hand_run_one(sh
     by_id = {n["id"]: n for n in cmap["nodes"]}
     roots = [n["id"] for n in cmap["nodes"] if n.get("parent") == "svc:worker" and n["kind"] == "package"]
     assert roots and by_id["svc:adhoc"]["twins"] == roots
+
+
+def test_a_job_triggering_a_job_of_its_own_service_is_a_batch_relation(shop_repo):
+    meaning = copy.deepcopy(MEANING)
+    meaning["relations"].append({"kind": "batch", "from": "worker::worker.main#run/2", "to": "worker::worker.main#health/0",
+                                 "key": "task health", "job": "health", "schedule": ["manual"],
+                                 "confidence": "confirmed", "evidence": [{"file": "worker/main.py", "line": 1}]})
+    st = structure.build(shop_repo, "docs/viz-code")
+    assert meaning_errors(meaning, st) == []
+    cmap = assemble(st, meaning)
+    assert mapcheck.check(cmap) == []
+    batch = [r for r in cmap["relations"] if r["kind"] == "batch"]
+    assert [(r["from"], r["to"], r["key"]) for r in batch] == [
+        ("worker::worker.main#run/2", "worker::worker.main#health/0", "task health")]
+    # the target is an entry point like any batch target: it wants an example for its task key, nothing else
+    assert [(w["id"], w["node"]) for w in mapcheck.warnings(cmap) if "health" in (w["node"] or "")] == [
+        ("example.missing", "worker::worker.main#health/0")]
