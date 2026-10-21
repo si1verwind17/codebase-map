@@ -136,9 +136,12 @@ and `node scripts/motion-shots.mjs <dir>`.
    stale build, guide or demo page.
 3. **Eval** only when agent behaviour changes: `SKILL.md`, `format.md`, the scanner or its packs. A viewer-only
    change skips it.
-4. **Merge.** Squash the branch into `main` as one commit whose message says what changed and why. Delete the
-   branch after checking it holds nothing the squash left out (`git diff <branch> main` is empty); it needs
-   `git branch -D`, as a squash does not mark it merged.
+4. **Merge.** Land the branch on `main` as one commit per independent change, each message saying what changed and
+   why. Fold review fixes and other follow-ups into the change they fix. A branch with one change lands as one squashed
+   commit; one with several (say, a worker and a cache) lands as several, so a later bisect or revert can single one
+   out. Messages and docs name the change itself, never the branch or a plan's task numbers: neither outlives the
+   merge. Delete the branch after checking it holds nothing the merge left out (`git diff <branch> main` is empty);
+   it needs `git branch -D`, as the rebuilt commits do not mark it merged.
 5. **Release.** On a clean `main`, bump the version by what the release brings (semver):
 
    ```
