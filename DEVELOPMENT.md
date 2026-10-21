@@ -75,7 +75,7 @@ npx vitest bench --run test/perf --reporter=verbose          # the model and the
 | `frameJsMs.pan` | script ms per frame while panning it | 4.3 | 6.2 | — |
 | `heapMB.load` | JS heap after load (after GC) | 21.1 | 21.3 | — |
 | `heapMB.session` | JS heap after the session (after GC) | 57.9 | 57.8 | — |
-| `heapMB.worker` | a layout worker's heap (none yet) | — | — | — |
+| `heapMB.worker` | the layout worker's heap (none before the worker) | — | — | — |
 
 The model bench on the same map (mean ms): `new Model` 4.7, `bundles` of the busiest floor 14.3 cold and 14.8 warm,
 `doorShows` over its 15 doors 370, `planFloor` cold 509, `relationsOf` the service 0.8, `methodsIn` the service 30.5,

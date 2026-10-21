@@ -126,6 +126,7 @@ export interface SceneState {
   machineViews: Map<string, Container>;
   overlay: Container;
   tween: { from: [number, number, number]; to: [number, number, number]; t: number; ms: number; done?: () => void } | null;
+  planWaits: number;   // floor changes waiting on a plan (scene.ready): the camera reads "moving" until they end
   fading: number | null;
   doors: Map<string, { anchor: string; side: "in" | "out" }>;
   openTabs: Map<string, Container>;
@@ -226,6 +227,7 @@ export function createState(events: SceneEvents): SceneState {
     machineViews: new Map(),
     overlay,
     tween: null,
+    planWaits: 0,
     fading: null,
     doors: new Map(),
     openTabs: new Map(),

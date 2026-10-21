@@ -25,9 +25,22 @@ const VIEWS = [
   { name: "03-demo-billing-floor-drones", steps: [["find", "S2·P1"], ["pick"], ["down"]] },
 ];
 
+/** Waits, in real time, until the scene has no plan job open (`data-plan-jobs`): the layout worker answers in real time,
+ *  so a floor change waiting on it would otherwise land on whichever fake frame ran when the answer came. The fake
+ *  clock stands still meanwhile, so the change lands on the same fake moment every run. (Idle planning starts no job
+ *  here: the fake idle callback has no time remaining.) */
+async function plansAnswered(page) {
+  for (const t0 = Date.now(); ;) {
+    if (await page.evaluate(() => (document.querySelector("canvas")?.dataset.planJobs ?? "0") === "0")) return;
+    if (Date.now() - t0 > 60_000) throw new Error("a plan job still open after 60 s");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 /** Runs the paused fake clock one frame, then lets real time pass, so work the frame started that waits on no timer
  *  (an image decoded, a texture uploaded) is done before the next frame, not at a moment that varies by run. */
 async function frame(page) {
+  await plansAnswered(page);
   await page.clock.runFor(FRAME);
   await page.waitForTimeout(REAL_MS);
 }

@@ -11,9 +11,10 @@ import { at } from "./movers";
 import { floorPrefix } from "./names";
 import { C, F } from "./palette";
 import { toGeometry } from "../factory/layout";
-import { planFloor } from "../factory/plan";
+import { planJob } from "../factory/plan-job";
 import { flightKeepOff } from "../factory/flights";
 import { createRunner, idleScheduler, nextFloors, type Runner, type Scheduler } from "./precompute";
+import { mainPlanner, type Planner } from "./planner";
 import type { RailLine, TrainPath } from "../factory/rail-place";
 import { createState, type SceneEvents, type SceneState, type Target } from "./state";
 import * as cam from "./camera";
@@ -32,14 +33,26 @@ export class FloorScene {
   private readonly precompute: Runner;
   /** True while something else is moving (App's travelling flag: a floor move); no plan runs then. */
   idleGate: () => boolean = () => false;
+  /** Plans the floors not shown yet (planner.ts): made on the first `show`, for its model. */
+  private planner: Planner | null = null;
+  private plannerFor: Model | null = null;
+  /** Plan jobs asked of the planner and not yet answered, on the canvas as `data-plan-jobs` (tests wait for 0). */
+  private jobs = 0;
+  private gone = false;
+  /** The floor `ready` last waited for a plan for: its `show` reports no plan hit. */
+  private waited: string | null = null;
 
-  constructor(events: SceneEvents, schedule: Scheduler = idleScheduler) {
+  constructor(events: SceneEvents, schedule: Scheduler = idleScheduler, private readonly planners: (m: Model) => Planner = mainPlanner) {
     this.s = createState(events);
     this.precompute = createRunner({
       schedule,
       busy: () => this.idleGate() || !!this.s.traveller || !!this.s.tween || this.s.fading !== null,
       planned: (c) => this.s.plans.has(c),
-      plan: (c) => { if (this.s.model) { this.planOf(this.s.model, c); this.showPlans(); } },
+      plan: (c) => {
+        const model = this.s.model;
+        if (!model) return;
+        return this.ask(model, c, false).then(() => this.showPlans(), () => this.showPlans());
+      },
       onSettled: () => this.showPlans(),
     });
   }
@@ -78,7 +91,9 @@ export class FloorScene {
     this.s.layered = b.layered;
     this.s.floorLayers = floorLayers(model, container);
     this.s.layer = null;   // a floor change resets to the base
-    this.app.canvas.dataset.planHit = String(this.s.plansFor === model && this.s.plans.has(container));   // tests: this floor's plan was ready
+    // tests: this floor's plan was ready, not waited for (`ready`) nor made here
+    this.app.canvas.dataset.planHit = String(this.s.plansFor === model && this.s.plans.has(container) && this.waited !== container);
+    this.waited = null;
     const plan = this.planOf(model, container, b);
     this.s.tf = plan.tf;
     this.s.geo = toGeometry(plan.tf);
@@ -88,23 +103,66 @@ export class FloorScene {
     cam.fit(this.s, false);
     this.s.depthQuietUntil = performance.now() + 600;
     if (fade) transitions.startFade(this.s, 380);
+    this.plannerOf(model);   // after the first floor is drawn: the worker starts once the page shows something
     this.queueNearby();
   }
 
+  /** Floor `container` of `model` planned and cached, so `show` draws it at once: at once when it is cached, else from
+   *  the planner ahead of any queued floor. The camera reads "moving" while it waits (the old floor stays drawn and
+   *  moving). A plan that fails is left to `show`, which plans it here and fails as it always did. */
+  async ready(model: Model, container: string): Promise<void> {
+    if (this.s.plansFor === model && this.s.plans.has(container)) return;
+    this.app.canvas.dataset.camera = "moving";
+    this.waited = container;
+    this.s.planWaits++;   // a camera ease ending meanwhile leaves the flag at "moving" (camera.ts): the show that follows rests it
+    try { await this.ask(model, container, true); } catch { /* show plans it */ } finally { this.s.planWaits--; }
+  }
+
+  /** Floor `container`'s plan from the planner, cached when it is still for the scene's model. */
+  private async ask(model: Model, container: string, urgent: boolean): Promise<void> {
+    const planner = this.plannerOf(model);
+    this.jobs++;
+    this.showJobs();
+    try {
+      const plan = await planner.plan(container, urgent);
+      if (this.s.plansFor === model && !this.gone) this.s.plans.set(container, plan);
+    } finally {
+      this.jobs--;
+      this.showJobs();
+    }
+  }
+
+  private plannerOf(model: Model): Planner {
+    if (!this.planner || this.plannerFor !== model) {
+      this.planner?.dispose();
+      this.planner = this.planners(model);
+      this.plannerFor = model;
+    }
+    this.app.canvas.dataset.planner = this.planner.where;   // tests: the worker started (or the page fell back)
+    return this.planner;
+  }
+
+  private showJobs() {
+    if (!this.gone) this.app.canvas.dataset.planJobs = String(this.jobs);
+  }
+
   // A model change always makes a new scene that calls show(), so the queue never outlives its model.
-  /** This floor's plan, from the cache when it is there (planFloor is slow on busy floors: once per container and model). */
+  /** This floor's plan, from the cache when it is there (planning is slow on busy floors: once per container and model).
+   *  Planned here, on the main thread, only when no one waited for it (`ready`): the first floor, a node test. */
   private planOf(model: Model, container: string, b = model.bundles(container)) {
     if (this.s.plansFor !== model) { this.s.plans.clear(); this.s.plansFor = model; }
     let plan = this.s.plans.get(container);
-    if (!plan) { plan = planFloor(model, container, b.doors, b.bundles, b.layered); this.s.plans.set(container, plan); }
+    if (!plan) { plan = planJob(model, container, b); this.s.plans.set(container, plan); }
     return plan;
   }
 
-  /** Plan the floors one step from this one while the viewer is idle, the selected machine's floor first. */
+  /** Plan the floors one step from this one while the viewer is idle, the selected machine's floor first. Without a
+   *  worker, the selected floor and the parent only: planning on the main thread is the freeze the worker avoids. */
   private queueNearby() {
     const { model, container, selected } = this.s;
     if (!model) return;
-    this.precompute.start(nextFloors(model, container, selected?.type === "node" ? selected.id : undefined));
+    const limit = this.plannerOf(model).where === "main" ? 0 : undefined;
+    this.precompute.start(nextFloors(model, container, selected?.type === "node" ? selected.id : undefined, limit));
     this.showPlans();
   }
 
@@ -267,14 +325,17 @@ export class FloorScene {
     return transitions.zoomInto(this.s, id);
   }
 
-  /** Go inside `building` (on this floor) to `container` (transitions.ts). */
-  enter(model: Model, container: string, building?: string): Promise<void> {
-    return transitions.enter(this.s, (m, c) => this.show(m, c), model, container, building);
+  /** Go inside `building` (on this floor) to `container` (transitions.ts), once its plan is ready. */
+  async enter(model: Model, container: string, building?: string): Promise<void> {
+    await this.ready(model, container);
+    if (!this.gone) await transitions.enter(this.s, (m, c) => this.show(m, c), model, container, building);
   }
 
-  /** Come out to `container`, shrinking this page back into its building on the floor above (transitions.ts). */
-  leave(model: Model, container: string, from?: string): Promise<void> {
-    return transitions.leave(this.s, (m, c) => this.show(m, c), model, container, from);
+  /** Come out to `container`, shrinking this page back into its building on the floor above (transitions.ts), once its
+   *  plan is ready. */
+  async leave(model: Model, container: string, from?: string): Promise<void> {
+    await this.ready(model, container);
+    if (!this.gone) await transitions.leave(this.s, (m, c) => this.show(m, c), model, container, from);
   }
 
   focusTo(id: string, zoom: number): Promise<void> {
@@ -468,7 +529,9 @@ export class FloorScene {
   }
 
   destroy() {
+    this.gone = true;
     this.precompute.stop();   // a queued idle slice must not touch the app once it is gone
+    this.planner?.dispose();  // the worker ends; a floor change still waiting on it goes on to nothing (enter, leave)
     this.app.destroy(true, { children: true });
   }
 }

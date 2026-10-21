@@ -2,6 +2,8 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { Comments, saveExport } from "./comments/comments";
   import { FloorScene, type Target } from "./floor/scene";
+  import { mainPlanner, workerPlanner } from "./floor/planner";
+  import { spawnPlanWorker } from "./floor/spawn-plan-worker";
   import { MapError, Model, SITE } from "./model/model";
   import Inspector from "./ui/Inspector.svelte";
   import Legend from "./ui/Legend.svelte";
@@ -92,10 +94,12 @@
   let storeKinds = $state<StoreLegend | null>(null);           // and its cache and bucket art
   let host = $state<HTMLDivElement>();
   let scene: FloorScene | null = null;
+  let mapText: string | null = null;   // the open map's text until the scene hands it to its layout worker
 
   function open(raw: string) {
     try {
       model = new Model(JSON.parse(raw));
+      mapText = raw;
       error = null;
       comments = new Comments(model, safeStorage());
       const m = model;
@@ -106,6 +110,7 @@
       container = SITE;
     } catch (e) {
       model = null;
+      mapText = null;
       error = e instanceof MapError ? e.message
         : e instanceof SyntaxError ? "This file could not be read as a code map (it is not valid JSON)."
         : "This file could not be read as a code map of this version; rescan the repository.";
@@ -145,6 +150,9 @@
   async function mountScene() {
     await tick();
     if (!host || !model) return;
+    scene?.destroy();   // a map opened over another: the old scene's worker and ticker end
+    let text = mapText;   // handed to the worker once, then let go: the scene keeps the factory for its lifetime
+    mapText = null;
     scene = new FloorScene({
       // a click on empty floor (the one null pick the scene sends) while a layer shows also returns to the base
       select: (t) => { if (t === null && layer !== null) pickLayer(null); choose(t); },
@@ -156,6 +164,10 @@
       storage: (s) => { storeKinds = s; },
       layer: (id, lines) => { layer = id; layerLines = lines; if (id === null) layersOpen = false; },
       openLayer: (id) => pickLayer(id),
+    }, undefined, (m) => {
+      const t = text;
+      text = null;
+      return t && typeof Worker === "function" ? workerPlanner(m, t, spawnPlanWorker) : mainPlanner(m);
     });
     // nearby floors are planned, and the camera follows a new mark, only while nothing moves; untracked, so the trace
     // effect (which marks the floor) does not run again each time a move ends
@@ -364,20 +376,31 @@
    *  both share, then in through each floor down. With Still motion, one cut straight there (ruling R12). */
   async function walkTo(c: string) {
     if (!model || c === container) return;
-    if (reduced) { show(c); return; }
-    const shared = model.commonFloor(container, c);
+    // a map opened during an await (a plan's wait, a move, a pause) makes a new model and scene: this walk stops there
+    const m = model, s = scene;
+    const same = () => model === m && scene === s;
+    if (reduced) {   // its plan first (scene.ready): the floor list and camera wait, as they would for the move
+      await s?.ready(m, c);
+      if (same()) show(c);
+      return;
+    }
+    const shared = m.commonFloor(container, c);
     while (container !== shared) {
-      const p = model.path(container), was = container;
+      const p = m.path(container), was = container;
       await riseTo(p[p.length - 2]);
+      if (!same()) return;
       // riseTo does nothing with no scene (or no floor above): stop rather than loop for ever, so `staged` ends and
       // releases `travelling`
       if (container === was) break;
       await pause(250);
+      if (!same()) return;
     }
-    const down = model.path(c);
-    for (let i = model.path(container).length; i < down.length; i++) {
+    const down = m.path(c);
+    for (let i = m.path(container).length; i < down.length; i++) {
       await diveTo(down[i]);
+      if (!same()) return;
       if (i < down.length - 1) await pause(250);
+      if (!same()) return;
     }
   }
 

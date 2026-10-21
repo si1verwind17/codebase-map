@@ -153,7 +153,7 @@ export function camera(st: SceneState, x: number, y: number, s: number, animate:
     st.world.position.set(x, y);
     st.world.scale.set(s);
     markZoom(st);
-    st.app.canvas.dataset.camera = "idle";
+    if (!st.planWaits) st.app.canvas.dataset.camera = "idle";   // a floor change waiting on its plan is still a move
     done?.();
     return;
   }
@@ -173,6 +173,6 @@ export function stepTween(st: SceneState, ms: number) {
     st.world.position.set(x, y);
     st.world.scale.set(s);
     markZoom(st);
-    if (tw.t >= 1) { const d = tw.done; st.tween = null; st.app.canvas.dataset.camera = "idle"; d?.(); }
+    if (tw.t >= 1) { const d = tw.done; st.tween = null; if (!st.planWaits) st.app.canvas.dataset.camera = "idle"; d?.(); }
   }
 }

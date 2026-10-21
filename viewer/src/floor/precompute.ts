@@ -2,26 +2,34 @@
 // `nextFloors` orders what to plan; `createRunner` plans one floor per idle slice through an injected scheduler.
 import { SITE, type Model } from "../model/model";
 
-/** The floors one step from `container`, nearest first: the floor of the selected machine (if it opens one), then the
- *  floors of the machines on this floor that open one (the same test App's `go` applies: `model.floor`), in machine
- *  order, then the parent floor. */
-export function nextFloors(model: Model, container: string, selected?: string): string[] {
+/** How many of a floor's child floors are planned ahead: a big floor opens dozens, and each plan costs memory and worker
+ *  time the reader may never use. */
+export const MAX_NEARBY = 8;
+
+/** The floors one step from `container`, nearest first: the floor of the selected machine (if it opens one), then up to
+ *  `limit` floors of the machines on this floor that open one (the same test App's `go` applies: `model.floor`), in
+ *  machine order, then the parent floor. */
+export function nextFloors(model: Model, container: string, selected?: string, limit = MAX_NEARBY): string[] {
   const out: string[] = [];
   const add = (c: string | undefined) => { if (c && c !== container && model.floor(c) && !out.includes(c)) out.push(c); };
   const items = Object.keys(model.floor(container)?.items ?? {});
   if (selected && items.includes(selected)) add(selected);
-  for (const id of items) add(id);
+  const first = out.length;
+  for (const id of items) { if (out.length - first >= limit) break; add(id); }
   if (container !== SITE) { const p = model.path(container); add(p[p.length - 2]); }
   return out;
 }
 
+/** What an idle callback is given: how long the browser expects to stay idle. */
+export type Deadline = { timeRemaining(): number };
 /** Runs `schedule(slice)` once per step; it returns a way to cancel. */
-export type Scheduler = (slice: () => void) => () => void;
+export type Scheduler = (slice: (deadline?: Deadline) => void) => () => void;
 
-/** requestIdleCallback with a timeout, where the browser has it; a 50 ms timer where it does not. */
+/** requestIdleCallback where the browser has it, with no timeout: a plan waits for real idle time, never forced into a
+ *  busy frame (a floor change that needs one asks the planner itself). A 50 ms timer where it does not. */
 export const idleScheduler: Scheduler = (slice) => {
   if (typeof requestIdleCallback === "function") {
-    const h = requestIdleCallback(slice, { timeout: 1000 });
+    const h = requestIdleCallback(slice);
     return () => cancelIdleCallback(h);
   }
   const h = setTimeout(slice, 50);
@@ -33,34 +41,49 @@ export interface Runner {
   start(containers: string[]): void;
   /** Drop the queue. */
   stop(): void;
-  /** Floors still waiting. */
+  /** Floors still waiting, the one being planned included. */
   readonly pending: number;
 }
 
-/** One `plan` per slice, nearest first, skipping floors `planned` already holds. While `busy` (a floor move
- *  is animating) a slice plans nothing and is scheduled again. */
-export function createRunner(o: { schedule: Scheduler; busy: () => boolean; planned: (c: string) => boolean; plan: (c: string) => void; onSettled?: () => void }): Runner {
+/** One `plan` per slice, nearest first, skipping floors `planned` already holds. A plan that answers with a promise (the
+ *  worker's) is awaited before the next slice, so one floor at most is ever being planned. A slice plans nothing, and
+ *  is scheduled again, while `busy` (a floor move is animating) or when its idle time has run out. */
+export function createRunner(o: { schedule: Scheduler; busy: () => boolean; planned: (c: string) => boolean; plan: (c: string) => void | Promise<unknown>; onSettled?: () => void }): Runner {
   let queue: string[] = [];
   let cancel: (() => void) | null = null;
   let live = 0;   // bumped by every start/stop: a slice scheduled before that (a scheduler whose cancel came too late) does nothing
-  const slice = (mine = live) => {
-    if (mine !== live) return;
-    cancel = null;
-    if (o.busy()) { cancel = o.schedule(() => slice(mine)); return; }
-    let next = queue.shift();
-    while (next !== undefined && o.planned(next)) next = queue.shift();
-    if (next !== undefined) o.plan(next);
-    if (queue.length) cancel = o.schedule(() => slice(mine));
+  let running = false;   // start was called and stop was not since
+  let flying = false;    // a plan is in flight: the next slice is scheduled when it ends
+  const next = (mine: number) => {
+    if (queue.length) cancel = o.schedule((d) => slice(mine, d));
     else o.onSettled?.();
   };
-  const stop = () => { live++; cancel?.(); cancel = null; queue = []; };
+  const slice = (mine: number, deadline?: Deadline) => {
+    if (mine !== live) return;
+    cancel = null;
+    if (flying) return;
+    if (o.busy() || (deadline && !(deadline.timeRemaining() > 0))) { cancel = o.schedule((d) => slice(mine, d)); return; }
+    let c = queue.shift();
+    while (c !== undefined && o.planned(c)) c = queue.shift();
+    const job = c === undefined ? undefined : o.plan(c);
+    if (job) {
+      flying = true;
+      const done = () => { flying = false; if (running) next(live); };
+      job.then(done, done);
+      return;
+    }
+    next(mine);
+  };
+  const stop = () => { live++; running = false; cancel?.(); cancel = null; queue = []; };
   return {
     start(containers) {
       stop();
+      running = true;
       queue = [...containers];
-      if (queue.length) { const mine = live; cancel = o.schedule(() => slice(mine)); } else o.onSettled?.();
+      if (flying) return;   // the plan in flight schedules the first slice when it ends
+      if (queue.length) { const mine = live; cancel = o.schedule((d) => slice(mine, d)); } else o.onSettled?.();
     },
     stop,
-    get pending() { return queue.length; },
+    get pending() { return queue.length + (flying ? 1 : 0); },
   };
 }

@@ -14,6 +14,7 @@ import { doorWords } from "../../src/factory/boxname";
 import { toGeometry } from "../../src/factory/layout";
 import { trainPaths } from "../../src/factory/rail-place";
 import { fitScale } from "../../src/floor/fitscale";
+import { MAX_NEARBY } from "../../src/floor/precompute";
 import { coveredKeys, flightPaths } from "../../src/factory/flights";
 import { sharedTiles } from "../../src/factory/trunk-card";
 import { CODE_BAND, NAME_MIN_PX } from "../../src/factory/machines";
@@ -674,7 +675,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.getByLabel("Still motion").check();
       const attr = (n: string) => page.locator("canvas").getAttribute(n);
       await page.waitForFunction(() => document.querySelector("canvas")?.getAttribute("data-plans-queued") === "0", null, { timeout: 60_000 });
-      expect(Number(await attr("data-plans")), "F0 and the floors its machines open").toBe(1 + kids.length);
+      expect(Number(await attr("data-plans")), "F0 and the first MAX_NEARBY floors its machines open").toBe(1 + Math.min(kids.length, MAX_NEARBY));
       await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(inside.id)!);
       await page.locator(".rail .list button").first().click();
       await page.waitForFunction((c) => document.querySelector("canvas")?.getAttribute("data-floor") === c, kids[0], { timeout: 15_000 });

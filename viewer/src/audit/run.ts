@@ -3,7 +3,8 @@
 // access (cli.ts reads the map and prints the report).
 import { Model, SITE } from "../model/model";
 import type { CodeMap } from "../model/types";
-import { planFloor, type FloorPlan } from "../factory/plan";
+import type { FloorPlan } from "../factory/plan";
+import { planJob } from "../factory/plan-job";
 import type { TileRoute } from "../factory/router";
 import { failedViolations, gapStubViolations, laneDropViolations, laneGapViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
 import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
@@ -82,8 +83,7 @@ export function auditMap(map: CodeMap, budget = BUDGET): AuditReport {
     };
     let plan: FloorPlan;
     try {
-      const b = model.bundles(c);
-      plan = planFloor(model, c, b.doors, b.bundles, b.layered);
+      plan = planJob(model, c);
     } catch (e) {
       out.results.push(result("plan.crashed", [{ detail: `${code}: ${firstLine(e)}` }]));
       continue;

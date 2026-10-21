@@ -1,4 +1,4 @@
-// audit-inputs: cd4024d2f8a2d0e262208f04df824c3407048275dfd4a18d47205c0b8304b1e7
+// audit-inputs: 6ac9a62611f778e0bcc77a6b25372a51d0abca99084757a69089c32013589194
 import { readFileSync } from "node:fs";
 //#region src/model/model.ts
 var SITE = "site";
@@ -4192,6 +4192,12 @@ function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
 	} : best;
 }
 //#endregion
+//#region src/factory/plan-job.ts
+/** Floor `container`'s plan: its bundles (`b`, when the caller has them already), then `planFloor` over them. */
+function planJob(model, container, b = model.bundles(container)) {
+	return planFloor(model, container, b.doors, b.bundles, b.layered);
+}
+//#endregion
 //#region src/audit/lines.ts
 /** A line's possible ends, by id: its key's two boxes (or lanes), for a rail the rail yards and stations, and for an
 *  inbound webhook its service's receiving dock (the belt plugs into the dock, not the wall). */
@@ -5812,8 +5818,7 @@ function auditMap(map, budget = BUDGET) {
 		};
 		let plan;
 		try {
-			const b = model.bundles(c);
-			plan = planFloor(model, c, b.doors, b.bundles, b.layered);
+			plan = planJob(model, c);
 		} catch (e) {
 			out.results.push(result("plan.crashed", [{ detail: `${code}: ${firstLine(e)}` }]));
 			continue;
