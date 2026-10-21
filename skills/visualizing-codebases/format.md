@@ -131,10 +131,11 @@ Java and C# a method named as the class (not a C# `static` constructor), Rust `n
 top-level `New…` function in the type's folder whose return type names it unqualified (`*Store`, `(*Store, error)`;
 not `[]*Store`, `map[string]*Store` or another package's `http.Handler`), unless the type is an interface a class
 implements. With several, it is the one with the most parameters (the first by line on a tie) and `of` counts them.
-Scala class parameters (not a case class's) and a Kotlin primary constructor (not a `data`, `value`, `enum` or
-`annotation` class's) are no method: `{params, line}` holds them, each parameter as on a signature, `refs` included. A
-Java or C# record and a Java enum have none, whatever constructors they declare. A Kotlin secondary constructor and a
-C# primary constructor (`class Orders(IRepo repo)`) are not read.
+Scala class parameters (not a case class's), a Kotlin primary constructor (not a `data`, `value`, `enum` or
+`annotation` class's) and a C# primary constructor of a class or struct (`class Orders(IRepo repo)`) are no method:
+`{params, line}` holds them, each parameter as on a signature, `refs` included. A C# primary constructor counts with the
+class's explicit constructors: the one with the most parameters wins, and `of` counts them all. A Java or C# record and
+a Java enum have none, whatever constructors they declare. A Kotlin secondary constructor is not read.
 A class with none of these has no `ctor` key.
 
 Fingerprints of data types and entry points are computed from `fields` and signatures by

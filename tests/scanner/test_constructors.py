@@ -1,5 +1,5 @@
 """`ctor` on class nodes: the method that builds the class (a constructor, `__init__`, a Go `New...` factory),
-or the class's own parameter list (Scala class parameters, a Kotlin primary constructor)."""
+or the class's own parameter list (Scala class parameters, a Kotlin or C# primary constructor)."""
 import copy
 
 from vizcode import mapcheck, structure
@@ -138,7 +138,58 @@ def test_csharp_ctor(make_repo):
                      "    public void List() {}\n}\n\npublic class Ledger(IRepo repo) { }\n",
     })
     assert ctor(s, "Orders") == {"method": node(s, "method", "Orders")["id"]}
-    assert ctor(s, "Ledger") is None                   # a primary constructor is not read
+    assert ctor(s, "Ledger") == {"params": [{"name": "repo", "type": "IRepo"}], "line": 8}
+
+
+def test_csharp_primary_constructor(make_repo):
+    s = build(make_repo, {
+        "Shop.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n",
+        "Repo.cs": "namespace Shop;\n\npublic interface IOrderRepo { }\npublic class Bus<T> { }\n",
+        "OrderService.cs": "namespace Shop;\n\n[Service]\npublic sealed class OrderService(\n    IOrderRepo repo,\n"
+                           "    [FromKeyedServices(\"main\")] Bus<Order> bus, int limit = 3) : Base(repo)\n{\n"
+                           "    public void Run() { }\n}\n\npublic struct Slot(IOrderRepo repo);\n",
+        "Records.cs": "namespace Shop;\n\npublic record Quote(IOrderRepo Repo);\npublic record class Line(int N);\n"
+                      "public record struct Bay(int N);\n",
+    })
+    repo, bus = (node(s, "class", n)["id"] for n in ("IOrderRepo", "Bus"))
+    assert ctor(s, "OrderService") == {"params": [{"name": "repo", "type": "IOrderRepo", "refs": [repo]},
+                                                  {"name": "bus", "type": "Bus<Order>", "refs": [bus]},
+                                                  {"name": "limit", "type": "int"}], "line": 4}
+    assert ctor(s, "Slot") == {"params": [{"name": "repo", "type": "IOrderRepo", "refs": [repo]}], "line": 11}
+    assert [ctor(s, n) for n in ("Quote", "Line", "Bay")] == [None] * 3
+
+
+def test_csharp_primary_and_explicit_constructors_take_the_one_with_most_params(make_repo):
+    s = build(make_repo, {
+        "Shop.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n",
+        "Orders.cs": "namespace Shop;\n\npublic class Orders(IRepo repo, IClock clock) {\n"
+                     "    public Orders(IRepo repo) : this(repo, null) { }\n}\n\n"
+                     "public class Ledger(IRepo repo) {\n    public Ledger(IRepo repo, int n) : this(repo) { }\n}\n",
+    })
+    assert ctor(s, "Orders") == {"params": [{"name": "repo", "type": "IRepo"}, {"name": "clock", "type": "IClock"}],
+                                 "line": 3, "of": 2}
+    assert ctor(s, "Ledger") == {"method": node(s, "class", "Ledger")["id"] + "#Ledger/2", "of": 2}
+
+
+def test_csharp_primary_constructor_params_with_commas_and_attributes(make_repo):
+    s = build(make_repo, {
+        "Shop.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n",
+        "Orders.cs": "namespace Shop;\n\npublic class Repo { }\n\n"
+                     "public class Orders(Dictionary<string, int> stock, [Required, FromServices] Repo repo,\n"
+                     "    string sep = \"a,b\") { }\n\npublic readonly record struct Tag(string Name);\n",
+    })
+    assert ctor(s, "Orders") == {"params": [{"name": "stock", "type": "Dictionary<string, int>"},
+                                            {"name": "repo", "type": "Repo", "refs": [node(s, "class", "Repo")["id"]]},
+                                            {"name": "sep", "type": "string"}], "line": 5}
+    assert ctor(s, "Tag") is None
+
+
+def test_csharp_primary_and_explicit_constructor_tie_on_one_line(make_repo):
+    s = build(make_repo, {
+        "Shop.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n",
+        "A.cs": "public class A(int x) { public A(string s) : this(0) { } }\n",
+    })
+    assert ctor(s, "A") == {"params": [{"name": "x", "type": "int"}], "line": 1, "of": 2}
 
 
 def test_csharp_static_ctor_is_not_one(make_repo):
@@ -197,10 +248,12 @@ def test_schema_accepts_constructor(make_repo):
     assert {("method",), ("line", "params")} <= shapes
     assert mapcheck.check(cmap) == []
     i = next(k for k, n in enumerate(cmap["nodes"]) if "ctor" in n)
+    ok = copy.deepcopy(cmap)
+    ok["nodes"][i]["ctor"] = {"params": [], "line": 1, "of": 2}   # a primary constructor among several
+    assert mapcheck.check(ok) == []
     for value in ({"method": "x", "of": 1},                       # `of` only when there are several
                   {"method": "x", "line": 3},
                   {"method": "x", "params": [], "line": 1},       # one shape or the other
-                  {"params": [], "line": 1, "of": 2},
                   {"params": [{"name": "n"}], "line": 1},         # type is required (null when none)
                   {"method": "x", "x": 1}):
         bad = copy.deepcopy(cmap)

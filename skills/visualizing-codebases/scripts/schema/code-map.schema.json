@@ -93,8 +93,7 @@
         "ctor": {
           "type": "object", "additionalProperties": false,
           "oneOf": [{"required": ["method"], "not": {"anyOf": [{"required": ["params"]}, {"required": ["line"]}]}},
-                    {"required": ["params", "line"],
-                     "not": {"anyOf": [{"required": ["method"]}, {"required": ["of"]}]}}],
+                    {"required": ["params", "line"], "not": {"required": ["method"]}}],
           "properties": {"method": {"type": "string", "minLength": 1}, "of": {"type": "integer", "minimum": 2},
                          "params": {"type": "array", "items": {"type": "object", "required": ["name", "type"],
                                                                "properties": {"refs": {"$ref": "#/$defs/ids"}}}},

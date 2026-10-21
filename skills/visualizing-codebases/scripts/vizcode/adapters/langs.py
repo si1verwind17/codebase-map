@@ -72,7 +72,8 @@ names_extend  an import's names continue its target (`a.b` + `C` = `a.b.C`); Fal
 aliases       node type -> name key of a type alias that is no class (`type Id = string`, `typealias`, C#
               `using X = A.B;`): FileResult `aliases`, names a type link never resolves in that file
 class_params  (keys of a class's own parameter list, node types that count as one parameter): a class written with
-              one (Kotlin's primary constructor) is built from it, recorded as its `ctor`
+              one (Kotlin's primary constructor, C# 12 `class Orders(IRepo repo)`) is built from it, recorded as its
+              `ctor`
 value_classes keywords before a class's name (annotations left out) making it a value whose own parameters are its
               fields (Kotlin `data`, a Java or C# `record`, a Java `enum`): FileResult `values`; it gets no `ctor`,
               whatever constructors it declares
@@ -216,6 +217,7 @@ CSHARP = LangSpec(
     interpolations=("interpolation",),
     interpolation_marks=("interpolation_brace",),
     supers=("base_list",),
+    class_params=(("parameter_list",), ("parameter",)),
     value_classes=("record",),
     class_inits={"constructor_declaration": "static"},
     public_in=("interface_declaration",),
