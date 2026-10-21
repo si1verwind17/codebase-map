@@ -34,7 +34,8 @@ const keepAt = process.argv.includes("--keep") ? process.argv[process.argv.index
 if (keepAt) mkdirSync(keepAt, { recursive: true });
 const keep = (name, buf) => { if (keepAt) writeFileSync(join(keepAt, name), buf); };
 
-/** One still: the view after `steps`, cropped to the floor drawn in the canvas (the canvas less its empty margin). */
+/** One still: the view after `steps`, cropped to the floor drawn in the canvas (the canvas less its empty margin), or
+ *  the trace pane (`pane`) or the inspector (`inspector`) alone. */
 async function still(browser, shot, name, errors) {
   const scale = shot.scale ?? 2;
   const page = await openView(browser, mapOf(shot.map), name, errors, { scale, ...(shot.viewport ? { viewport: shot.viewport } : {}) });
@@ -42,12 +43,17 @@ async function still(browser, shot, name, errors) {
   await settle(page, shot.steps);
   await page.addStyleTag({ content: shot.layersButton ? HIDE_BUT_LAYERS_BUTTON : HIDE });
   await page.waitForTimeout(200);
-  if (shot.pane) {   // the trace pane, whole: no floor crop
-    const pane = await page.locator(".pane").boundingBox();
-    const png = await page.screenshot({ clip: pane });
+  const done = async (clip) => {
+    const png = await page.screenshot({ clip });
     await page.close();
     keep(`${name}.png`, png);
     return { src: `data:image/png;base64,${png.toString("base64")}`, density: scale / (shot.show ?? 1) };
+  };
+  if (shot.pane) return done(await page.locator(".pane").boundingBox());   // the trace pane, whole: no floor crop
+  if (shot.inspector) {   // the inspector down to the end of what it holds: no floor crop
+    const box = await page.locator(".insp").boundingBox();
+    const end = await page.locator(".insp > :last-child").evaluate((e) => e.getBoundingClientRect().bottom);
+    return done({ ...box, height: Math.min(box.height, end - box.y) });
   }
   const box = await page.locator(".canvas").boundingBox();
   const whole = { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
@@ -65,11 +71,7 @@ async function still(browser, shot, name, errors) {
   const pad = 10 * scale;
   const [cx0, cy0] = [Math.max(0, x0 - pad), Math.max(0, y0 - pad)];
   const [cx1, cy1] = [Math.min(w - 1, x1 + pad), Math.min(h - 1, y1 + pad)];
-  const clip = { x: whole.x + cx0 / scale, y: whole.y + cy0 / scale, width: (cx1 - cx0 + 1) / scale, height: (cy1 - cy0 + 1) / scale };
-  const png = await page.screenshot({ clip });
-  await page.close();
-  keep(`${name}.png`, png);
-  return { src: `data:image/png;base64,${png.toString("base64")}`, density: scale / (shot.show ?? 1) };
+  return done({ x: whole.x + cx0 / scale, y: whole.y + cy0 / scale, width: (cx1 - cx0 + 1) / scale, height: (cy1 - cy0 + 1) / scale });
 }
 
 /** A pointer drawn into the page, so a clip shows where the mouse is and when it clicks. */

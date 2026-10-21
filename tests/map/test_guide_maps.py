@@ -27,9 +27,9 @@ def rels(cmap, kind):
     return [r for r in cmap["relations"] if r["kind"] == kind]
 
 
-def test_the_guide_lists_sixteen_examples():
+def test_the_guide_lists_seventeen_examples():
     assert NAMES == ["floors", "codes", "belt", "splitters", "pipe", "drones", "queues", "in_process", "push_pull", "rail",
-                     "storage", "outside", "shared", "crossings", "layers", "trace"]
+                     "storage", "outside", "shared", "crossings", "layers", "trace", "inspector"]
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -163,6 +163,21 @@ def test_trace_has_a_pin_examples_and_a_library_call(maps):
     assert any(n.get("fields") for n in ids.values() if n["kind"] == "class")
     callees = {r["to"] for r in m["relations"] if r["kind"] == "calls"}
     assert any(c.startswith("common::") for c in callees)
+
+
+
+def test_inspector_has_a_class_with_needs_users_an_interface_and_both_confidences(maps):
+    m = maps["inspector"]
+    ids = by_id(m)
+    svc = ids["orders::core.service.OrderService"]
+    init = ids[svc["ctor"]["method"]]
+    params = init["signature"]["params"]
+    assert [bool(p.get("refs")) for p in params] == [True, True, False]   # two repo classes, one library type
+    assert any(n.get("implements") == params[1]["refs"] for n in ids.values())   # the gateway is an interface
+    assert svc["implements"] == ["orders::core.ports.OrderPort"]
+    takers = {n["id"] for n in ids.values() if n.get("ctor") and n["id"] != svc["id"]}
+    assert takers == {"orders::api.checkout.CheckoutHandler", "orders::jobs.refunds.RefundJob"}
+    assert sorted(r["confidence"] for r in rels(m, "request")) == ["confirmed", "inferred"]
 
 
 PRODUCTS = re.compile(r"\b(airflow|flyte|kafka|rabbitmq|sqs|pub/?sub|celery|stripe|postgres(ql)?|redis|s3|bigquery)\b",

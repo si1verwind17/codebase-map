@@ -72,7 +72,7 @@
 
 <!-- Each picture: an example map (guide/maps/<map>.code-map.json; "@demo" is the skill's demo map) and the view steps
      that reach it from a freshly opened page (scripts/viewer-page.mjs runSteps); or several such shots, side by side or
-     (`stack`) one above the other; or a clip recorded by scripts/guide.mjs (the select clip clicks `factory`, clears the
+     (`stack`) one above the other; `pane` or `inspector` shows the trace pane or the inspector alone; or a clip recorded by scripts/guide.mjs (the select clip clicks `factory`, clears the
      selection, and scrolls into and out of it). `scale` renders a shot at that device scale factor (2 unless given);
      `show` shows it that many times larger than on screen; `viewport` [w, h] replaces the 1440×900 page. -->
 <script type="application/json" id="pictures">
@@ -107,7 +107,8 @@
     { "map": "trace", "pane": true, "steps": [["pinned", "a customer pays"]] },
     { "map": "trace", "pane": true, "steps": [["pinned", "a customer pays"], ["row", "create_invoice"]] }
   ] },
-  "select": { "clip": "select", "map": "floors", "factory": "orders" }
+  "select": { "clip": "select", "map": "floors", "factory": "orders" },
+  "inspector": { "map": "inspector", "inspector": true, "viewport": [1440, 1400], "steps": [["find", "OrderService"], ["pick"]] }
 }
 </script>
 
@@ -226,10 +227,21 @@
 <template class="page" data-title="Selecting and comments" data-kicker="Using the map">
   <figure class="pic clip" data-pic="select"></figure>
   <p class="cap">Two factories: click orders to keep only what it touches, click empty floor to clear it, scroll in on orders to go inside, then scroll out to come back up.</p>
-  <p>Click a machine to keep only what it touches; the panel on the right says what it is, where its code lives and what it connects to. A click on empty floor or Esc clears it.</p>
-  <p>For a class, the panel also lists what it <b>needs</b> (the parameters of its constructor or factory) and what it is <b>needed by</b> (the classes whose constructor takes it, or an interface it implements). Each class name is a link: follow them to walk the chain one step at a time.</p>
+  <p>Click a machine to keep only what it touches; the panel on the right says what it is, where its code lives and what it connects to (next page). A click on empty floor or Esc clears it.</p>
   <p><b>Scroll in</b> on a building to go inside it (or double-click it); <b>scroll out</b> past the whole floor to go back up a floor.</p>
   <p>Write a comment on anything, then <b>Save for the agent</b>. It saves <span class="code">export-comment.md</span> into <span class="code">docs/viz-code/</span>, next to <span class="code">code-map.json</span> (if your browser downloads it instead, move it there). The next time you run the skill, the agent reads it first.</p>
+</template>
+
+<template class="page" data-title="The right panel" data-kicker="Using the map">
+  <figure class="pic" data-pic="inspector"></figure>
+  <p class="cap">The panel for the class OrderService in orders. It is built from a repo, a payment gateway and a logger; CheckoutHandler takes it, and RefundJob takes the OrderPort it implements. Its place method calls billing; its cancel method calls payments, and that line is a guess.</p>
+  <p>The panel on the right, the <b>inspector</b>, describes what you selected. With nothing selected it describes the floor: its code, its name and its counts (items, lines, how many in each layer, how many with guesses), under <b>Reading the floor</b>. With a line selected it names the two ends and lists every connection the line carries.</p>
+  <p>For a box, the head gives its code, its name, its kind (its role first, such as entry or storage, when it has one) and the <span class="code">file:line</span> where its code starts. A <b>twin</b> note says this service also deploys a module whose code sits in another service. <b>Open sub-assembly</b> goes inside it; <b>Trace</b> follows data from it.</p>
+  <p>A service or library lists its <b>Entry points</b>: the methods a request, event, stream or job arrives at, each with what arrives. A package, file or class lists its <b>Methods</b>. Each has its own <b>Trace</b> button. A method shows its <b>Signature</b>: the parameter types going in, the type coming back. What the agent described has a <b>Summary</b>.</p>
+  <p>For a class, <b>Needs</b> lists what it is built from: each parameter of its constructor or factory, with its type. A type that is a class in your repo is a link; a library type is plain text. When the type is an interface, the row also says which classes implement it. The line below names the method that builds the class and where it is. <b>Needed by</b> lists the classes built from it, directly or <b>through</b> an interface it implements. Follow the links to walk the chain one step at a time.</p>
+  <p><b>Implements</b> lists the interfaces a class implements. An interface has <b>Implemented by</b> instead, and no Needs: it is never built as itself. Implementations in another service come last, as <b>+N in other services</b>, each with its service.</p>
+  <p><b>Connections</b> lists every line that starts or ends in what you selected. Each starts with its kind and the box at the other end, a link. Below: its key (the route, topic or table), the tables it touches, and whether it is <b>confirmed</b> or <b>inferred</b>. An inferred connection is striped and says <b>Why inferred</b>. Then which way the data goes, <b>set per deployment</b> when its target is configured per deployment, <b>via</b> what it passes through, and the layer it is drawn in. The last line is the evidence: the <span class="code">file:line</span> in your code that shows it. The list stops at 60; open the sub-assembly to narrow down.</p>
+  <p><b>Export comments</b> holds your comments on what you selected (see <b>Selecting and comments</b>).</p>
 </template>
 
 <template class="page" data-title="Traces" data-kicker="Using the map">

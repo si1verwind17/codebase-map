@@ -21,7 +21,7 @@ describe("the field guide", () => {
   });
 
   it("has a rendered picture or clip on every page but the last", () => {
-    expect(pages).toHaveLength(19);
+    expect(pages).toHaveLength(20);
     for (const p of pages.slice(0, -1)) {
       const name = p.body.match(/data-pic="([^"]+)"/)?.[1];
       expect(name, `${p.title}: a picture`).toBeTruthy();

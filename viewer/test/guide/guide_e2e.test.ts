@@ -1,4 +1,4 @@
-// The field guide in a browser: 19 pages turned with ← and →, Back and Next in the same place on every page, every
+// The field guide in a browser: 20 pages turned with ← and →, Back and Next in the same place on every page, every
 // picture and clip loaded, nothing wider than a 375 px phone. Needs `npm run guide` first and a Chromium:
 // VIZ_CHROMIUM=/usr/bin/chromium npx vitest run test/guide_e2e.test.ts
 import { existsSync } from "node:fs";
@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const CHROMIUM = process.env.VIZ_CHROMIUM ?? "";
 const GUIDE = new URL("../../../docs/field-guide.html", import.meta.url);
-const PAGES = 19;
+const PAGES = 20;
 
 /** Every picture and clip on the current page has loaded. */
 const loaded = (page: Page) => page.waitForFunction(() =>
@@ -19,7 +19,7 @@ const loaded = (page: Page) => page.waitForFunction(() =>
 const place = async (page: Page) => JSON.stringify([await page.locator("#prev").boundingBox(), await page.locator("#next").boundingBox()]);
 
 describe.runIf(CHROMIUM && existsSync(CHROMIUM))("the field guide in a browser", () => {
-  it("turns 19 pages with ← and →, keeps Back and Next in place, and loads every picture and clip", async () => {
+  it("turns 20 pages with ← and →, keeps Back and Next in place, and loads every picture and clip", async () => {
     const browser = await chromium.launch({ executablePath: CHROMIUM });
     const errors: string[] = [];
     try {

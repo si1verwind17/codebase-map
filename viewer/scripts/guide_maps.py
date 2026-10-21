@@ -99,6 +99,8 @@ class Code:
                            "signature": sig})
         for r in self.facts[path]["routes"]:
             r["handler"] = r["handler"] or mid
+        if name == "__init__":   # what builds its class, as the scanner marks it (constructors.mark)
+            next(n for n in self.nodes if n["id"] == owner)["ctor"] = {"method": mid}
         self._path[mid] = path
         return mid
 
@@ -465,8 +467,40 @@ def trace() -> tuple[dict, dict]:
     return c.structure(), meaning
 
 
+def inspector() -> tuple[dict, dict]:
+    """One class with every part the inspector shows for a class: OrderService is built from a repo class, an interface
+    (CardGateway implements it) and a library type; CheckoutHandler takes it, and RefundJob takes OrderPort, which it
+    implements. Its methods call billing (confirmed) and payments (inferred: the URL is read from config)."""
+    c = Code("inspector")
+    c.module("orders")
+    ports = c.file(c.package("orders", "core"), "ports")
+    port = c.cls(ports, "OrderPort")
+    gateway = c.cls(ports, "PaymentGateway")
+    repo = c.cls(c.file(c.package("orders", "store"), "repo", sink="sql-db"), "OrderRepo")
+    c.method(repo, "save", (("order", "dict"),))
+    card = c.cls(c.file(c.package("orders", "clients"), "card", sink="http-out"), "CardGateway", implements=[gateway])
+    c.method(card, "charge", (("amount", "Decimal"),), "str")
+    klass = c.cls(c.file("orders::core/", "service"), "OrderService", implements=[port])
+    c.method(klass, "__init__", (("repo", "OrderRepo"), ("gateway", "PaymentGateway"), ("log", "logging.Logger")),
+             refs={"repo": [repo], "gateway": [gateway]})
+    place = c.method(klass, "place", (("order", "dict"),), "dict")
+    cancel = c.method(klass, "cancel", (("order_id", "str"),))
+    checkout = c.cls(c.file(c.package("orders", "api"), "checkout"), "CheckoutHandler")
+    c.method(checkout, "__init__", (("orders", "OrderService"),), refs={"orders": [klass]})
+    refunds = c.cls(c.file(c.package("orders", "jobs"), "refunds"), "RefundJob")
+    c.method(refunds, "__init__", (("orders", "OrderPort"),), refs={"orders": [port]})
+    invoice = endpoint(c, "billing", "create_invoice", ("POST", "/v1/invoices"))
+    refund = endpoint(c, "payments", "refund", ("POST", "/v1/refunds"))
+    meaning = {"nodes": [service("orders", 2), service("billing", 3), service("payments", 4)],
+               "relations": [rel("request", place, invoice, "POST /v1/invoices", "orders/core/service.py",
+                                 data="forward"),
+                             {**rel("request", cancel, refund, "POST /v1/refunds", "orders/core/service.py"),
+                              "confidence": "inferred", "why": "the URL is read from config; only the path matches"}]}
+    return c.structure(), meaning
+
+
 EXAMPLES = {f.__name__: f for f in (floors, codes, belt, splitters, pipe, drones, queues, in_process, push_pull, rail, storage,
-                                    outside, shared, crossings, layers, trace)}
+                                    outside, shared, crossings, layers, trace, inspector)}
 
 
 def build(name: str) -> dict:
