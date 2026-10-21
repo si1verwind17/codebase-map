@@ -1,12 +1,12 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.11.0",
-  "rules_version": 4,
+  "scanner_version": "0.12.0",
+  "rules_version": 5,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "689b16de487549d4ab44511edaa1736059049a07",
-  "scanned_at": "2026-10-21T07:32:03Z",
+  "commit": "e9ddd128436157572b11bef28d160f26a572438e",
+  "scanned_at": "2026-10-21T16:01:16Z",
   "languages": [
    "python",
    "scala"
