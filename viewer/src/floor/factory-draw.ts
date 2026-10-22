@@ -21,7 +21,7 @@ import { paintRails } from "../factory/rail-paint";
 import { railLabels, railLegend } from "../factory/rail-place";
 import type { FloorPlan, LayerLines, SceneState } from "./state";
 import type { FloorLayer, LayerId } from "../model/layers";
-import { dashed, drawDoor, drawFrame, KEYLINE, stroke } from "./draw";
+import { crossMarks, dashed, drawDoor, drawFrame, KEYLINE, stroke } from "./draw";
 import { factorySub, label, nameTag, shortName, tabHint } from "./labels";
 import { wireDoor, wireMachine } from "./wiring";
 import { trunkHover } from "./trunk-hover";
@@ -233,7 +233,10 @@ function paintLines(st: SceneState, routes: TileRoute[], bundleOf: (r: TileRoute
     if (st.covered.has(routes[i].key)) continue;   // drawn as its flights
     const r = routes[i], b = bundleOf(r), g = deco();
     if (r.kind === "drone") dashed(g, r.points, 2, 6, { width: 3, color: C.green, cap: "round" });
-    else if (r.failed) dashed(g, r.points, 6, 5, { width: 3, color: C.red });   // could not be routed: still shown, still selectable
+    else if (r.failed) {   // no room for a belt: drawn straight, still shown, still selectable
+      dashed(g, r.points, 6, 5, { width: 3, color: C.purple });
+      crossMarks(g, r.points, 36, 4, { width: 2, color: C.purple });
+    }
     else for (const o of ops) if (o.layer === "body" && o.ri === i) paintPiece(g, o.p, r.kind, r.both);
     if (b.inferred === b.relations.length && b.relations.length) g.label = "inferred";
     addTileLine(st, r, b, g, hover, into, views);

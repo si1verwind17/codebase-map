@@ -70,6 +70,20 @@ export function stroke(g: Graphics, pts: Pt[], style: { width: number; color: nu
   g.stroke({ ...style, join: "miter" });
 }
 
+/** Small × marks along a polyline, one every `every` px of its length (the first half that in), `half` px each way. */
+export function crossMarks(g: Graphics, pts: Pt[], every: number, half: number, style: { width: number; color: number }) {
+  let next = every / 2;
+  for (let i = 1, run = 0; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+    for (; next <= run + len; next += every) {
+      const t = len ? (next - run) / len : 0, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+      g.moveTo(x - half, y - half).lineTo(x + half, y + half).moveTo(x - half, y + half).lineTo(x + half, y - half);
+    }
+    run += len;
+  }
+  g.stroke(style);
+}
+
 export function dashed(g: Graphics, pts: Pt[], on: number, off: number, style: { width: number; color: number; alpha?: number; cap?: "round" }) {
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], len = dist(a, b);

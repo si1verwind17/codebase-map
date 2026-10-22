@@ -272,3 +272,14 @@ describe("store art", () => {
     expect(storeLegend([laneEnd], () => "bucket")).toEqual({ bucket: true });
   });
 });
+
+describe("a line drawn straight", () => {
+  it("wears a small × every 36 px of its length, the first 18 px in, across its bends", async () => {
+    const { crossMarks } = await import("../../src/floor/draw");
+    const at: [number, number][] = [];
+    const g = { moveTo(x: number, y: number) { at.push([x, y]); return g; }, lineTo() { return g; }, stroke() { return g; } };
+    crossMarks(g as unknown as Graphics, [{ x: 0, y: 0 }, { x: 60, y: 0 }, { x: 60, y: 40 }], 36, 4, { width: 2, color: 0 });
+    // two strokes a mark, from its top-left and its bottom-left corner: centres at 18 and 54 along, then 90 (30 down the bend)
+    expect(at.filter((_, i) => i % 2 === 0).map(([x, y]) => [x + 4, y + 4])).toEqual([[18, 0], [54, 0], [60, 30]]);
+  });
+});

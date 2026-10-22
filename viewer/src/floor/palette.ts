@@ -13,6 +13,7 @@ export const C = {
   steel: 0xc9d8e6,       // warehouses, lanes
   shelf: 0xf2f5f8,       // libraries, data shelves
   amber: 0x7a5c00,       // trains (batch)
+  purple: 0x8a3ab9,      // a line drawn straight: the router found no room for it
   select: 0x0055bf,
 };
 

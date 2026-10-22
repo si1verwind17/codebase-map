@@ -17,6 +17,7 @@ colors:
   steel: "#c9d8e6"
   shelf: "#f2f5f8"
   amber: "#7a5c00"
+  purple: "#8a3ab9"
   picked: "#0055bf"
   picked-wash: "#d4e3f7"
 typography:
@@ -181,6 +182,7 @@ A cool, paper-pale field with black keylines, where saturated brick colours appe
 - **Brick Red** (#d01012): DB writes and alerts; error borders.
 - **Brick Green** (#237841): events (drone dots and drones).
 - **Batch Amber** (#7a5c00): batch jobs (train track with sleepers, wagons).
+- **Unrouted Purple** (#8a3ab9): a line the router found no room for, drawn straight: a dashed line with small × marks. Nothing else wears it.
 
 ### Neutral
 - **Booklet Page** (#e3ecf3): app and floor background; the light core of a belt.
