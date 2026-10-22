@@ -131,7 +131,7 @@ def test_render_limits_accepted_stale_and_the_rest():
     assert limits == ("- text.over-line · S7 · row 7 — `used by 10` badge over a belt at (12, 4)\n"
                       "  to accept: - accept text.over-line S7\n")
     assert '## Accepted\n- lines.mid-side · S9 — "the side door is on purpose, fine as is"\n' in text
-    assert "## Stale acceptances\n- line 2: accept zone.narrow * — matches no map limit\n" in text
+    assert "## Stale acceptances\n- line 2: accept zone.narrow * — matches no map limit or advisory\n" in text
     assert "## Notes not understood\n- line 3: - accept nope S1\n" in text
     assert "## Content warnings\n- ext.missing — config key PAYMENT_URL has no outside service\n" in text
     assert ("## Findings\n- cycle — orders → billing → orders (request POST /charge; request POST /orders/refund)"
@@ -177,6 +177,26 @@ def test_plan_crashed_is_a_limit():
     text, line = audit.render(rep, None, [], [], ([], []), META)
     assert "- plan.crashed · S4 · row 7 — boom\n  to accept: - accept plan.crashed S4\n" in text
     assert line.startswith("Map limits: 1 ")
+
+
+def test_an_advisory_is_listed_not_counted():
+    """A failed advisory check (`advisory`: flights.hidden, a known look) goes under Drawing advisories: no map limit,
+    no change to the summary line; an acceptance of it still moves it to Accepted."""
+    detail = "produce a|b passes under svc:billing for 126 px"
+    adv = {**r("flights.hidden", "site", detail=detail, at={"x": 4, "y": 9}), "advisory": True}
+    rep = {**REPORT, "skipped": [], "skippedCodes": [], "results": [r("lines.failed", "site", ok=True), adv],
+           "measured": {}}
+    text, line = audit.render(rep, None, [], [], ([], []), META)
+    assert line == "Map audit: no limits, no findings, no content warnings"
+    assert "Drawing checks: 2 run on 3 floors, 0 failed, 0 accepted, 1 advisory\n" in text
+    assert ("## Drawing advisories\n- flights.hidden · site — produce a|b passes under svc:billing for 126 px at (4, 9)\n"
+            in text)
+    assert "## Map limits" not in text and "to accept" not in text
+    two = {**rep, "results": [adv, {**adv, "code": "S2", "floor": "id-S2"}]}
+    assert ", 2 advisories\n" in audit.render(two, None, [], [], ([], []), META)[0]
+    text, line = audit.render(rep, None, [], [], parse_notes("- accept flights.hidden *\n"), META)
+    assert "## Drawing advisories" not in text and "## Accepted\n- flights.hidden · site\n" in text
+    assert "Stale" not in text and line == "Map audit: no limits, no findings, no content warnings"
 
 
 # --- main: always exit 0, writes OUT/audit.md
@@ -228,7 +248,7 @@ def test_real_node_on_the_demo(tmp_path, capsys):
     assert audit.main([str(repo)]) == 0
     line = capsys.readouterr().out.strip().splitlines()[-1]
     text = (o / "audit.md").read_text()
-    assert "Drawing checks: 16 run on " in text
+    assert "Drawing checks: 19 run on " in text
     # the counts follow the demo's map-notes and the checks; only the shape is pinned here
     assert line.startswith("Map ")
     if line.startswith("Map audit: no limits"):

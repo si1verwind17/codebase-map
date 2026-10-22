@@ -38,7 +38,7 @@ def test_no_reason():
 
 
 def test_plan_crashed_is_known():
-    assert "plan.crashed" in KNOWN_CHECKS and len(KNOWN_CHECKS) == 17
+    assert "plan.crashed" in KNOWN_CHECKS and len(KNOWN_CHECKS) == 20
     assert one("- accept plan.crashed S4").check == "plan.crashed"
 
 

@@ -1,4 +1,4 @@
-// audit-inputs: acb22615e21e93ffcdb51da2dd67881203b52b38e4f6a8bdfb205072c41e3e85
+// audit-inputs: 2332f0447832e70995baa0ba02a28455c7907679ac0681141dfd8eff2699d5cb
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -4336,6 +4336,693 @@ function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
 function planJob(model, container, b = model.bundles(container)) {
 	return planFloor(model, container, b.doors, b.bundles, b.layered);
 }
+// src/factory/flights.ts
+var DOT = 4;
+var centre = (r) => ({
+	x: (r.x + r.w / 2) * 24,
+	y: (r.y + r.h / 2) * 24
+});
+var flightKey = (machine, item) => [machine, item].sort().join("|");
+/** A consumer tag's key: its flight's key and its group, since one machine may take from one hub in two groups. */
+var tagKey = (machine, item, group) => `${flightKey(machine, item)}|${group ?? ""}`;
+/** Every placed flight on the floor: one per pad and one per dock, sorted like the pads; none on a floor with no hub. */
+function flightPaths(tf) {
+	const land = tf.landing;
+	if (!land) return [];
+	const msg = land.messaging;
+	const rels = (machine, item, role, group) => {
+		if (role === "produce") return msg.producers.find((p) => p.machine === machine && p.item === item)?.viaRelations ?? [];
+		if (role === "failure") return msg.failures.find((f) => f.machine === machine && f.item === item)?.viaRelations ?? [];
+		return msg.consumers.find((c) => c.machine === machine && c.item === item && c.group === group)?.viaRelations ?? [];
+	};
+	const out = [];
+	const px = (r) => ({
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	});
+	const add = (w, launch, dock) => {
+		const hubBox = tf.boxes.get(w.item);
+		if (!hubBox) return;
+		const straight = [launch, centre(hubBox)];
+		const pts = hubBox.foot === "door" ? clipInto(straight, px(hubBox)) : straight;
+		const outbound = w.flight === "produce" || w.flight === "enqueue" || w.flight === "failure" || w.flight === "pull";
+		out.push({
+			key: flightKey(w.machine, w.item),
+			flight: w.flight,
+			role: w.role,
+			machine: w.machine,
+			item: w.item,
+			topic: w.topic,
+			...w.group !== void 0 ? { group: w.group } : {},
+			dock,
+			dead: w.flight === "failure",
+			launch,
+			hub: pts[pts.length - 1],
+			outbound,
+			points: outbound ? pts : [...pts].reverse(),
+			relations: rels(w.machine, w.item, w.role, w.group)
+		});
+	};
+	for (const p of land.pads) add(p, padCentre(p), false);
+	for (const d of land.docks) add(d, centre(d), true);
+	return spreadLandings(out, tf);
+}
+/** How long two paths must run that close to be on top of each other, not just crossing: a tile, three dots and their
+*  gaps (2 px on, 6 off). Lines crossing at more than about 14° are that close for less (2·3 px / sin 14° ≈ 24 px), so
+*  this also asks that they come in close in direction. */
+var OVERLAP_RUN = 24;
+/** Landing points keep this far in from the edge's corners. */
+var LANDING_INSET = 6;
+/** How much wider a spread is tried each time, up to the whole edge, while paths in it still run together. */
+var WIDEN_STEP = 4;
+/** The part of a path a reader sees at its hub end: from its pad or dock to where it first reaches the hub's box (the
+*  rest, to a hub's centre, is under the hub). */
+function visiblePart(p, hubBox) {
+	const pts = clipInto([p.launch, p.hub], hubBox);
+	return [pts[0], pts[pts.length - 1]];
+}
+/** The stretch of segment `a`, as a part [t0, t1] of it (0 at a[0], 1 at a[1]), whose points lie within `tol` of
+*  segment `b`, or undefined. Closed form: the points within `tol` of `b` make a capsule (a band along `b` and a disc at
+*  each end), convex, so `a` meets it in one stretch, from the first of its entries to the last of its exits. */
+function nearStretch(a, b, tol) {
+	const dx = a[1].x - a[0].x, dy = a[1].y - a[0].y;
+	let lo = Infinity, hi = -Infinity;
+	const take = (s, e) => {
+		if (s <= e) {
+			lo = Math.min(lo, s);
+			hi = Math.max(hi, e);
+		}
+	};
+	const disc = (c) => {
+		const fx = a[0].x - c.x, fy = a[0].y - c.y, A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - tol * tol;
+		if (A === 0) {
+			if (C <= 0) take(0, 1);
+			return;
+		}
+		const disc2 = B * B - 4 * A * C;
+		if (disc2 < 0) return;
+		const r = Math.sqrt(disc2);
+		take((-B - r) / (2 * A), (-B + r) / (2 * A));
+	};
+	disc(b[0]);
+	disc(b[1]);
+	const bx = b[1].x - b[0].x, by = b[1].y - b[0].y, L = Math.hypot(bx, by);
+	if (L > 0) {
+		const ux = bx / L, uy = by / L;
+		const u0 = (a[0].x - b[0].x) * ux + (a[0].y - b[0].y) * uy, du = dx * ux + dy * uy;
+		const v0 = -(a[0].x - b[0].x) * uy + (a[0].y - b[0].y) * ux, dv = -dx * uy + dy * ux;
+		let s = -Infinity, e = Infinity;
+		for (const [p0, dp, min, max] of [[
+			u0,
+			du,
+			0,
+			L
+		], [
+			v0,
+			dv,
+			-tol,
+			tol
+		]]) {
+			if (dp === 0) {
+				if (p0 < min || p0 > max) {
+					s = 1;
+					e = 0;
+				}
+				continue;
+			}
+			const t1 = (min - p0) / dp, t2 = (max - p0) / dp;
+			s = Math.max(s, Math.min(t1, t2));
+			e = Math.min(e, Math.max(t1, t2));
+		}
+		take(s, e);
+	}
+	const s = Math.max(0, lo), e = Math.min(1, hi);
+	return s <= e ? [s, e] : void 0;
+}
+/** The part [t0, t1] of segment `a` inside rect `r` (Liang–Barsky), or undefined. */
+function insideStretch(a, r) {
+	let t0 = 0, t1 = 1;
+	const dx = a[1].x - a[0].x, dy = a[1].y - a[0].y;
+	for (const [p, q] of [
+		[-dx, a[0].x - r.x0],
+		[dx, r.x1 - a[0].x],
+		[-dy, a[0].y - r.y0],
+		[dy, r.y1 - a[0].y]
+	]) {
+		if (p === 0) {
+			if (q < 0) return void 0;
+			continue;
+		}
+		const t = q / p;
+		if (p < 0) {
+			if (t > t1) return void 0;
+			if (t > t0) t0 = t;
+		} else {
+			if (t < t0) return void 0;
+			if (t < t1) t1 = t;
+		}
+	}
+	return t0 < t1 ? [t0, t1] : void 0;
+}
+/** How much of segment `a`, in px, runs within `tol` of segment `b` on open floor: outside every rect of `boxes`. */
+function alongside(a, b, tol, boxes) {
+	const near = nearStretch(a, b, tol);
+	if (!near) return 0;
+	const len = Math.hypot(a[1].x - a[0].x, a[1].y - a[0].y);
+	const cut = boxes.map((r) => insideStretch(a, r)).filter((s) => !!s && s[1] > near[0] && s[0] < near[1]).map(([s, e]) => [Math.max(s, near[0]), Math.min(e, near[1])]).sort((u, v) => u[0] - v[0]);
+	let covered = 0, end = near[0];
+	for (const [s, e] of cut) if (e > end) {
+		covered += e - Math.max(s, end);
+		end = e;
+	}
+	return (near[1] - near[0] - covered) * len;
+}
+/** How long two segments run on top of each other on open floor: the shorter of each one's stretch within OVERLAP_PX
+*  of the other outside every rect of `boxes` (the same either way round). Under a box they are hidden, not on top of
+*  each other: `flights.hidden` reports that. */
+function runTogether(a, b, boxes = []) {
+	return Math.min(alongside(a, b, 3, boxes), alongside(b, a, 3, boxes));
+}
+/** Two launches in line with a hub: one lies within OVERLAP_PX of the other's straight line to the hub's centre (one
+*  machine straight behind another). Their paths can be spread only as far as the hub's edge allows. */
+function inLine(a, b, hubCentre) {
+	return segDist(a, b, hubCentre) <= 3 || segDist(b, a, hubCentre) <= 3;
+}
+var segDist = (q, a, b) => {
+	const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+	const t = l2 ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l2)) : 0;
+	return Math.hypot(q.x - a.x - t * dx, q.y - a.y - t * dy);
+};
+/** Paths into one hub that run on top of each other (`runTogether` at least OVERLAP_RUN over the parts a reader sees,
+*  on open floor) get their own landing points on the hub's edge; every other path keeps its landing (the hub's
+*  centre, a door's edge), so twenty consumers spread round a hub stay as they are. A group of paths that overlap, one
+*  with the next, lands on the edge its mean direction reaches, `LANDING_GAP` apart, centred where that direction
+*  meets the edge, in the order the paths cross the edge's line, so they do not cross. Paths in line (`inLine`) cross
+*  it at one place: the nearest pad takes the middle point and the farther ones the outer points, and while two paths
+*  of the group still run together the points are spread wider, up to the whole edge. More paths than the edge holds
+*  at LANDING_GAP: the extras share the nearest point, in order (`flights.overlap` reports them); no path is dropped.
+*  A path moved this way may then run on another: the groups merge and are spread again, until none does. The path
+*  stays one straight segment, drawn under the machines as before. Deterministic: the paths keep their order, and
+*  ties go by distance, then by the paths' fields, never by where they sit in the input. */
+function spreadLandings(paths, tf) {
+	const px = (r) => ({
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	});
+	const faces = keepOffBoxes(tf, 0).map((b) => b.r);
+	const out = [...paths];
+	const byHub = /* @__PURE__ */ new Map();
+	paths.forEach((p, i) => (byHub.get(p.item) ?? byHub.set(p.item, []).get(p.item)).push(i));
+	for (const [item, idx] of byHub) {
+		const box = tf.boxes.get(item);
+		if (!box || idx.length < 2) continue;
+		const r = px(box);
+		const parent = new Map(idx.map((i) => [i, i]));
+		const find = (i) => parent.get(i) === i ? i : find(parent.get(i));
+		const union = (a, b) => {
+			const x = find(a), y = find(b);
+			if (x === y) return false;
+			parent.set(Math.max(x, y), Math.min(x, y));
+			return true;
+		};
+		const collide = (cur, a, b) => runTogether(visiblePart(cur[a], r), visiblePart(cur[b], r), faces) >= OVERLAP_RUN;
+		for (let a = 0; a < idx.length; a++) for (let b = a + 1; b < idx.length; b++) if (collide(paths, idx[a], idx[b])) union(idx[a], idx[b]);
+		for (let round = 0; round < idx.length; round++) {
+			const groups = /* @__PURE__ */ new Map();
+			for (const i of idx) (groups.get(find(i)) ?? groups.set(find(i), []).get(find(i))).push(i);
+			const cur = [...paths];
+			for (const g of groups.values()) if (g.length > 1) {
+				const launches = g.map((i) => paths[i].launch), ties = g.map((i) => tieKey(paths[i]));
+				for (let gap = 12;; gap += WIDEN_STEP) {
+					const lands = landingPoints(launches, r, gap, ties);
+					g.forEach((i, k) => {
+						cur[i] = landAt(paths[i], lands.points[k]);
+					});
+					if (g.every((a, x) => g.slice(x + 1).every((b) => !collide(cur, a, b))) || lands.widest) break;
+				}
+			}
+			for (const i of idx) out[i] = cur[i];
+			let merged = false;
+			for (let a = 0; a < idx.length; a++) for (let b = a + 1; b < idx.length; b++) if (find(idx[a]) !== find(idx[b]) && collide(cur, idx[a], idx[b])) merged = union(idx[a], idx[b]) || merged;
+			if (!merged) break;
+		}
+	}
+	return out;
+}
+/** What orders two paths whose launches are the same distance along the edge and from the hub: their own fields. */
+var tieKey = (p) => `${p.machine}|${p.flight}|${p.group ?? ""}|${p.dock ? 1 : 0}`;
+/** The path to `hub` instead: the same flight, one straight segment from its launch. */
+var landAt = (p, hub) => ({
+	...p,
+	hub,
+	points: p.outbound ? [p.launch, hub] : [hub, p.launch]
+});
+/** One landing point per launch on box `r`'s edge, `gap` apart (see `spreadLandings`), in the launches' order;
+*  `widest`: the points already take the whole edge, so a wider gap would change nothing. `ties` orders launches the
+*  geometry cannot (default: their index). */
+function landingPoints(launches, r, gap = 12, ties) {
+	const c = {
+		x: (r.x0 + r.x1) / 2,
+		y: (r.y0 + r.y1) / 2
+	}, hw = (r.x1 - r.x0) / 2, hh = (r.y1 - r.y0) / 2;
+	let mx = 0, my = 0;
+	for (const l of launches) {
+		const d = Math.hypot(l.x - c.x, l.y - c.y) || 1;
+		mx += (l.x - c.x) / d;
+		my += (l.y - c.y) / d;
+	}
+	if (!mx && !my) my = -1;
+	const level = Math.abs(my) * hw >= Math.abs(mx) * hh;
+	const at = level ? my < 0 ? r.y0 : r.y1 : mx < 0 ? r.x0 : r.x1;
+	const lo = (level ? r.x0 : r.y0) + LANDING_INSET, hi = (level ? r.x1 : r.y1) - LANDING_INSET;
+	const anchor = level ? c.x + mx / Math.abs(my) * hh : c.y + my / Math.abs(mx) * hw;
+	const cross = launches.map((l) => {
+		const [u, v, cu, cv] = level ? [
+			l.x,
+			l.y,
+			c.x,
+			c.y
+		] : [
+			l.y,
+			l.x,
+			c.y,
+			c.x
+		];
+		return v === cv ? u : u + (cu - u) * (at - v) / (cv - v);
+	});
+	const far = launches.map((l) => Math.hypot(l.x - c.x, l.y - c.y));
+	const tie = (a, b) => (ties ? ties[a] < ties[b] ? -1 : ties[a] > ties[b] ? 1 : 0 : 0) || a - b;
+	const order = launches.map((_, i) => i).sort((a, b) => cross[a] - cross[b] || far[a] - far[b] || tie(a, b));
+	const n = launches.length, room = Math.max(0, hi - lo);
+	const cap = Math.floor(room / 12) + 1, k = Math.min(n, cap);
+	const step = k > 1 ? Math.min(gap, room / (k - 1)) : 0;
+	const start = Math.min(Math.max(anchor - (k - 1) * step / 2, lo), hi - (k - 1) * step);
+	const slotOf = (rank) => n <= cap ? rank : Math.round(rank * (cap - 1) / (n - 1));
+	const slots = order.map((_, rank) => start + slotOf(rank) * step);
+	const placed = new Array(n);
+	for (let s = 0; s < n;) {
+		let e = s + 1;
+		while (e < n && inLine(launches[order[e]], launches[order[e - 1]], c)) e++;
+		const run = order.slice(s, e), mid = cross[run[0]];
+		const free = slots.slice(s, e).map((u, j) => ({
+			u,
+			j
+		})).sort((a, b) => Math.abs(a.u - mid) - Math.abs(b.u - mid) || a.j - b.j);
+		[...run].sort((a, b) => far[a] - far[b] || tie(a, b)).forEach((i, j) => {
+			placed[i] = free[j].u;
+		});
+		s = e;
+	}
+	return {
+		points: launches.map((_, i) => level ? {
+			x: placed[i],
+			y: at
+		} : {
+			x: at,
+			y: placed[i]
+		}),
+		widest: k < 2 || step < gap || (k - 1) * step >= room - 1e-9
+	};
+}
+/** `flightKeepOff`'s rects, each with what it is (`name`) and the box it belongs to (`owner`: the box itself, a dock's
+*  or webhook dock's machine, a waiting stack's hub). `shadow`: px the boxes' shadow adds right and below (0: their
+*  faces alone). */
+function keepOffBoxes(tf, shadow = 5) {
+	const SHADOW = shadow;
+	const boxes = [...tf.boxes.values()].map((r) => ({
+		name: r.id,
+		owner: r.id,
+		r: {
+			x0: r.x * 24,
+			y0: r.y * 24,
+			x1: (r.x + r.w) * 24 + SHADOW,
+			y1: (r.y + r.h) * 24 + SHADOW
+		}
+	}));
+	const tiles = (r) => ({
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	});
+	const docks = (tf.landing?.docks ?? []).map((d) => ({
+		name: `${d.machine}'s receiving dock`,
+		owner: d.machine,
+		r: tiles(d)
+	}));
+	const webhooks = (tf.webhooks ?? []).map((d) => ({
+		name: `${d.machine}'s webhook dock`,
+		owner: d.machine,
+		r: tiles(d)
+	}));
+	const stacks = (tf.landing?.stacks ?? []).map((s) => ({
+		name: `${s.item}'s waiting stack`,
+		owner: s.item,
+		r: tiles({
+			x: s.x,
+			y: s.y,
+			w: 1,
+			h: 1
+		})
+	}));
+	return [
+		...boxes,
+		...docks,
+		...webhooks,
+		...stacks
+	];
+}
+/** `pts` cut where they first reach `r`: the path then ends on `r`'s edge. Unchanged when they start inside it or never
+*  reach it. */
+function clipInto(pts, r) {
+	for (let i = 1; i < pts.length; i++) {
+		const a = pts[i - 1], b = pts[i];
+		let t0 = 0, t1 = 1, hit = true;
+		const dx = b.x - a.x, dy = b.y - a.y;
+		for (const [p, q] of [
+			[-dx, a.x - r.x0],
+			[dx, r.x1 - a.x],
+			[-dy, a.y - r.y0],
+			[dy, r.y1 - a.y]
+		]) {
+			if (p === 0) {
+				if (q < 0) hit = false;
+				continue;
+			}
+			const t = q / p;
+			if (p < 0) {
+				if (t > t0) t0 = t;
+			} else if (t < t1) t1 = t;
+		}
+		if (!hit || t0 > t1) continue;
+		if (t0 <= 0) return pts;
+		return [...pts.slice(0, i), {
+			x: a.x + dx * t0,
+			y: a.y + dy * t0
+		}];
+	}
+	return pts;
+}
+/** The drone routes the flight paths replace: a bundle every relation of which some placed flight carries. A bundle only
+*  partly carried (a want left unplaced, or a relation no flight carries) keeps its old machine→hub route as well as the
+*  flights it has: nothing is lost, and the carried relations are then drawn twice (accepted; no real floor has one). */
+function coveredKeys(paths, bundles) {
+	const carried = new Set(paths.flatMap((p) => p.relations));
+	const keys = new Set(paths.map((p) => p.key));
+	return new Set(bundles.filter((b) => keys.has(b.key) && b.relations.length > 0 && b.relations.every((r) => carried.has(r.id))).map((b) => b.key));
+}
+/** Small squares along a path: what a label must stay off (a diagonal path's bounding box would block far too much). */
+function pathRects$1(pts, half = DOT) {
+	const out = [];
+	for (let i = 1; i < pts.length; i++) {
+		const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(len / half));
+		for (let k = 0; k <= n; k++) {
+			const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
+			out.push({
+				x0: x - half,
+				y0: y - half,
+				x1: x + half,
+				y1: y + half
+			});
+		}
+	}
+	return out;
+}
+/** What labels on this floor keep off: everything `floorObstacles` lists, without the drone routes the flight paths
+*  replace, plus the flight paths themselves. A floor with no hub gets exactly `floorObstacles(tf, routes)`. */
+function messagingObstacles(tf, routes, paths, covered) {
+	return [...floorObstacles(tf, covered.size ? routes.filter((r) => !covered.has(r.key)) : routes), ...paths.flatMap((p) => pathRects$1(p.points))];
+}
+/** Where along a path a plate is tried: the middle first, then stepping out to either end (not onto the pad or hub). */
+var STEPS = [.5, ...Array.from({ length: 13 }, (_, i) => [.5 - (i + 1) * .03, .5 + (i + 1) * .03]).flat()];
+/** One plate per flight, beside its path near the middle and never on it: candidates step out from the middle along
+*  the path, on either side, a little further each round; the first box inside the floor and clear of `clear` wins and
+*  joins it. No clear room: no plate. Deterministic: paths in the given order. */
+function placePlates(paths, clear, bounds) {
+	const out = [];
+	for (const [i, p] of paths.entries()) {
+		const text = FLIGHT_LABEL[p.flight];
+		const w = plateW(text), h = 17;
+		const segs = p.points.slice(1).map((b, k) => [p.points[k], b]).map((sg, k) => ({
+			sg,
+			k,
+			len: Math.hypot(sg[1].x - sg[0].x, sg[1].y - sg[0].y)
+		})).sort((u, v) => v.len - u.len || u.k - v.k);
+		let got;
+		search: for (const gap of [6, 14]) for (const { sg: [a, b], len } of segs) {
+			const nx = -(b.y - a.y) / (len || 1), ny = (b.x - a.x) / (len || 1);
+			const reach = Math.abs(nx) * w / 2 + Math.abs(ny) * h / 2;
+			const sides = ny > 1e-9 || Math.abs(ny) <= 1e-9 && nx < 0 ? [-1, 1] : [1, -1];
+			for (const t of STEPS) for (const s of sides) {
+				const cx = a.x + (b.x - a.x) * t + nx * s * (gap + reach), cy = a.y + (b.y - a.y) * t + ny * s * (gap + reach);
+				const box = {
+					x0: Math.round(cx - w / 2),
+					y0: Math.round(cy - h / 2),
+					x1: Math.round(cx - w / 2) + w,
+					y1: Math.round(cy - h / 2) + h
+				};
+				if (box.x0 < bounds.x0 || box.y0 < bounds.y0 || box.x1 > bounds.x1 || box.y1 > bounds.y1 || !clear.free(box)) continue;
+				got = {
+					key: p.key,
+					text,
+					x: box.x0,
+					y: box.y0,
+					w,
+					h,
+					of: i
+				};
+				clear.add(box);
+				break search;
+			}
+		}
+		if (got) out.push(got);
+	}
+	return out;
+}
+/** Labels that belong to a box (a consumer's tags, a dock's sign), tried in `spots` order: the first clear one wins. */
+function placeBeside(key, text, spots, clear, bounds, size = PLATE_FONT, w = plateW(text, size)) {
+	const h = 17;
+	for (const s of spots) {
+		const box = {
+			x0: Math.round(s.x),
+			y0: Math.round(s.y),
+			x1: Math.round(s.x) + w,
+			y1: Math.round(s.y) + h
+		};
+		if (box.x0 < bounds.x0 || box.y0 < bounds.y0 || box.x1 > bounds.x1 || box.y1 > bounds.y1 || !clear.free(box)) continue;
+		clear.add(box);
+		return {
+			key,
+			text,
+			x: box.x0,
+			y: box.y0,
+			w,
+			h
+		};
+	}
+}
+/** Spots for a `w`-wide label under box `r` (world px, shadow included): just below it, then a tile further down (past
+*  a belt running along it); left-aligned, right-aligned, centred. */
+function spotsUnder(r, w) {
+	const cx = (r.x0 + r.x1) / 2 - w / 2;
+	return [4, 28].flatMap((dy) => [
+		r.x0,
+		r.x1 - w,
+		cx
+	].map((x) => ({
+		x,
+		y: r.y1 + dy
+	})));
+}
+/** Spots beside box `r`, level with its bottom: right, then left. */
+function spotsBeside(r, w, h = 17) {
+	return [{
+		x: r.x1 + 6,
+		y: r.y1 - h
+	}, {
+		x: r.x0 - 6 - w,
+		y: r.y1 - h
+	}];
+}
+/** The consumer tags a machine wears: one line per consumer with tags (`group notifier · 2 replicas`), in the model's
+*  order, each keyed by `tagKey` (machine, hub and group). `wide` is the longest text the tag ever shows (a take's
+*  pulse, `replica 3 of 3`), which its box is sized for. None on the site: the overview is too detailed for them (the
+*  owner, 2026-10-06); the consumer's own floor shows them. */
+function consumerTags(tf) {
+	if (tf.site) return [];
+	return (tf.landing?.messaging.consumers ?? []).filter((c) => c.tags.length).map((c) => {
+		const text = c.tags.join(" · "), n = c.replicas ?? 1;
+		const pulse = c.flight === "take" && n > 1 ? replicaPulse(text, n, n) : text;
+		return {
+			machine: c.machine,
+			key: tagKey(c.machine, c.item, c.group),
+			text,
+			wide: pulse.length > text.length ? pulse : text
+		};
+	});
+}
+/** A replica tag's text while replica `k` (from 1) of `n` takes a crate: `N replicas` reads `replica k of N`. */
+var replicaPulse = (base, k, n) => base.replace(/\d+ replicas$/, `replica ${k} of ${n}`);
+/** A receiving dock's sign: `POST <path>` when the push endpoint is known (the relation's key is a path, or a request
+*  into the handler names one), else `push`. */
+function dockSign(model, relations) {
+	const path = (key) => {
+		const m = /^(?:POST\s+)?(\/\S*)$/.exec(key?.trim() ?? "");
+		return m ? m[1] : void 0;
+	};
+	const rels = relations.map((id) => model.map.relations.find((r) => r.id === id)).filter((r) => !!r);
+	for (const r of rels) {
+		const p = path(r.key);
+		if (p) return `POST ${p}`;
+	}
+	for (const r of rels) {
+		const into = model.map.relations.find((q) => q.kind === "request" && q.to === r.to && /^POST\s+\//.test(q.key ?? ""));
+		if (into) return `POST ${path(into.key)}`;
+	}
+	return "push";
+}
+/** Every messaging label on a floor, placed in this order so the ones that say most win the room: consumer tags under
+*  their machines, dock signs, then one plate per flight. `clear` holds the floor's obstacles (and its zone names);
+*  each placed label joins it. `inside` gives a machine's free inner band (under its name, over its sub line), where a
+*  tag goes when no clear spot under the machine is left; a tag there is `inside`. */
+function messagingLabels(model, tf, paths, clear, inside) {
+	const bounds = {
+		x0: 0,
+		y0: 0,
+		x1: tf.cols * 24,
+		y1: tf.rows * 24
+	};
+	const px = (r) => ({
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	});
+	const tags = [];
+	const bands = /* @__PURE__ */ new Map();
+	for (const t of consumerTags(tf)) {
+		const box = tf.boxes.get(t.machine);
+		if (!box) continue;
+		const r = px(box), w = plateW(t.wide), shadowed = {
+			...r,
+			x1: r.x1 + 5,
+			y1: r.y1 + 5
+		};
+		let got = placeBeside(t.key, t.text, spotsUnder(shadowed, w), clear, bounds, PLATE_FONT, w);
+		const band = bands.get(t.machine) ?? inside?.(t.machine);
+		if (!got && band && band.x1 - band.x0 >= w && band.y1 - band.y0 >= 17) {
+			got = {
+				key: t.key,
+				text: t.text,
+				x: Math.round(band.x0),
+				y: Math.round(band.y0),
+				w,
+				h: 17
+			};
+			bands.set(t.machine, {
+				...band,
+				y0: band.y0 + 17 + 2
+			});
+			tags.push({
+				...got,
+				machine: t.machine,
+				inside: true
+			});
+			continue;
+		}
+		got ??= placeBeside(t.key, t.text, spotsBeside(shadowed, w), clear, bounds, PLATE_FONT, w);
+		if (got) tags.push({
+			...got,
+			machine: t.machine,
+			inside: false
+		});
+	}
+	const signs = [];
+	for (const d of tf.landing?.docks ?? []) {
+		const text = dockSign(model, paths.find((p) => p.dock && p.machine === d.machine && p.item === d.item && p.group === d.group)?.relations ?? []);
+		const r = px(d), w = plateW(text, 10);
+		const vertical = d.side === "w" || d.side === "e";
+		const [ox, oy] = {
+			n: [0, -1],
+			s: [0, 1],
+			w: [-1, 0],
+			e: [1, 0]
+		}[d.side];
+		const base = {
+			n: {
+				x: 0,
+				y: r.y0 - 4 - 17
+			},
+			s: {
+				x: 0,
+				y: r.y1 + 4
+			},
+			w: {
+				x: r.x0 - 4 - w,
+				y: 0
+			},
+			e: {
+				x: r.x1 + 4,
+				y: 0
+			}
+		}[d.side];
+		const along = vertical ? [
+			r.y0,
+			r.y1 - 17,
+			(r.y0 + r.y1) / 2 - 17 / 2
+		] : [
+			r.x0,
+			r.x1 - w,
+			(r.x0 + r.x1) / 2 - w / 2
+		];
+		const open = [0, 12].flatMap((k) => along.map((v) => vertical ? {
+			x: base.x + ox * k,
+			y: v
+		} : {
+			x: v,
+			y: base.y + oy * k
+		}));
+		const ends = vertical ? [r.y0 - 4 - 17, r.y1 + 4].map((y) => ({
+			x: d.side === "w" ? r.x1 - 3 - w : r.x0 + 3,
+			y
+		})) : [{
+			x: r.x0 - 4 - w,
+			y: (r.y0 + r.y1) / 2 - 17 / 2
+		}, {
+			x: r.x1 + 4,
+			y: (r.y0 + r.y1) / 2 - 17 / 2
+		}];
+		const key = flightKey(d.machine, d.item);
+		let got = placeBeside(key, text, [...open, ...ends], clear, bounds, 10);
+		const long = r.x1 - r.x0, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+		if (!got && vertical) got = placeBeside(key, text, [
+			24,
+			36,
+			48
+		].flatMap((k) => along.map((v) => ({
+			x: base.x + ox * k,
+			y: v
+		}))), clear, bounds, 10);
+		if (!got && !vertical && w <= long - 6) got = {
+			key,
+			text,
+			x: Math.round(cx - w / 2),
+			y: Math.round(cy - 17 / 2),
+			w,
+			h: 17
+		};
+		if (got) signs.push(got);
+	}
+	return {
+		tags,
+		signs,
+		plates: placePlates(paths, clear, bounds)
+	};
+}
 // src/audit/lines.ts
 /** A line's possible ends, by id: its key's two boxes (or lanes), for a rail the rail yards and stations, and for an
 *  inbound webhook its service's receiving dock (the belt plugs into the dock, not the wall). */
@@ -4822,386 +5509,6 @@ function subline(model, floorBundles, m) {
 	if (m.kind === "external") return ["external", splitEndpoint(model.label(m.id)).endpoint].filter(Boolean).join(" · ");
 	const children = model.map.nodes.filter((x) => x.parent === real).length;
 	return `${n?.role ? `${n.role} · ` : ""}${m.kind}${children ? ` · ${children} inside` : ""}`;
-}
-// src/factory/flights.ts
-var DOT = 4;
-var centre = (r) => ({
-	x: (r.x + r.w / 2) * 24,
-	y: (r.y + r.h / 2) * 24
-});
-var flightKey = (machine, item) => [machine, item].sort().join("|");
-/** A consumer tag's key: its flight's key and its group, since one machine may take from one hub in two groups. */
-var tagKey = (machine, item, group) => `${flightKey(machine, item)}|${group ?? ""}`;
-/** Every placed flight on the floor: one per pad and one per dock, sorted like the pads; none on a floor with no hub. */
-function flightPaths(tf) {
-	const land = tf.landing;
-	if (!land) return [];
-	const msg = land.messaging;
-	const rels = (machine, item, role, group) => {
-		if (role === "produce") return msg.producers.find((p) => p.machine === machine && p.item === item)?.viaRelations ?? [];
-		if (role === "failure") return msg.failures.find((f) => f.machine === machine && f.item === item)?.viaRelations ?? [];
-		return msg.consumers.find((c) => c.machine === machine && c.item === item && c.group === group)?.viaRelations ?? [];
-	};
-	const out = [];
-	const px = (r) => ({
-		x0: r.x * 24,
-		y0: r.y * 24,
-		x1: (r.x + r.w) * 24,
-		y1: (r.y + r.h) * 24
-	});
-	const add = (w, launch, dock) => {
-		const hubBox = tf.boxes.get(w.item);
-		if (!hubBox) return;
-		const straight = [launch, centre(hubBox)];
-		const pts = hubBox.foot === "door" ? clipInto(straight, px(hubBox)) : straight;
-		const outbound = w.flight === "produce" || w.flight === "enqueue" || w.flight === "failure" || w.flight === "pull";
-		out.push({
-			key: flightKey(w.machine, w.item),
-			flight: w.flight,
-			role: w.role,
-			machine: w.machine,
-			item: w.item,
-			topic: w.topic,
-			...w.group !== void 0 ? { group: w.group } : {},
-			dock,
-			dead: w.flight === "failure",
-			launch,
-			hub: pts[pts.length - 1],
-			outbound,
-			points: outbound ? pts : [...pts].reverse(),
-			relations: rels(w.machine, w.item, w.role, w.group)
-		});
-	};
-	for (const p of land.pads) add(p, padCentre(p), false);
-	for (const d of land.docks) add(d, centre(d), true);
-	return out;
-}
-/** `pts` cut where they first reach `r`: the path then ends on `r`'s edge. Unchanged when they start inside it or never
-*  reach it. */
-function clipInto(pts, r) {
-	for (let i = 1; i < pts.length; i++) {
-		const a = pts[i - 1], b = pts[i];
-		let t0 = 0, t1 = 1, hit = true;
-		const dx = b.x - a.x, dy = b.y - a.y;
-		for (const [p, q] of [
-			[-dx, a.x - r.x0],
-			[dx, r.x1 - a.x],
-			[-dy, a.y - r.y0],
-			[dy, r.y1 - a.y]
-		]) {
-			if (p === 0) {
-				if (q < 0) hit = false;
-				continue;
-			}
-			const t = q / p;
-			if (p < 0) {
-				if (t > t0) t0 = t;
-			} else if (t < t1) t1 = t;
-		}
-		if (!hit || t0 > t1) continue;
-		if (t0 <= 0) return pts;
-		return [...pts.slice(0, i), {
-			x: a.x + dx * t0,
-			y: a.y + dy * t0
-		}];
-	}
-	return pts;
-}
-/** The drone routes the flight paths replace: a bundle every relation of which some placed flight carries. A bundle only
-*  partly carried (a want left unplaced, or a relation no flight carries) keeps its old machine→hub route as well as the
-*  flights it has: nothing is lost, and the carried relations are then drawn twice (accepted; no real floor has one). */
-function coveredKeys(paths, bundles) {
-	const carried = new Set(paths.flatMap((p) => p.relations));
-	const keys = new Set(paths.map((p) => p.key));
-	return new Set(bundles.filter((b) => keys.has(b.key) && b.relations.length > 0 && b.relations.every((r) => carried.has(r.id))).map((b) => b.key));
-}
-/** Small squares along a path: what a label must stay off (a diagonal path's bounding box would block far too much). */
-function pathRects$1(pts, half = DOT) {
-	const out = [];
-	for (let i = 1; i < pts.length; i++) {
-		const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(len / half));
-		for (let k = 0; k <= n; k++) {
-			const x = a.x + (b.x - a.x) * k / n, y = a.y + (b.y - a.y) * k / n;
-			out.push({
-				x0: x - half,
-				y0: y - half,
-				x1: x + half,
-				y1: y + half
-			});
-		}
-	}
-	return out;
-}
-/** What labels on this floor keep off: everything `floorObstacles` lists, without the drone routes the flight paths
-*  replace, plus the flight paths themselves. A floor with no hub gets exactly `floorObstacles(tf, routes)`. */
-function messagingObstacles(tf, routes, paths, covered) {
-	return [...floorObstacles(tf, covered.size ? routes.filter((r) => !covered.has(r.key)) : routes), ...paths.flatMap((p) => pathRects$1(p.points))];
-}
-/** Where along a path a plate is tried: the middle first, then stepping out to either end (not onto the pad or hub). */
-var STEPS = [.5, ...Array.from({ length: 13 }, (_, i) => [.5 - (i + 1) * .03, .5 + (i + 1) * .03]).flat()];
-/** One plate per flight, beside its path near the middle and never on it: candidates step out from the middle along
-*  the path, on either side, a little further each round; the first box inside the floor and clear of `clear` wins and
-*  joins it. No clear room: no plate. Deterministic: paths in the given order. */
-function placePlates(paths, clear, bounds) {
-	const out = [];
-	for (const [i, p] of paths.entries()) {
-		const text = FLIGHT_LABEL[p.flight];
-		const w = plateW(text), h = 17;
-		const segs = p.points.slice(1).map((b, k) => [p.points[k], b]).map((sg, k) => ({
-			sg,
-			k,
-			len: Math.hypot(sg[1].x - sg[0].x, sg[1].y - sg[0].y)
-		})).sort((u, v) => v.len - u.len || u.k - v.k);
-		let got;
-		search: for (const gap of [6, 14]) for (const { sg: [a, b], len } of segs) {
-			const nx = -(b.y - a.y) / (len || 1), ny = (b.x - a.x) / (len || 1);
-			const reach = Math.abs(nx) * w / 2 + Math.abs(ny) * h / 2;
-			const sides = ny > 1e-9 || Math.abs(ny) <= 1e-9 && nx < 0 ? [-1, 1] : [1, -1];
-			for (const t of STEPS) for (const s of sides) {
-				const cx = a.x + (b.x - a.x) * t + nx * s * (gap + reach), cy = a.y + (b.y - a.y) * t + ny * s * (gap + reach);
-				const box = {
-					x0: Math.round(cx - w / 2),
-					y0: Math.round(cy - h / 2),
-					x1: Math.round(cx - w / 2) + w,
-					y1: Math.round(cy - h / 2) + h
-				};
-				if (box.x0 < bounds.x0 || box.y0 < bounds.y0 || box.x1 > bounds.x1 || box.y1 > bounds.y1 || !clear.free(box)) continue;
-				got = {
-					key: p.key,
-					text,
-					x: box.x0,
-					y: box.y0,
-					w,
-					h,
-					of: i
-				};
-				clear.add(box);
-				break search;
-			}
-		}
-		if (got) out.push(got);
-	}
-	return out;
-}
-/** Labels that belong to a box (a consumer's tags, a dock's sign), tried in `spots` order: the first clear one wins. */
-function placeBeside(key, text, spots, clear, bounds, size = PLATE_FONT, w = plateW(text, size)) {
-	const h = 17;
-	for (const s of spots) {
-		const box = {
-			x0: Math.round(s.x),
-			y0: Math.round(s.y),
-			x1: Math.round(s.x) + w,
-			y1: Math.round(s.y) + h
-		};
-		if (box.x0 < bounds.x0 || box.y0 < bounds.y0 || box.x1 > bounds.x1 || box.y1 > bounds.y1 || !clear.free(box)) continue;
-		clear.add(box);
-		return {
-			key,
-			text,
-			x: box.x0,
-			y: box.y0,
-			w,
-			h
-		};
-	}
-}
-/** Spots for a `w`-wide label under box `r` (world px, shadow included): just below it, then a tile further down (past
-*  a belt running along it); left-aligned, right-aligned, centred. */
-function spotsUnder(r, w) {
-	const cx = (r.x0 + r.x1) / 2 - w / 2;
-	return [4, 28].flatMap((dy) => [
-		r.x0,
-		r.x1 - w,
-		cx
-	].map((x) => ({
-		x,
-		y: r.y1 + dy
-	})));
-}
-/** Spots beside box `r`, level with its bottom: right, then left. */
-function spotsBeside(r, w, h = 17) {
-	return [{
-		x: r.x1 + 6,
-		y: r.y1 - h
-	}, {
-		x: r.x0 - 6 - w,
-		y: r.y1 - h
-	}];
-}
-/** The consumer tags a machine wears: one line per consumer with tags (`group notifier · 2 replicas`), in the model's
-*  order, each keyed by `tagKey` (machine, hub and group). `wide` is the longest text the tag ever shows (a take's
-*  pulse, `replica 3 of 3`), which its box is sized for. None on the site: the overview is too detailed for them (the
-*  owner, 2026-10-06); the consumer's own floor shows them. */
-function consumerTags(tf) {
-	if (tf.site) return [];
-	return (tf.landing?.messaging.consumers ?? []).filter((c) => c.tags.length).map((c) => {
-		const text = c.tags.join(" · "), n = c.replicas ?? 1;
-		const pulse = c.flight === "take" && n > 1 ? replicaPulse(text, n, n) : text;
-		return {
-			machine: c.machine,
-			key: tagKey(c.machine, c.item, c.group),
-			text,
-			wide: pulse.length > text.length ? pulse : text
-		};
-	});
-}
-/** A replica tag's text while replica `k` (from 1) of `n` takes a crate: `N replicas` reads `replica k of N`. */
-var replicaPulse = (base, k, n) => base.replace(/\d+ replicas$/, `replica ${k} of ${n}`);
-/** A receiving dock's sign: `POST <path>` when the push endpoint is known (the relation's key is a path, or a request
-*  into the handler names one), else `push`. */
-function dockSign(model, relations) {
-	const path = (key) => {
-		const m = /^(?:POST\s+)?(\/\S*)$/.exec(key?.trim() ?? "");
-		return m ? m[1] : void 0;
-	};
-	const rels = relations.map((id) => model.map.relations.find((r) => r.id === id)).filter((r) => !!r);
-	for (const r of rels) {
-		const p = path(r.key);
-		if (p) return `POST ${p}`;
-	}
-	for (const r of rels) {
-		const into = model.map.relations.find((q) => q.kind === "request" && q.to === r.to && /^POST\s+\//.test(q.key ?? ""));
-		if (into) return `POST ${path(into.key)}`;
-	}
-	return "push";
-}
-/** Every messaging label on a floor, placed in this order so the ones that say most win the room: consumer tags under
-*  their machines, dock signs, then one plate per flight. `clear` holds the floor's obstacles (and its zone names);
-*  each placed label joins it. `inside` gives a machine's free inner band (under its name, over its sub line), where a
-*  tag goes when no clear spot under the machine is left; a tag there is `inside`. */
-function messagingLabels(model, tf, paths, clear, inside) {
-	const bounds = {
-		x0: 0,
-		y0: 0,
-		x1: tf.cols * 24,
-		y1: tf.rows * 24
-	};
-	const px = (r) => ({
-		x0: r.x * 24,
-		y0: r.y * 24,
-		x1: (r.x + r.w) * 24,
-		y1: (r.y + r.h) * 24
-	});
-	const tags = [];
-	const bands = /* @__PURE__ */ new Map();
-	for (const t of consumerTags(tf)) {
-		const box = tf.boxes.get(t.machine);
-		if (!box) continue;
-		const r = px(box), w = plateW(t.wide), shadowed = {
-			...r,
-			x1: r.x1 + 5,
-			y1: r.y1 + 5
-		};
-		let got = placeBeside(t.key, t.text, spotsUnder(shadowed, w), clear, bounds, PLATE_FONT, w);
-		const band = bands.get(t.machine) ?? inside?.(t.machine);
-		if (!got && band && band.x1 - band.x0 >= w && band.y1 - band.y0 >= 17) {
-			got = {
-				key: t.key,
-				text: t.text,
-				x: Math.round(band.x0),
-				y: Math.round(band.y0),
-				w,
-				h: 17
-			};
-			bands.set(t.machine, {
-				...band,
-				y0: band.y0 + 17 + 2
-			});
-			tags.push({
-				...got,
-				machine: t.machine,
-				inside: true
-			});
-			continue;
-		}
-		got ??= placeBeside(t.key, t.text, spotsBeside(shadowed, w), clear, bounds, PLATE_FONT, w);
-		if (got) tags.push({
-			...got,
-			machine: t.machine,
-			inside: false
-		});
-	}
-	const signs = [];
-	for (const d of tf.landing?.docks ?? []) {
-		const text = dockSign(model, paths.find((p) => p.dock && p.machine === d.machine && p.item === d.item && p.group === d.group)?.relations ?? []);
-		const r = px(d), w = plateW(text, 10);
-		const vertical = d.side === "w" || d.side === "e";
-		const [ox, oy] = {
-			n: [0, -1],
-			s: [0, 1],
-			w: [-1, 0],
-			e: [1, 0]
-		}[d.side];
-		const base = {
-			n: {
-				x: 0,
-				y: r.y0 - 4 - 17
-			},
-			s: {
-				x: 0,
-				y: r.y1 + 4
-			},
-			w: {
-				x: r.x0 - 4 - w,
-				y: 0
-			},
-			e: {
-				x: r.x1 + 4,
-				y: 0
-			}
-		}[d.side];
-		const along = vertical ? [
-			r.y0,
-			r.y1 - 17,
-			(r.y0 + r.y1) / 2 - 17 / 2
-		] : [
-			r.x0,
-			r.x1 - w,
-			(r.x0 + r.x1) / 2 - w / 2
-		];
-		const open = [0, 12].flatMap((k) => along.map((v) => vertical ? {
-			x: base.x + ox * k,
-			y: v
-		} : {
-			x: v,
-			y: base.y + oy * k
-		}));
-		const ends = vertical ? [r.y0 - 4 - 17, r.y1 + 4].map((y) => ({
-			x: d.side === "w" ? r.x1 - 3 - w : r.x0 + 3,
-			y
-		})) : [{
-			x: r.x0 - 4 - w,
-			y: (r.y0 + r.y1) / 2 - 17 / 2
-		}, {
-			x: r.x1 + 4,
-			y: (r.y0 + r.y1) / 2 - 17 / 2
-		}];
-		const key = flightKey(d.machine, d.item);
-		let got = placeBeside(key, text, [...open, ...ends], clear, bounds, 10);
-		const long = r.x1 - r.x0, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
-		if (!got && vertical) got = placeBeside(key, text, [
-			24,
-			36,
-			48
-		].flatMap((k) => along.map((v) => ({
-			x: base.x + ox * k,
-			y: v
-		}))), clear, bounds, 10);
-		if (!got && !vertical && w <= long - 6) got = {
-			key,
-			text,
-			x: Math.round(cx - w / 2),
-			y: Math.round(cy - 17 / 2),
-			w,
-			h: 17
-		};
-		if (got) signs.push(got);
-	}
-	return {
-		tags,
-		signs,
-		plates: placePlates(paths, clear, bounds)
-	};
 }
 // src/factory/rail-place.ts
 /** The key a yard is selected by (and its views fade with): its rails' ends grouped as in the router. */
@@ -5832,6 +6139,111 @@ function measure(plan, model, container) {
 		switchZoom: codeZoom(minNameSize(model, container, plan))
 	};
 }
+// src/audit/flights.ts
+var name = (p) => `${p.flight} ${p.key}${p.group !== void 0 ? ` (${p.group})` : ""}`;
+var tile = (q) => ({
+	x: Math.floor(q.x / 24),
+	y: Math.floor(q.y / 24)
+});
+var px = (tf, id) => {
+	const r = tf.boxes.get(id);
+	return r ? {
+		x0: r.x * 24,
+		y0: r.y * 24,
+		x1: (r.x + r.w) * 24,
+		y1: (r.y + r.h) * 24
+	} : void 0;
+};
+/** Pairs of flight paths whose seen parts (`visiblePart`: from the pad or dock to the hub's edge) run within OVERLAP_PX
+*  of each other for OVERLAP_RUN or more on open floor (outside every box's face: under a box they are hidden, which
+*  `flights.hidden` reports), each with whether its pads are in line with their one hub (`inLine`). */
+function overlaps(tf, paths) {
+	const faces = keepOffBoxes(tf, 0).map((b) => b.r);
+	const seen = paths.map((p) => {
+		const r = px(tf, p.item);
+		return r ? visiblePart(p, r) : [p.launch, p.hub];
+	});
+	const out = [];
+	for (let i = 0; i < paths.length; i++) for (let j = i + 1; j < paths.length; j++) {
+		const run = runTogether(seen[i], seen[j], faces);
+		if (run < OVERLAP_RUN) continue;
+		const a = paths[i], b = paths[j], hub = px(tf, a.item);
+		const line = a.item === b.item && !!hub && inLine(a.launch, b.launch, {
+			x: (hub.x0 + hub.x1) / 2,
+			y: (hub.y0 + hub.y1) / 2
+		});
+		out.push({
+			a,
+			b,
+			run,
+			at: seen[i][1],
+			inLine: line
+		});
+	}
+	return out;
+}
+var told = (o) => ({
+	detail: `${name(o.a)} and ${name(o.b)} run within 3 px of each other for ${Math.round(o.run)} px on open floor`,
+	at: tile(o.at)
+});
+/** `flights.overlap`: two flight paths still on top of each other on open floor after their landings are spread
+*  (`spreadLandings`): a group into one hub with more paths than its edge holds, sharing landing points, or paths into
+*  different hubs. Paths whose pads are in line with their hub are `flights.in-line`'s. */
+function overlapViolations(tf, paths = flightPaths(tf)) {
+	return overlaps(tf, paths).filter((o) => !o.inLine).map(told);
+}
+/** `flights.in-line`, an advisory: two paths into one hub whose pads are in line with it (one machine straight behind
+*  another) that still run together on open floor with their landings spread over the whole edge: the far pad is too
+*  far from the hub, for the near one, for the edge's width to part them. */
+function inLineViolations(tf, paths = flightPaths(tf)) {
+	return overlaps(tf, paths).filter((o) => o.inLine).map(told);
+}
+/** A flight path that passes under a box it does not belong to, for HIDDEN_MIN or more of its length: one of
+*  `flightKeepOff`'s (a machine, hub, store or door, a receiving or webhook dock, a waiting stack), by its face alone
+*  (the shadow is not the box), other than its own machine's, its hub's, or theirs (the machine's docks, the hub's
+*  stack). Paths are drawn under the machines, so that stretch is hidden. An advisory, not a map limit: a known look,
+*  kept for now (format.md → Audit). */
+function hiddenViolations(tf, paths = flightPaths(tf)) {
+	const boxes = keepOffBoxes(tf, 0), out = [];
+	for (const p of paths) for (const b of boxes) {
+		if (b.owner === p.machine || b.owner === p.item) continue;
+		let len = 0;
+		for (let i = 1; i < p.points.length; i++) len += through(p.points[i - 1], p.points[i], b.r);
+		if (len >= 8) out.push({
+			detail: `${name(p)} passes under ${b.name} for ${Math.round(len)} px`,
+			at: tile({
+				x: (b.r.x0 + b.r.x1) / 2,
+				y: (b.r.y0 + b.r.y1) / 2
+			})
+		});
+	}
+	return out;
+}
+/** How far segment a→b runs through `r`, in px (Liang–Barsky). */
+function through(a, b, r) {
+	let t0 = 0, t1 = 1;
+	const dx = b.x - a.x, dy = b.y - a.y;
+	for (const [p, q] of [
+		[-dx, a.x - r.x0],
+		[dx, r.x1 - a.x],
+		[-dy, a.y - r.y0],
+		[dy, r.y1 - a.y]
+	]) {
+		if (p === 0) {
+			if (q < 0) return 0;
+			continue;
+		}
+		const t = q / p;
+		if (p < 0) {
+			if (t > t1) return 0;
+			if (t > t0) t0 = t;
+		} else {
+			if (t < t0) return 0;
+			if (t < t1) t1 = t;
+		}
+	}
+	return t1 > t0 ? (t1 - t0) * Math.hypot(dx, dy) : 0;
+}
 // src/audit/types.ts
 /** The row of the owner's audit each check comes from. */
 var ROW = {
@@ -5849,10 +6261,16 @@ var ROW = {
 	"zone.narrow": "26",
 	"pads.corridor": "32",
 	"travel.long": "25",
+	"flights.overlap": "—",
+	"flights.in-line": "—",
+	"flights.hidden": "—",
 	"lost.relation": "40",
 	"floor.wide": "46",
 	"plan.crashed": "—"
 };
+/** Advisory checks: what they find is a look that is known and kept for now, not a map limit. audit.py lists it in
+*  audit.md under "Drawing advisories"; it never counts as a limit, nor changes the summary line. */
+var ADVISORIES = /* @__PURE__ */ new Set(["flights.in-line", "flights.hidden"]);
 // src/audit/run.ts
 var firstLine = (e) => (String(e instanceof Error ? e.message : e).split("\n")[0] || "error").trim();
 /** The base's lines and each layer's, with the suffix a violation names its view by. */
@@ -5866,6 +6284,8 @@ var perRoute = (plan, check) => perView(plan, (routes) => routes.filter((r) => r
 /** Every check over one floor's plan, in the order of the check table. */
 function checks(model, c, plan, measured) {
 	const { tf } = plan, { bundles } = model.bundles(c);
+	let paths;
+	const flights = () => paths ??= flightPaths(tf);
 	return [
 		["lines.failed", () => perView(plan, failedViolations)],
 		["lines.plugged", () => perRoute(plan, (r) => pluggedViolations(tf, r))],
@@ -5884,6 +6304,9 @@ function checks(model, c, plan, measured) {
 		["zone.narrow", () => narrowZoneViolations(plan)],
 		["pads.corridor", () => padCorridorViolations(plan)],
 		["travel.long", () => travelViolations(plan)],
+		["flights.overlap", () => overlapViolations(tf, flights())],
+		["flights.in-line", () => inLineViolations(tf, flights())],
+		["flights.hidden", () => hiddenViolations(tf, flights())],
 		["lost.relation", () => lostViolations(model, c, plan)],
 		["floor.wide", () => wideViolations(measured(), plan)]
 	];
@@ -5920,14 +6343,15 @@ function auditMap(map, budget = BUDGET) {
 		if (!size(c)) continue;
 		const code = model.codes.get(c) ?? c;
 		const result = (check, vs) => {
-			const v = vs[0];
+			const v = vs[0], advisory = ADVISORIES.has(check) ? { advisory: true } : {};
 			if (!v) return {
 				check,
 				floor: c,
 				code,
 				row: ROW[check],
 				ok: true,
-				detail: ""
+				detail: "",
+				...advisory
 			};
 			const more = vs.length > 1 ? ` (+${vs.length - 1} more)` : "";
 			return {
@@ -5940,7 +6364,8 @@ function auditMap(map, budget = BUDGET) {
 				...v.at ? { at: {
 					x: v.at.x,
 					y: v.at.y
-				} } : {}
+				} } : {},
+				...advisory
 			};
 		};
 		let plan;

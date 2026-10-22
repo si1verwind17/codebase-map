@@ -29,7 +29,8 @@ const KNOWN: Record<string, { check: string; code: string; detail: string }[]> =
 // no `.known.json` next to the large map: no known limits, and the test still runs
 if (BIG && existsSync(BIG)) KNOWN.big = existsSync(BIG_KNOWN) ? JSON.parse(readFileSync(BIG_KNOWN, "utf8")) : [];
 
-const failures = (r: AuditReport) => r.results.filter((x) => !x.ok);
+/** Failed checks that are map limits: an advisory (`flights.hidden`, a known look) is not one. */
+const failures = (r: AuditReport) => r.results.filter((x) => !x.ok && !x.advisory);
 const unknown = (name: string, r: AuditReport) => failures(r)
   .filter((f) => !(KNOWN[name] ?? []).some((k) => k.check === f.check && k.code === f.code && f.detail.includes(k.detail)))
   .map((f) => `${f.check} @ ${f.code} (${f.floor}): ${f.detail}`);
@@ -68,11 +69,23 @@ describe("auditMap on the known maps", () => {
     const site = r.results.filter((x) => x.floor === SITE);
     expect(site.map((x) => x.check)).toEqual(["lines.failed", "lines.plugged", "lines.trunks", "lines.under",
       "lines.mid-side", "lines.plate-wall", "lines.lane-drop", "lines.gap-stub", "lines.lane-gap", "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long",
-      "lost.relation", "floor.wide"]);
+      "flights.overlap", "flights.in-line", "flights.hidden", "lost.relation", "floor.wide"]);
     expect(site.find((x) => x.check === "text.over-line")).toMatchObject({ code: "site", row: "7, 8, 45", ok: true });
     for (const x of r.results) if (x.at) expect(Object.keys(x.at).sort()).toEqual(["x", "y"]);
     expect(Object.keys(r.measured)).toContain("site");
     expect(Object.keys(r.measured.site).sort()).toEqual(["congestion", "fitZoom", "spacing", "switchZoom"]);
+  });
+
+  it("flights.in-line and flights.hidden are advisories, on every result of them; flights.hidden fires on the push and pull page's site (orders' produce path under billing), flights.overlap on no known map", () => {
+    for (const [, load] of known) {
+      const r = auditMap(load());
+      for (const x of r.results) expect(x.advisory, x.check).toBe(x.check === "flights.hidden" || x.check === "flights.in-line" ? true : undefined);
+      expect(r.results.filter((x) => x.check === "flights.overlap" && !x.ok)).toEqual([]);
+    }
+    const r = auditMap(read(new URL("push_pull.code-map.json", GUIDE)));
+    const hidden = r.results.find((x) => x.check === "flights.hidden" && x.floor === SITE)!;
+    expect(hidden).toMatchObject({ ok: false, advisory: true, row: "—" });
+    expect(hidden.detail).toMatch(/^produce svc:orders\|topic:events:order-events passes under svc:billing for \d+ px/);
   });
 
   it("floors run site first, then by box count, most first", () => {
@@ -111,13 +124,13 @@ describe("auditMap's budget and crashes", () => {
     expect(worker[0]).toMatchObject({ check: "plan.crashed", ok: false, row: "—" });
     expect(worker[0].detail).not.toContain("\n");
     expect(worker[0].detail.length).toBeGreaterThan(0);
-    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(16);
-    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 16 results
+    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(19);
+    // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 19 results
     expect(r.skipped).toEqual([]);
     expect(r.checked).toHaveLength(Object.keys(map.layout.containers).length - r.skipped.length);
     const after = r.checked.slice(r.checked.indexOf("svc:worker") + 1).filter((c) => Object.keys(map.layout.containers[c].items ?? {}).length);
     expect(after.length).toBeGreaterThan(0);
-    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(16);
+    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(19);
   });
 
   it("an empty floor is checked with no results", () => {

@@ -691,8 +691,8 @@ map audit: failed: <first line of the error>
 with ` · audit errors: N` appended when a content check itself broke, and
 ` · N floors not checked (audit budget; --full-audit checks every floor)` when floors
 were past the budget. `audit.md`
-has a header (drawing checks run, failed, accepted; content warnings; findings;
-audit errors when any), then only the sections that have entries: Map limits,
+has a header (drawing checks run, failed, accepted, and advisories when any; content warnings; findings;
+audit errors when any), then only the sections that have entries: Map limits, Drawing advisories,
 Accepted, Stale acceptances, Notes not understood, Audit errors, Content
 warnings, Findings, Measured (no threshold yet), Not checked.
 
@@ -712,10 +712,17 @@ warnings, Findings, Measured (no threshold yet), Not checked.
 | `zone.narrow` | 26 | a zone is narrower than its label |
 | `pads.corridor` | 32 | a drone pad takes a corridor tile |
 | `travel.long` | 25 | a rail train takes over 3 s, or a drone flight over 5 s (guards against a future speed change) |
+| `flights.overlap` | — | two flight paths run within 3 px of each other (their dots touch) for a tile or more on open floor (outside every box), after paths into one hub that would run together got their own landing points on its edge: a group larger than the edge holds, sharing points, or paths into different hubs |
+| `flights.in-line` | — | an **advisory**, not a map limit: two paths into one hub whose pads are in line with it (one machine straight behind another) still run together on open floor with their landing points spread over the whole edge, as the far pad is too far from the hub for the edge to part them |
+| `flights.hidden` | — | an **advisory**, not a map limit: a flight path runs 8 px or more (a dot and its gap) under the face of a box that is neither its machine's nor its hub's (a machine, hub, store or door, a dock, a waiting stack; not the shadow); paths are drawn under the machines, so that stretch is hidden |
 | `lost.relation` | 40 | a relation that belongs on the floor is in neither the base nor a layer |
 | `floor.wide` | 46 | a floor is more than twice as wide, for its height, as the 1440×900 Fit canvas, and its names do not read at Fit (a row that should wrap) |
 
-A floor whose plan throws is one `plan.crashed` limit. The checks run from the
+A floor whose plan throws is one `plan.crashed` limit. What an advisory check
+(`flights.in-line`, `flights.hidden`) finds is a look that is known and kept
+for now: it is listed under Drawing advisories, never counts as a map limit
+and leaves the summary line as it is; an acceptance still moves it to
+Accepted. The checks run from the
 largest floor down within a budget counted in boxes, not time (about 30 s on
 the largest maps known), so a map gives the same result on every run and
 machine; floors past it are listed by floor code under "Not checked", with the
@@ -751,7 +758,7 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
   (`orders → billing → orders (…) (also in this group: shipping)`).
 - **Audit errors** (`audit.error`): a content check crashed. Not a content
   warning and not counted as one; listed in its own section.
-- **Acceptances** in `map-notes.md` move a map limit to "Accepted":
+- **Acceptances** in `map-notes.md` move a map limit, or a drawing advisory, to "Accepted":
   ```
   - accept <check id> <floor code or *>  — <reason>
   ```

@@ -5,11 +5,13 @@ import { Model, SITE } from "../model/model";
 import type { CodeMap } from "../model/types";
 import type { FloorPlan } from "../factory/plan";
 import { planJob } from "../factory/plan-job";
+import { flightPaths, type FlightPath } from "../factory/flights";
 import type { TileRoute } from "../factory/router";
 import { failedViolations, gapStubViolations, laneDropViolations, laneGapViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
 import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
 import { lostViolations, measure, padCorridorViolations, travelViolations, wideViolations, type FloorMeasures } from "./floor";
-import { ROW, type CheckId, type CheckResult, type Violation } from "./types";
+import { hiddenViolations, inLineViolations, overlapViolations } from "./flights";
+import { ADVISORIES, ROW, type CheckId, type CheckResult, type Violation } from "./types";
 
 /** `skipped` holds container ids; `skippedCodes` the same floors by their code, for the reader. */
 export interface AuditReport { checked: string[]; skipped: string[]; skippedCodes: string[]; results: CheckResult[]; measured: Record<string, FloorMeasures> }
@@ -29,6 +31,8 @@ const perRoute = (plan: FloorPlan, check: (r: TileRoute) => Violation[]) =>
 /** Every check over one floor's plan, in the order of the check table. */
 function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorMeasures): [CheckId, () => Violation[]][] {
   const { tf } = plan, { bundles } = model.bundles(c);
+  let paths: FlightPath[] | undefined;
+  const flights = () => (paths ??= flightPaths(tf));   // as the floor draws them, worked out once for both checks
   return [
     ["lines.failed", () => perView(plan, failedViolations)],
     ["lines.plugged", () => perRoute(plan, (r) => pluggedViolations(tf, r))],
@@ -47,6 +51,9 @@ function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorM
     ["zone.narrow", () => narrowZoneViolations(plan)],
     ["pads.corridor", () => padCorridorViolations(plan)],
     ["travel.long", () => travelViolations(plan)],
+    ["flights.overlap", () => overlapViolations(tf, flights())],
+    ["flights.in-line", () => inLineViolations(tf, flights())],
+    ["flights.hidden", () => hiddenViolations(tf, flights())],
     ["lost.relation", () => lostViolations(model, c, plan)],
     ["floor.wide", () => wideViolations(measured(), plan)],
   ];
@@ -76,10 +83,10 @@ export function auditMap(map: CodeMap, budget = BUDGET): AuditReport {
     if (!size(c)) continue;
     const code = model.codes.get(c) ?? c;
     const result = (check: CheckId, vs: Violation[]): CheckResult => {
-      const v = vs[0];
-      if (!v) return { check, floor: c, code, row: ROW[check], ok: true, detail: "" };
+      const v = vs[0], advisory = ADVISORIES.has(check) ? { advisory: true as const } : {};
+      if (!v) return { check, floor: c, code, row: ROW[check], ok: true, detail: "", ...advisory };
       const more = vs.length > 1 ? ` (+${vs.length - 1} more)` : "";
-      return { check, floor: c, code, row: ROW[check], ok: false, detail: v.detail + more, ...(v.at ? { at: { x: v.at.x, y: v.at.y } } : {}) };
+      return { check, floor: c, code, row: ROW[check], ok: false, detail: v.detail + more, ...(v.at ? { at: { x: v.at.x, y: v.at.y } } : {}), ...advisory };
     };
     let plan: FloorPlan;
     try {

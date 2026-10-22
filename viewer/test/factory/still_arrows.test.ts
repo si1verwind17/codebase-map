@@ -93,14 +93,19 @@ describe("push_pull F0: still flight arrows", () => {
     }
   });
 
-  it("no two heads within 8 px point opposite ways (produce into the hub and the push out of it nearly share a line)", () => {
+  it("no two heads within 8 px point opposite ways (produce into the hub and the push out of it nearly share a line, landing apart on its edge)", () => {
     const all = drawn.flat().map(shape);
     for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
       const p = all[i], q = all[j];
       if (Math.hypot(p.tip.x - q.tip.x, p.tip.y - q.tip.y) <= 8) expect(p.dir.x * q.dir.x + p.dir.y * q.dir.y).toBeGreaterThan(0);
     }
-    // without the rule they would: the opposed pair is real, not a lucky miss
-    const raw = flights.flatMap((f) => flightArrows(f, keepOff)).map(shape);
+    // without the rule, and with both paths to the hub's centre as before their landings were spread, they would: the
+    // opposed pair is real, not a lucky miss
+    const centred = flights.map((f) => {
+      const b = tf.boxes.get(f.item)!, hub = { x: (b.x + b.w / 2) * T, y: (b.y + b.h / 2) * T };
+      return { ...f, hub, points: f.outbound ? [f.launch, hub] : [hub, f.launch] };
+    });
+    const raw = centred.flatMap((f) => flightArrows(f, keepOff)).map(shape);
     expect(raw.some((p) => raw.some((q) => Math.hypot(p.tip.x - q.tip.x, p.tip.y - q.tip.y) <= 8 && p.dir.x * q.dir.x + p.dir.y * q.dir.y < 0))).toBe(true);
   });
 });

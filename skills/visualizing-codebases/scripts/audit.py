@@ -75,6 +75,8 @@ def run_drawing(map_path: Path, node: str | None = None, timeout: float | None =
 
 
 def _plural(n: int, word: str) -> str:
+    if n != 1 and word.endswith("y"):
+        return f"{n} {word[:-1]}ies"
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
@@ -149,12 +151,13 @@ def render(report: dict | None, skip: str | None, warnings: list[dict], cycles: 
                           f"{str(r.get('detail', '')).removeprefix('the check crashed: ')}"} for r in crashed]
     accepted: list[tuple[dict, object]] = []
     limits: list[dict] = []
+    advisories: list[dict] = []   # failures of an advisory check (`advisory`): a known look, never a map limit
     used: set[int] = set()
     for f in failures:
         code = str(f.get("code", "")).upper()
         hit = next((a for a in acceptances if a.check == f.get("check") and a.floor in ("*", code)), None)
         if hit is None:
-            limits.append(f)
+            (advisories if f.get("advisory") else limits).append(f)
         else:
             accepted.append((f, hit))
             used.update(a.line for a in acceptances if a.check == f.get("check") and a.floor in ("*", code))
@@ -174,7 +177,8 @@ def render(report: dict | None, skip: str | None, warnings: list[dict], cycles: 
         run = {r.get("check") for r in results} - {"plan.crashed"}
         checked = report.get("checked")
         lines.append(f"Drawing checks: {len(run)} run on {len(checked) if isinstance(checked, list) else 0} floors, "
-                     f"{len(limits)} failed, {len(accepted)} accepted")
+                     f"{len(limits)} failed, {len(accepted)} accepted"
+                     + (f", {_plural(len(advisories), 'advisory')}" if advisories else ""))
     lines.append(f"Content warnings: {len(warnings)}     Findings: {_plural(len(cycles), 'cycle')}"
                  + (f"     Audit errors: {len(errors)}" if errors else ""))
 
@@ -186,9 +190,13 @@ def render(report: dict | None, skip: str | None, warnings: list[dict], cycles: 
         f"- {f.get('check')} · {f.get('code')} · row {f.get('row')} — {f.get('detail', '')}"
         + (f" at ({f['at'].get('x', '?')}, {f['at'].get('y', '?')})" if isinstance(f.get("at"), dict) else ""),
         f"  to accept: - accept {f.get('check')} {f.get('code')}")])
+    section("Drawing advisories", [
+        f"- {f.get('check')} · {f.get('code')} — {f.get('detail', '')}"
+        + (f" at ({f['at'].get('x', '?')}, {f['at'].get('y', '?')})" if isinstance(f.get("at"), dict) else "")
+        for f in advisories])
     section("Accepted", [f"- {f.get('check')} · {f.get('code')}" + (f' — "{a.reason}"' if a.reason else "")
                          for f, a in accepted])
-    section("Stale acceptances", [f"- line {a.line}: accept {a.check} {a.floor} — matches no map limit"
+    section("Stale acceptances", [f"- line {a.line}: accept {a.check} {a.floor} — matches no map limit or advisory"
                                   for a in stale])
     section("Notes not understood", [f"- line {n}: {text}" for n, text in not_understood])
     section("Audit errors", [f"- {w.get('detail', '')}" for w in errors])

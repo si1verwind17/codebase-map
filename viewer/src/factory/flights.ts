@@ -15,7 +15,8 @@ import type { TileRoute } from "./router";
 /** One flight's dotted path. `points` run the way the drone first flies: pad → hub for produce, enqueue, failure and
  *  pull (a pull flies out empty, then back loaded); hub → pad or dock for copy, take and push. The path is one straight
  *  segment (the owner, 2026-10-06: drones fly over whatever is in the way, and the drone toggle hides the paths); to a
- *  door it stops at the door's edge. `key` is the bundle the flight's relations ride (`machine|hub`, sorted), so
+ *  door it stops at the door's edge. Paths that would run on top of each other into one hub land apart on its edge
+ *  (`spreadLandings`). `key` is the bundle the flight's relations ride (`machine|hub`, sorted), so
  *  selection, lighting and travel resolve to it. */
 export interface FlightPath {
   key: string;
@@ -28,7 +29,8 @@ export interface FlightPath {
   dock: boolean;           // lands on a receiving dock, not a pad
   dead: boolean;           // a failure: drawn red
   launch: Pt;              // the pad mark's (or dock's) centre
-  hub: Pt;                 // where the path meets the hub: its centre, or, for a door, the point where it reaches the door's edge
+  hub: Pt;                 // where the path meets the hub: its centre, or, for a door, the point where it reaches the door's
+                           // edge; a point spread along the edge when it would run on top of another path (`spreadLandings`)
   outbound: boolean;       // the drone first flies pad → hub (`points` start at `launch`), else hub → pad
   points: Pt[];            // the drawn path: one straight segment
   relations: string[];
@@ -73,17 +75,220 @@ export function flightPaths(tf: TileFloor): FlightPath[] {
   };
   for (const p of land.pads) add(p, padCentre(p), false);
   for (const d of land.docks) add(d, centre(d), true);
+  return spreadLandings(out, tf);
+}
+
+/** How close two paths' centre lines come before they read as one line: a path is dots 3 px wide with round caps
+ *  (`paintFlight`), so lines whose centres are 3 px or less apart touch, dot over dot. */
+export const OVERLAP_PX = 3;
+/** How long two paths must run that close to be on top of each other, not just crossing: a tile, three dots and their
+ *  gaps (2 px on, 6 off). Lines crossing at more than about 14° are that close for less (2·3 px / sin 14° ≈ 24 px), so
+ *  this also asks that they come in close in direction. */
+export const OVERLAP_RUN = T;
+/** The least room between two landing points spread along a hub's edge: four dot widths, plainly two lines. */
+export const LANDING_GAP = 12;
+/** Landing points keep this far in from the edge's corners. */
+const LANDING_INSET = 6;
+/** How much wider a spread is tried each time, up to the whole edge, while paths in it still run together. */
+const WIDEN_STEP = 4;
+
+/** The part of a path a reader sees at its hub end: from its pad or dock to where it first reaches the hub's box (the
+ *  rest, to a hub's centre, is under the hub). */
+export function visiblePart(p: Pick<FlightPath, "launch" | "hub">, hubBox: PxRect): [Pt, Pt] {
+  const pts = clipInto([p.launch, p.hub], hubBox);
+  return [pts[0], pts[pts.length - 1]];
+}
+
+/** The stretch of segment `a`, as a part [t0, t1] of it (0 at a[0], 1 at a[1]), whose points lie within `tol` of
+ *  segment `b`, or undefined. Closed form: the points within `tol` of `b` make a capsule (a band along `b` and a disc at
+ *  each end), convex, so `a` meets it in one stretch, from the first of its entries to the last of its exits. */
+function nearStretch(a: [Pt, Pt], b: [Pt, Pt], tol: number): [number, number] | undefined {
+  const dx = a[1].x - a[0].x, dy = a[1].y - a[0].y;
+  let lo = Infinity, hi = -Infinity;
+  const take = (s: number, e: number) => { if (s <= e) { lo = Math.min(lo, s); hi = Math.max(hi, e); } };
+  // a disc of radius tol round c: |a0 + t·d − c|² ≤ tol²
+  const disc = (c: Pt) => {
+    const fx = a[0].x - c.x, fy = a[0].y - c.y, A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - tol * tol;
+    if (A === 0) { if (C <= 0) take(0, 1); return; }
+    const disc2 = B * B - 4 * A * C;
+    if (disc2 < 0) return;
+    const r = Math.sqrt(disc2);
+    take((-B - r) / (2 * A), (-B + r) / (2 * A));
+  };
+  disc(b[0]); disc(b[1]);
+  const bx = b[1].x - b[0].x, by = b[1].y - b[0].y, L = Math.hypot(bx, by);
+  if (L > 0) {
+    // the band: 0 ≤ u ≤ L along b, |v| ≤ tol across it, with u and v linear in t
+    const ux = bx / L, uy = by / L;
+    const u0 = (a[0].x - b[0].x) * ux + (a[0].y - b[0].y) * uy, du = dx * ux + dy * uy;
+    const v0 = -(a[0].x - b[0].x) * uy + (a[0].y - b[0].y) * ux, dv = -dx * uy + dy * ux;
+    let s = -Infinity, e = Infinity;
+    for (const [p0, dp, min, max] of [[u0, du, 0, L], [v0, dv, -tol, tol]]) {
+      if (dp === 0) { if (p0 < min || p0 > max) { s = 1; e = 0; } continue; }
+      const t1 = (min - p0) / dp, t2 = (max - p0) / dp;
+      s = Math.max(s, Math.min(t1, t2)); e = Math.min(e, Math.max(t1, t2));
+    }
+    take(s, e);
+  }
+  const s = Math.max(0, lo), e = Math.min(1, hi);
+  return s <= e ? [s, e] : undefined;
+}
+/** The part [t0, t1] of segment `a` inside rect `r` (Liang–Barsky), or undefined. */
+function insideStretch(a: [Pt, Pt], r: PxRect): [number, number] | undefined {
+  let t0 = 0, t1 = 1;
+  const dx = a[1].x - a[0].x, dy = a[1].y - a[0].y;
+  for (const [p, q] of [[-dx, a[0].x - r.x0], [dx, r.x1 - a[0].x], [-dy, a[0].y - r.y0], [dy, r.y1 - a[0].y]]) {
+    if (p === 0) { if (q < 0) return undefined; continue; }
+    const t = q / p;
+    if (p < 0) { if (t > t1) return undefined; if (t > t0) t0 = t; } else { if (t < t0) return undefined; if (t < t1) t1 = t; }
+  }
+  return t0 < t1 ? [t0, t1] : undefined;
+}
+/** How much of segment `a`, in px, runs within `tol` of segment `b` on open floor: outside every rect of `boxes`. */
+function alongside(a: [Pt, Pt], b: [Pt, Pt], tol: number, boxes: PxRect[]): number {
+  const near = nearStretch(a, b, tol);
+  if (!near) return 0;
+  const len = Math.hypot(a[1].x - a[0].x, a[1].y - a[0].y);
+  // the boxes' stretches of `a` inside `near`, merged, come off it
+  const cut = boxes.map((r) => insideStretch(a, r)).filter((s): s is [number, number] => !!s && s[1] > near[0] && s[0] < near[1])
+    .map(([s, e]): [number, number] => [Math.max(s, near[0]), Math.min(e, near[1])]).sort((u, v) => u[0] - v[0]);
+  let covered = 0, end = near[0];
+  for (const [s, e] of cut) { if (e > end) { covered += e - Math.max(s, end); end = e; } }
+  return (near[1] - near[0] - covered) * len;
+}
+/** How long two segments run on top of each other on open floor: the shorter of each one's stretch within OVERLAP_PX
+ *  of the other outside every rect of `boxes` (the same either way round). Under a box they are hidden, not on top of
+ *  each other: `flights.hidden` reports that. */
+export function runTogether(a: [Pt, Pt], b: [Pt, Pt], boxes: PxRect[] = []): number {
+  return Math.min(alongside(a, b, OVERLAP_PX, boxes), alongside(b, a, OVERLAP_PX, boxes));
+}
+
+/** Two launches in line with a hub: one lies within OVERLAP_PX of the other's straight line to the hub's centre (one
+ *  machine straight behind another). Their paths can be spread only as far as the hub's edge allows. */
+export function inLine(a: Pt, b: Pt, hubCentre: Pt): boolean {
+  return segDist(a, b, hubCentre) <= OVERLAP_PX || segDist(b, a, hubCentre) <= OVERLAP_PX;
+}
+const segDist = (q: Pt, a: Pt, b: Pt) => {
+  const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l2)) : 0;
+  return Math.hypot(q.x - a.x - t * dx, q.y - a.y - t * dy);
+};
+
+/** Paths into one hub that run on top of each other (`runTogether` at least OVERLAP_RUN over the parts a reader sees,
+ *  on open floor) get their own landing points on the hub's edge; every other path keeps its landing (the hub's
+ *  centre, a door's edge), so twenty consumers spread round a hub stay as they are. A group of paths that overlap, one
+ *  with the next, lands on the edge its mean direction reaches, `LANDING_GAP` apart, centred where that direction
+ *  meets the edge, in the order the paths cross the edge's line, so they do not cross. Paths in line (`inLine`) cross
+ *  it at one place: the nearest pad takes the middle point and the farther ones the outer points, and while two paths
+ *  of the group still run together the points are spread wider, up to the whole edge. More paths than the edge holds
+ *  at LANDING_GAP: the extras share the nearest point, in order (`flights.overlap` reports them); no path is dropped.
+ *  A path moved this way may then run on another: the groups merge and are spread again, until none does. The path
+ *  stays one straight segment, drawn under the machines as before. Deterministic: the paths keep their order, and
+ *  ties go by distance, then by the paths' fields, never by where they sit in the input. */
+export function spreadLandings(paths: FlightPath[], tf: TileFloor): FlightPath[] {
+  const px = (r: Rect): PxRect => ({ x0: r.x * T, y0: r.y * T, x1: (r.x + r.w) * T, y1: (r.y + r.h) * T });
+  const faces = keepOffBoxes(tf, 0).map((b) => b.r);
+  const out = [...paths];
+  const byHub = new Map<string, number[]>();
+  paths.forEach((p, i) => (byHub.get(p.item) ?? byHub.set(p.item, []).get(p.item)!).push(i));
+  for (const [item, idx] of byHub) {
+    const box = tf.boxes.get(item);
+    if (!box || idx.length < 2) continue;
+    const r = px(box);
+    const parent = new Map(idx.map((i) => [i, i]));
+    const find = (i: number): number => (parent.get(i) === i ? i : find(parent.get(i)!));
+    const union = (a: number, b: number) => { const x = find(a), y = find(b); if (x === y) return false; parent.set(Math.max(x, y), Math.min(x, y)); return true; };
+    const collide = (cur: FlightPath[], a: number, b: number) => runTogether(visiblePart(cur[a], r), visiblePart(cur[b], r), faces) >= OVERLAP_RUN;
+    for (let a = 0; a < idx.length; a++) for (let b = a + 1; b < idx.length; b++) if (collide(paths, idx[a], idx[b])) union(idx[a], idx[b]);
+    for (let round = 0; round < idx.length; round++) {
+      const groups = new Map<number, number[]>();
+      for (const i of idx) (groups.get(find(i)) ?? groups.set(find(i), []).get(find(i))!).push(i);
+      const cur = [...paths];
+      for (const g of groups.values()) if (g.length > 1) {
+        const launches = g.map((i) => paths[i].launch), ties = g.map((i) => tieKey(paths[i]));
+        // the narrowest spread, from LANDING_GAP up, that leaves no two of the group on top of each other
+        for (let gap = LANDING_GAP; ; gap += WIDEN_STEP) {
+          const lands = landingPoints(launches, r, gap, ties);
+          g.forEach((i, k) => { cur[i] = landAt(paths[i], lands.points[k]); });
+          const clear = g.every((a, x) => g.slice(x + 1).every((b) => !collide(cur, a, b)));
+          if (clear || lands.widest) break;
+        }
+      }
+      for (const i of idx) out[i] = cur[i];
+      // a moved path that now runs on another path of the hub: spread the two groups as one
+      let merged = false;
+      for (let a = 0; a < idx.length; a++) for (let b = a + 1; b < idx.length; b++)
+        if (find(idx[a]) !== find(idx[b]) && collide(cur, idx[a], idx[b])) merged = union(idx[a], idx[b]) || merged;
+      if (!merged) break;
+    }
+  }
   return out;
+}
+
+/** What orders two paths whose launches are the same distance along the edge and from the hub: their own fields. */
+const tieKey = (p: FlightPath) => `${p.machine}|${p.flight}|${p.group ?? ""}|${p.dock ? 1 : 0}`;
+
+/** The path to `hub` instead: the same flight, one straight segment from its launch. */
+const landAt = (p: FlightPath, hub: Pt): FlightPath => ({ ...p, hub, points: p.outbound ? [p.launch, hub] : [hub, p.launch] });
+
+/** One landing point per launch on box `r`'s edge, `gap` apart (see `spreadLandings`), in the launches' order;
+ *  `widest`: the points already take the whole edge, so a wider gap would change nothing. `ties` orders launches the
+ *  geometry cannot (default: their index). */
+export function landingPoints(launches: Pt[], r: PxRect, gap = LANDING_GAP, ties?: string[]): { points: Pt[]; widest: boolean } {
+  const c = { x: (r.x0 + r.x1) / 2, y: (r.y0 + r.y1) / 2 }, hw = (r.x1 - r.x0) / 2, hh = (r.y1 - r.y0) / 2;
+  let mx = 0, my = 0;
+  for (const l of launches) { const d = Math.hypot(l.x - c.x, l.y - c.y) || 1; mx += (l.x - c.x) / d; my += (l.y - c.y) / d; }
+  if (!mx && !my) my = -1;
+  // the side the mean direction leaves the box by: an n/s side runs along x, an e/w side along y
+  const level = Math.abs(my) * hw >= Math.abs(mx) * hh;
+  const at = level ? (my < 0 ? r.y0 : r.y1) : (mx < 0 ? r.x0 : r.x1);   // the side's line
+  const lo = (level ? r.x0 : r.y0) + LANDING_INSET, hi = (level ? r.x1 : r.y1) - LANDING_INSET;
+  const anchor = level ? c.x + (mx / Math.abs(my)) * hh : c.y + (my / Math.abs(mx)) * hw;
+  // where each launch's straight line to the centre crosses the side's line: the order that keeps them from crossing
+  const cross = launches.map((l) => {
+    const [u, v, cu, cv] = level ? [l.x, l.y, c.x, c.y] : [l.y, l.x, c.y, c.x];
+    return v === cv ? u : u + ((cu - u) * (at - v)) / (cv - v);
+  });
+  const far = launches.map((l) => Math.hypot(l.x - c.x, l.y - c.y));
+  const tie = (a: number, b: number) => (ties ? (ties[a] < ties[b] ? -1 : ties[a] > ties[b] ? 1 : 0) : 0) || a - b;
+  const order = launches.map((_, i) => i).sort((a, b) => cross[a] - cross[b] || far[a] - far[b] || tie(a, b));
+  const n = launches.length, room = Math.max(0, hi - lo);
+  const cap = Math.floor(room / LANDING_GAP) + 1, k = Math.min(n, cap);
+  const step = k > 1 ? Math.min(gap, room / (k - 1)) : 0;
+  const start = Math.min(Math.max(anchor - ((k - 1) * step) / 2, lo), hi - (k - 1) * step);
+  const slotOf = (rank: number) => (n <= cap ? rank : Math.round((rank * (cap - 1)) / (n - 1)));
+  const slots = order.map((_, rank) => start + slotOf(rank) * step);
+  // launches in line with the hub (`inLine`, one run in `order`) share their run's slots: the nearest takes the slot
+  // closest to where their line crosses, the farthest the outermost, so a farther path stays outside a nearer one all
+  // the way in
+  const placed: number[] = new Array(n);
+  for (let s = 0; s < n; ) {
+    let e = s + 1;
+    while (e < n && inLine(launches[order[e]], launches[order[e - 1]], c)) e++;
+    const run = order.slice(s, e), mid = cross[run[0]];
+    const free = slots.slice(s, e).map((u, j) => ({ u, j })).sort((a, b) => Math.abs(a.u - mid) - Math.abs(b.u - mid) || a.j - b.j);
+    [...run].sort((a, b) => far[a] - far[b] || tie(a, b)).forEach((i, j) => { placed[i] = free[j].u; });
+    s = e;
+  }
+  const points = launches.map((_, i) => (level ? { x: placed[i], y: at } : { x: at, y: placed[i] }));
+  return { points, widest: k < 2 || step < gap || (k - 1) * step >= room - 1e-9 };
 }
 /** What a still flight's arrows keep off: every box on the floor with its shadow (machines, hubs, stores, doors) and
  *  every receiving dock, webhook dock and waiting stack. A flight's path starts inside its machine (its pad), ends on
  *  its hub or dock, and may fly over other machines: its arrows sit only on the open stretches between them. */
 export function flightKeepOff(tf: TileFloor): PxRect[] {
-  const SHADOW = 5;
-  const boxes = [...tf.boxes.values()].map((r) => ({ x0: r.x * T, y0: r.y * T, x1: (r.x + r.w) * T + SHADOW, y1: (r.y + r.h) * T + SHADOW }));
+  return keepOffBoxes(tf).map((b) => b.r);
+}
+/** `flightKeepOff`'s rects, each with what it is (`name`) and the box it belongs to (`owner`: the box itself, a dock's
+ *  or webhook dock's machine, a waiting stack's hub). `shadow`: px the boxes' shadow adds right and below (0: their
+ *  faces alone). */
+export function keepOffBoxes(tf: TileFloor, shadow = 5): { name: string; owner: string; r: PxRect }[] {
+  const SHADOW = shadow;
+  const boxes = [...tf.boxes.values()].map((r) => ({ name: r.id, owner: r.id, r: { x0: r.x * T, y0: r.y * T, x1: (r.x + r.w) * T + SHADOW, y1: (r.y + r.h) * T + SHADOW } }));
   const tiles = (r: { x: number; y: number; w: number; h: number }): PxRect => ({ x0: r.x * T, y0: r.y * T, x1: (r.x + r.w) * T, y1: (r.y + r.h) * T });
-  const docks = (tf.landing?.docks ?? []).map(tiles), webhooks = (tf.webhooks ?? []).map(tiles);
-  const stacks = (tf.landing?.stacks ?? []).map((s) => tiles({ x: s.x, y: s.y, w: 1, h: 1 }));
+  const docks = (tf.landing?.docks ?? []).map((d) => ({ name: `${d.machine}'s receiving dock`, owner: d.machine, r: tiles(d) }));
+  const webhooks = (tf.webhooks ?? []).map((d) => ({ name: `${d.machine}'s webhook dock`, owner: d.machine, r: tiles(d) }));
+  const stacks = (tf.landing?.stacks ?? []).map((s) => ({ name: `${s.item}'s waiting stack`, owner: s.item, r: tiles({ x: s.x, y: s.y, w: 1, h: 1 }) }));
   return [...boxes, ...docks, ...webhooks, ...stacks];
 }
 
