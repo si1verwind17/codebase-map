@@ -77,7 +77,8 @@ export function storeLegend(boxes: Iterable<Box>, storeOf: (b: Box) => Store | u
   return out.cache || out.bucket ? out : null;
 }
 
-const STORE_FACE = { warehouse: C.steel, chest: C.steel, yard: C.shelf };
+/** Every store is steel: a database, a cache and a bucket alike; its art inside sets each apart. */
+const STORE_FACE = { warehouse: C.steel, chest: C.steel, yard: C.steel };
 
 /** A datastore box's own art inside its keylined face (`art` from storeArt): drawn within the box, so it keeps its footprint. */
 export function paintStoreArt(g: Graphics, b: Box, art: "warehouse" | "chest" | "yard") {
