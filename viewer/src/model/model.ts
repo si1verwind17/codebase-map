@@ -56,6 +56,7 @@ export class Model {
   readonly codes = new Map<string, string>();
   private memberOf = new Map<string, string>();
   private twinHome = new Map<string, string>();   // "twin:<pkg>" -> the service floor that shows it
+  private twinnedBy = new Map<string, string[]>();   // <pkg> -> the services that also deploy it as a twin, in map order
   private implementers = new Map<string, string[]>();   // trait/class id -> ids of the classes that implement it
   private landings = new Map<string, { floor: string; door: string } | undefined>();   // "<container>|<anchor>" -> doorLanding
 
@@ -71,7 +72,7 @@ export class Model {
     this.map = map;
     for (const n of map.nodes) {
       this.nodes.set(n.id, n);
-      for (const t of n.twins ?? []) this.twinHome.set(`twin:${t}`, n.id);
+      for (const t of n.twins ?? []) { this.twinHome.set(`twin:${t}`, n.id); this.twinnedBy.set(t, [...(this.twinnedBy.get(t) ?? []), n.id]); }
       for (const t of n.implements ?? []) this.implementers.set(t, [...(this.implementers.get(t) ?? []), n.id]);
     }
     for (const list of this.implementers.values()) list.sort();
@@ -90,6 +91,11 @@ export class Model {
   /** The real package a twin stands for (a module two services deploy), or undefined. */
   twinOf(id: string): string | undefined {
     return this.twinHome.has(id) ? id.slice(5) : undefined;
+  }
+
+  /** The services that also deploy package `id` as a twin (its code sits elsewhere), in map order; [] for none. */
+  twinDeployers(id: string): string[] {
+    return this.twinnedBy.get(id) ?? [];
   }
 
   label(id: string): string {

@@ -27,7 +27,12 @@
   let key = $derived(target ? (target.type === "node" ? target.id : target.key) : container);
   // a twin (a module this service also deploys) is shown as the package it stands for
   let real = $derived(target?.type === "node" ? (model.twinOf(target.id) ?? target.id) : undefined);
+  // on a twin: the service that also deploys it (whose floor shows it) and the one its code sits under
   let twinHome = $derived(target?.type === "node" && model.twinOf(target.id) ? model.path(model.floorOf(real!) ?? SITE)[1] : undefined);
+  let twinHost = $derived(twinHome && target?.type === "node" ? model.floorOf(target.id) : undefined);
+  // on the real package: every service that also deploys it as a twin
+  let twinnedBy = $derived(target?.type === "node" && !model.twinOf(target.id) ? model.twinDeployers(target.id) : []);
+  const named = (id: string) => `${model.codes.get(id) ?? ""} ${model.label(id)}`.trim();
   let node = $derived(real ? model.nodes.get(real) : undefined);
   // a line of an extra layer is a line of this floor too
   const lineOf = (k: string) => { const b = model.bundles(container); return b.bundles.find((x) => x.key === k) ?? b.layered.find((x) => x.key === k); };
@@ -72,7 +77,8 @@
       <h2>{model.itemName(target.id)}</h2>
       <p class="sub">{node.role ? node.role + " · " : ""}{node.kind}{node.visibility === "private" ? " · private" : ""}</p>
       {#if where(node.id)}<p class="mono where">{where(node.id)}</p>{/if}
-      {#if twinHome}<p class="twin">Twin: this service also deploys it; the code sits under {model.codes.get(twinHome)} {model.label(twinHome)}.</p>{/if}
+      {#if twinHome && twinHost}<p class="twin">Twin: {named(twinHost)} also deploys this module, but its code sits under {named(twinHome)}: a change to it ships in both.</p>{/if}
+      {#if twinnedBy.length}<p class="twinned">Also deployed by {twinnedBy.map(named).join(", ")} ({twinnedBy.length === 1 ? "a twin there" : "a twin in each"}): a change here ships in {twinnedBy.length === 1 ? "both" : "each of them too"}.</p>{/if}
       <div class="acts">
         {#if model.floor(node.id) && Object.keys(model.floor(node.id)!.items).length}
           <button class="open" onclick={() => onEnter(node!.id)}>Open sub-assembly</button>
@@ -297,5 +303,5 @@
   .note-row .note { flex: 1; min-width: 0; }
   .del { flex: none; border: 1px solid var(--ink); background: var(--paper); padding: 2px 6px; font-size: 11px; font-weight: 600; }
   .del:hover { background: var(--yellow); }
-  .twin { margin: 6px 0 0; padding: 4px 8px; background: var(--page); border: 1px dashed var(--ink); }
+  .twin, .twinned { margin: 6px 0 0; padding: 4px 8px; background: var(--page); border: 1px dashed var(--ink); }
 </style>

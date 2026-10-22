@@ -1,4 +1,4 @@
-// audit-inputs: 8d3714dd791722b139cf111a17d4e1c7f97851a374c4f1421d1a611572849f20
+// audit-inputs: 761af6b90abae7a4a9446404f893d53b3c55e162c98738e713fff86a82d0251e
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -41,6 +41,7 @@ var Model = class {
 	codes = /* @__PURE__ */ new Map();
 	memberOf = /* @__PURE__ */ new Map();
 	twinHome = /* @__PURE__ */ new Map();
+	twinnedBy = /* @__PURE__ */ new Map();
 	implementers = /* @__PURE__ */ new Map();
 	landings = /* @__PURE__ */ new Map();
 	constructor(map) {
@@ -52,7 +53,10 @@ var Model = class {
 		this.map = map;
 		for (const n of map.nodes) {
 			this.nodes.set(n.id, n);
-			for (const t of n.twins ?? []) this.twinHome.set(`twin:${t}`, n.id);
+			for (const t of n.twins ?? []) {
+				this.twinHome.set(`twin:${t}`, n.id);
+				this.twinnedBy.set(t, [...this.twinnedBy.get(t) ?? [], n.id]);
+			}
 			for (const t of n.implements ?? []) this.implementers.set(t, [...this.implementers.get(t) ?? [], n.id]);
 		}
 		for (const list of this.implementers.values()) list.sort();
@@ -71,6 +75,10 @@ var Model = class {
 	/** The real package a twin stands for (a module two services deploy), or undefined. */
 	twinOf(id) {
 		return this.twinHome.has(id) ? id.slice(5) : void 0;
+	}
+	/** The services that also deploy package `id` as a twin (its code sits elsewhere), in map order; [] for none. */
+	twinDeployers(id) {
+		return this.twinnedBy.get(id) ?? [];
 	}
 	label(id) {
 		if (id.startsWith(DOOR)) return this.label(doorAnchor(id));

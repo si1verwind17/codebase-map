@@ -131,6 +131,17 @@ describe("Model", () => {
     expect(m.codes.get(t)).toBe(m.codes.get("worker::worker/"));
     expect(m.floorOf(t)).toBe("svc:shop");
   });
+
+  it("lists every service that deploys a package as a twin, none for a package no service twins", () => {
+    const twinned = structuredClone(map);
+    for (const s of twinned.nodes.filter((n) => n.kind === "service" && n.id !== "svc:worker")) s.twins = ["worker::worker/"];
+    const services = twinned.nodes.filter((n) => n.kind === "service" && n.id !== "svc:worker").map((n) => n.id);
+    expect(services.length).toBeGreaterThan(0);
+    const m = new Model(twinned);
+    expect(m.twinDeployers("worker::worker/")).toEqual(services);
+    expect(m.twinDeployers("svc:shop")).toEqual([]);
+    expect(new Model(map).twinDeployers("worker::worker/")).toEqual([]);
+  });
 });
 
 

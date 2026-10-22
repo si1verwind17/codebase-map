@@ -327,6 +327,48 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(errors).toEqual([]);
   }, 60_000);
 
+  it("the inspector explains a twin on both sides: on the twin, the service that also deploys it and its code's home; on the real package, every service that twins it", async () => {
+    const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
+    const model = new Model(JSON.parse(map) as CodeMap);
+    const pkg = "pipelines_shared::pipelines_shared/", named = (id: string) => `${model.codes.get(id)} ${model.label(id)}`;
+    const file = join(mkdtempSync(join(tmpdir(), "viz-")), "index.html");
+    writeFileSync(file, readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c")));
+    const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
+    const errors: string[] = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto("file://" + file);
+      await page.waitForSelector("canvas[data-camera=idle]", { timeout: 15_000 });
+      const search = page.getByRole("searchbox", { name: "Find a node by name or code" });
+      const twinNotes = () => page.locator(".insp .twin, .insp .twinned").allTextContents();
+      // the real package, on its own floor (Find goes there)
+      await search.fill(model.codes.get(pkg)!);
+      await page.locator(".rail .list button", { hasText: "package" }).first().click();
+      await page.waitForFunction(() => document.querySelector(".insp h2")?.textContent?.includes("pipelines_shared"), null, { timeout: 15_000 });
+      const notes = await twinNotes();
+      await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });   // the move there has ended
+      // the twin, on the floor of the service that also deploys it
+      await search.fill("feature-store");
+      await page.locator(".rail .list button", { hasText: "service" }).first().click();
+      await page.waitForFunction(() => document.querySelector(".insp h2")?.textContent?.trim() === "feature-store", null, { timeout: 15_000 });
+      await page.waitForFunction(() => [...document.querySelectorAll<HTMLButtonElement>(".floors button")].every((x) => !x.disabled), null, { timeout: 15_000 });
+      await page.waitForSelector("canvas[data-camera=idle]", { timeout: 15_000 });
+      await page.getByRole("button", { name: "Open sub-assembly" }).click();
+      await page.waitForFunction(() => /feature-store/.test(document.querySelector(".floors button[aria-current=page]")?.textContent ?? ""), null, { timeout: 15_000 });
+      await page.locator("#rail-floor button", { hasText: "pipelines_shared" }).first().click();
+      await page.waitForFunction(() => !!document.querySelector(".insp .twin"), null, { timeout: 15_000 });   // the twin's own note
+      notes.push(...await twinNotes());
+      expect(notes.map((t) => t.trim())).toEqual([
+        `Also deployed by ${named("svc:feature-store")} (a twin there): a change here ships in both.`,
+        `Twin: ${named("svc:feature-store")} also deploys this module, but its code sits under ${named("svc:demand-forecast")}: a change to it ships in both.`,
+      ]);
+    } finally {
+      await browser.close();
+    }
+    expect(errors).toEqual([]);
+  }, 60_000);
+
   it("factory view at Fit shows machine codes; zooming in with the wheel brings the names back, which hold down to about 6 px", async () => {
     const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
     const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
