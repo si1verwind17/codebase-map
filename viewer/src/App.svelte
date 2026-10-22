@@ -14,6 +14,7 @@
   import type { MessagingLegend } from "./factory/flights";
   import type { RailLegend } from "./factory/rail-place";
   import type { StoreLegend } from "./factory/machines";
+  import type { DoorLegend } from "./factory/messaging";
   import { codeLinkCount } from "./factory/conduits";
   import { floorLayers, layerLabel, listEntry, type LayerId } from "./model/layers";
   import type { LayerLines } from "./floor/state";
@@ -94,6 +95,7 @@
   let messagingKinds = $state<MessagingLegend | null>(null);   // the current factory floor's queue, push, pull, dead-letter and replica kinds
   let railKinds = $state<RailLegend | null>(null);             // and its rail yards, stations and schedule signs
   let storeKinds = $state<StoreLegend | null>(null);           // and its cache and bucket art
+  let doorKinds = $state<DoorLegend | null>(null);             // and what its marked doors lead to
   let host = $state<HTMLDivElement>();
   let scene: FloorScene | null = null;
   let mapText: string | null = null;   // the open map's text until the scene hands it to its layout worker
@@ -165,6 +167,7 @@
       messaging: (m) => { messagingKinds = m; },
       rails: (r) => { railKinds = r; },
       storage: (s) => { storeKinds = s; },
+      doors: (d) => { doorKinds = d; },
       layer: (id, lines) => { layer = id; layerLines = lines; if (id === null) layersOpen = false; },
       openLayer: (id) => pickLayer(id),
     }, undefined, (m) => {
@@ -535,7 +538,7 @@
            implements link (the dotted key would name nothing there), so the open legend stays within its 3-row height; with
            no uses-code pair there is no conduit, no toggle, and the legend is as before. While a layer shows, the legend's
            line rows follow it -->
-      <Legend compact={container !== SITE} utility={model.legendUtility() !== null} hasImplements={model.drawsImplements() && !(conduitsDrawn && model.implementLinks(SITE).length === 0)} messaging={messagingKinds} rails={railKinds} storage={storeKinds} codeLinks={conduitsDrawn} lines={layerLines} {guide}>
+      <Legend compact={container !== SITE} utility={model.legendUtility() !== null} hasImplements={model.drawsImplements() && !(conduitsDrawn && model.implementLinks(SITE).length === 0)} messaging={messagingKinds} rails={railKinds} storage={storeKinds} doors={doorKinds} codeLinks={conduitsDrawn} lines={layerLines} {guide}>
       {#if guideNote}
         <div class="guide-note" role="region" aria-label="Field guide">
           <span>New here? <a href={GUIDE_HREF} target="_blank" rel="noopener">Read the field guide first</a></span>

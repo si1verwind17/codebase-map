@@ -64,6 +64,29 @@ export const brokerOf = (topic: string): string => (topic.startsWith("inq:") ? I
 
 const byStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+/** The topic whose failures land on topic `id` (it is a dead-letter hub), when that topic is in the map; else null. */
+export function deadLetterOf(model: Model, id: string): string | null {
+  const src = model.nodes.get(id)?.dead_letter_of;
+  return src && model.nodes.get(src)?.kind === "topic" ? src : null;
+}
+
+/** What a door leads to, for its marks (a top band and a corner square): a dead-letter hub (red), another topic or
+ *  in-process queue (green), an outside service (yellow, as its dock on floor 0). A door to a part of the repo has none. */
+export type DoorLead = "dead" | "hub" | "outside";
+export function doorLead(model: Model, anchor: string): DoorLead | undefined {
+  const kind = model.nodes.get(anchor)?.kind;
+  if (kind === "topic" || kind === "in-process-queue") return deadLetterOf(model, anchor) ? "dead" : "hub";
+  return kind === "external" ? "outside" : undefined;
+}
+
+/** Which door marks a floor has, for the legend's door entry: each only when a door there leads to one; null when none. */
+export type DoorLegend = Partial<Record<DoorLead, true>>;
+export function doorLegend(model: Model, anchors: Iterable<string>): DoorLegend | null {
+  const out: DoorLegend = {};
+  for (const a of anchors) { const lead = doorLead(model, a); if (lead) out[lead] = true; }
+  return Object.keys(out).length ? out : null;
+}
+
 export function messaging(model: Model, container: string, tf: TileFloor, bundles: Bundle[]): Messaging {
   const onSite = container === SITE;
   // hubs: topic boxes on the site, doors to topics inside buildings, in-process queues on their service's floor (and
@@ -74,10 +97,9 @@ export function messaging(model: Model, container: string, tf: TileFloor, bundle
     const node = model.nodes.get(topic);
     if (node?.kind !== "topic" && node?.kind !== "in-process-queue") continue;
     const delivery: Delivery = node.delivery === "queue" ? "queue" : "fan-out";
-    const src = node.dead_letter_of;
     hubs.set(box.id, {
       item: box.id, topic, broker: brokerOf(topic), delivery,
-      dlqOf: src && model.nodes.get(src)?.kind === "topic" ? src : null, waiting: delivery === "queue",
+      dlqOf: deadLetterOf(model, topic), waiting: delivery === "queue",
     });
   }
   const lift = (id: string) => model.liftTo(container, id) ?? (onSite ? undefined : model.doorId(model.anchorFor(container, id)));

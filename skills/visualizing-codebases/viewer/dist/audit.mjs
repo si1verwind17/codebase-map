@@ -1,4 +1,4 @@
-// audit-inputs: 2332f0447832e70995baa0ba02a28455c7907679ac0681141dfd8eff2699d5cb
+// audit-inputs: 5d166bbba6022089837b8ae884f640eb82e0a5209b396f29f8217a505af4db13
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -1042,6 +1042,11 @@ var IN_PROCESS = "in-process";
 /** "kafka" from "topic:kafka:orders": the same split the layout's airfields use; an in-process queue's is IN_PROCESS. */
 var brokerOf = (topic) => topic.startsWith("inq:") ? IN_PROCESS : topic.split(":")[1] ?? "";
 var byStr$3 = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+/** The topic whose failures land on topic `id` (it is a dead-letter hub), when that topic is in the map; else null. */
+function deadLetterOf(model, id) {
+	const src = model.nodes.get(id)?.dead_letter_of;
+	return src && model.nodes.get(src)?.kind === "topic" ? src : null;
+}
 function messaging(model, container, tf, bundles) {
 	const onSite = container === SITE;
 	const hubs = /* @__PURE__ */ new Map();
@@ -1050,13 +1055,12 @@ function messaging(model, container, tf, bundles) {
 		const node = model.nodes.get(topic);
 		if (node?.kind !== "topic" && node?.kind !== "in-process-queue") continue;
 		const delivery = node.delivery === "queue" ? "queue" : "fan-out";
-		const src = node.dead_letter_of;
 		hubs.set(box.id, {
 			item: box.id,
 			topic,
 			broker: brokerOf(topic),
 			delivery,
-			dlqOf: src && model.nodes.get(src)?.kind === "topic" ? src : null,
+			dlqOf: deadLetterOf(model, topic),
 			waiting: delivery === "queue"
 		});
 	}

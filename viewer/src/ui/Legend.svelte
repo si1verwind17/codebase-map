@@ -2,15 +2,17 @@
   import type { MessagingLegend } from "../factory/flights";
   import type { RailLegend } from "../factory/rail-place";
   import type { StoreLegend } from "../factory/machines";
+  import type { DoorLead, DoorLegend } from "../factory/messaging";
   import { GUIDE_HREF } from "./fieldguide";
   import type { LayerLines } from "../floor/state";
-  let { compact = false, utility = false, hasImplements = false, messaging = null, rails = null, storage = null, codeLinks = false, lines = null, guide = false, children }: {
+  let { compact = false, utility = false, hasImplements = false, messaging = null, rails = null, storage = null, doors = null, codeLinks = false, lines = null, guide = false, children }: {
     compact?: boolean;
     utility?: boolean;   // the map has a utility with a tab: the entry shows only then
     hasImplements?: boolean;   // some floor draws a dotted link: the entry shows only then
     messaging?: MessagingLegend | null;   // which messaging kinds this floor has: each entry shows only when the floor has one
     rails?: RailLegend | null;            // and which rail parts: a yard, a station, a schedule sign, a train
     storage?: StoreLegend | null;         // and which store art: a cache's chest, a bucket's container yard
+    doors?: DoorLegend | null;            // and what its marked doors lead to: an outside service, a topic, dead letters
     codeLinks?: boolean;                  // the F0 code-dependency overlay is on: its entry shows only then
     children?: import("svelte").Snippet;   // what sits directly under the legend, in its flow (the first-visit notice)
     guide?: boolean;                      // the field guide: its one link, under the toggle
@@ -18,6 +20,11 @@
   } = $props();
   /** A line row shows on the base, and in a layer only when the layer draws that kind. */
   const has = (k: keyof LayerLines) => !lines || !!lines[k];
+  /** The door marks in legend order, with their colours (messaging-paint.ts `LEAD_COLOR`) and names. */
+  const DOOR_MARKS: { lead: DoorLead; color: string; name: string }[] = [
+    { lead: "outside", color: "#f5cd2f", name: "outside service" }, { lead: "hub", color: "#237841", name: "topic or queue" }, { lead: "dead", color: "#d01012", name: "dead letters" },
+  ];
+  const doorMarks = $derived(DOOR_MARKS.filter((k) => doors?.[k.lead]));
   let chosen = $state<boolean | null>(null);   // the reader's own toggle wins over the floor default
   let open = $derived(chosen ?? !compact);
 </script>
@@ -61,6 +68,7 @@
       {#if rails?.train}<li><svg viewBox="0 0 40 12" aria-hidden="true">{#each [3, 14] as x}<rect x={x} y="2" width="10" height="8" fill="#efe3bf" stroke="#1b1d21" /><rect x={x + 2.5} y="4" width="5" height="4" fill="#f5cd2f" stroke="#1b1d21" stroke-width="0.6" />{/each}<rect x="25" y="1" width="12" height="10" rx="1.5" fill="#1b1d21" /><rect x="31" y="3" width="3.5" height="6" fill="#f5cd2f" /></svg>Train</li>{/if}
       {#if storage?.cache}<li><svg viewBox="0 0 40 12" aria-hidden="true"><rect x="13" y="0.5" width="14" height="11" fill="#c9d8e6" stroke="#1b1d21" /><rect x="13.5" y="2.5" width="13" height="1.6" fill="#ffffff" /><rect x="13.5" y="8.2" width="13" height="1.6" fill="#ffffff" /><rect x="21.5" y="6.5" width="3" height="4" fill="#ffffff" stroke="#1b1d21" stroke-width="0.6" /></svg>Cache</li>{/if}
       {#if storage?.bucket}<li><svg viewBox="0 0 40 12" aria-hidden="true">{#each [[5, 6.5], [21, 6.5], [13, 1]] as [x, y]}<rect x={x} y={y} width="14" height="4.5" fill="#e8eef3" stroke="#1b1d21" stroke-width="0.7" />{#each [3, 6, 9, 12] as r}<line x1={x + r} y1={y + 1} x2={x + r} y2={y + 3.5} stroke="#5c6b78" stroke-width="0.6" />{/each}{/each}<line x1="2" y1="11.5" x2="38" y2="11.5" stroke="#1b1d21" stroke-width="0.8" /></svg>Bucket</li>{/if}
+      {#if doorMarks.length}<li><svg viewBox="0 0 40 12" aria-hidden="true"><rect x="1" y="1" width="38" height="10" fill="#ffffff" stroke="#1b1d21" stroke-dasharray="3 2" />{#each doorMarks as k, i}<rect x={1 + (i * 38) / doorMarks.length} y="1" width={38 / doorMarks.length} height="2.5" fill={k.color} />{/each}<rect x="31" y="4.5" width="5" height="5" fill={doorMarks[0].color} stroke="#1b1d21" stroke-width="0.8" /></svg>Door to {doorMarks.map((k) => k.name).join(" / ")}</li>{/if}
       {#if codeLinks}<li><svg viewBox="0 0 40 12" aria-hidden="true">{#each Array.from({ length: 11 }, (_, i) => 2.5 + i * 3.5) as x}<circle cx={x} cy="6" r="0.75" fill="#5c6b78" />{/each}</svg>Code dependency</li>{/if}
       {#if utility}{@render utilityEntry()}{/if}
     </ul>

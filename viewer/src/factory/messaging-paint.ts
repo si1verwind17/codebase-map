@@ -9,6 +9,7 @@ import type { ReplicaTag } from "../floor/movers";
 import { dockFace, flightKey, isReplicaTag, type FlightPath, type MessagingLabels, type Placed } from "./flights";
 import { PLATE_FONT } from "./fit";
 import type { Stack, TileFloor } from "./layout";
+import type { DoorLead } from "./messaging";
 import { padMark, type Dock, type Pad } from "./pads";
 import { T, type Box } from "./tiles";
 
@@ -41,13 +42,17 @@ export function paintStack(g: Graphics, s: Stack) {
   for (let i = 0; i < 3; i++) g.rect(x + 4, y + T - 3 - (i + 1) * 7, 16, 6).fill(C.yellow).stroke({ width: 1, color: C.ink });
 }
 
-/** A dead-letter hub: a red band across its top and its tower (a door's corner marker) red. */
-export function paintDeadHub(g: Graphics, b: Box) {
+/** What a hub or a door leads to: a band across its top and its tower (a door's corner marker) in `color`. */
+export function paintLeadMark(g: Graphics, b: Box, color: number) {
   const x = b.x * T, y = b.y * T, W = b.w * T;
-  g.rect(x, y, W, 4).fill(C.red);
-  if (b.foot === "hub") g.circle(x + W / 2, y + 14, 6).fill(C.red).stroke({ width: 1, color: C.ink });
-  else g.rect(x + W - 16, y + 8, 10, 10).fill(C.red).stroke({ width: 1, color: C.ink });
+  g.rect(x, y, W, 4).fill(color);
+  if (b.foot === "hub") g.circle(x + W / 2, y + 14, 6).fill(color).stroke({ width: 1, color: C.ink });
+  else g.rect(x + W - 16, y + 8, 10, 10).fill(color).stroke({ width: 1, color: C.ink });
 }
+/** A door's mark by what it leads to (messaging.ts `doorLead`). */
+export const LEAD_COLOR: Record<DoorLead, number> = { dead: C.red, hub: C.green, outside: C.yellow };
+/** A dead-letter hub: a red band across its top and its tower red. */
+export const paintDeadHub = (g: Graphics, b: Box) => paintLeadMark(g, b, C.red);
 
 /** Dots along a polyline, spaced along its true (Euclidean) length. */
 export function dots(g: Graphics, pts: Pt[], on: number, off: number) {
@@ -112,9 +117,10 @@ export function paintMessaging(tf: TileFloor, flights: FlightPath[], labels: Mes
   for (const p of land.pads) { const g = new Graphics(); paintPad(g, p); const m = v.machineViews.get(p.machine); if (m) m.addChild(g); else { v.lines.addChild(g); join(v.lineViews, flightKey(p.machine, p.item), g); } }
   for (const d of land.docks) { const g = new Graphics(); paintDock(g, d); v.lines.addChild(g); join(v.lineViews, flightKey(d.machine, d.item), g); }
   for (const s of land.stacks) { const m = v.machineViews.get(s.item); if (m) { const g = new Graphics(); paintStack(g, s); m.addChild(g); } }
+  // a dead-letter hub's marks (a door to one is marked as every door is, with the door: draw.ts `drawDoor`)
   for (const h of land.messaging.airfields.flatMap((a) => a.hubs)) if (h.dlqOf) {
     const m = v.machineViews.get(h.item), b = tf.boxes.get(h.item);
-    if (m && b) { const g = new Graphics(); paintDeadHub(g, b); m.addChild(g); }
+    if (m && b && b.foot !== "door") { const g = new Graphics(); paintDeadHub(g, b); m.addChild(g); }
   }
   for (const t of labels.tags) {
     const { outer, inner } = tagView(t, PLATE_FONT);

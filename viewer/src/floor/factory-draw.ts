@@ -15,6 +15,7 @@ import type { TileRoute } from "../factory/router";
 import { paintImplements } from "../factory/implements";
 import { coveredKeys, flightPaths, legendKinds, messagingLabels, messagingObstacles, type FlightPath } from "../factory/flights";
 import { paintFlight, paintMessaging, paintWebhooks } from "../factory/messaging-paint";
+import { doorLegend } from "../factory/messaging";
 import { padReserve } from "../factory/pads";
 import { paintRails } from "../factory/rail-paint";
 import { railLabels, railLegend } from "../factory/rail-place";
@@ -159,6 +160,7 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   }
   st.events.rails?.(railLegend(tf));
   st.events.storage?.(storeLegend(tf.boxes.values(), storeOf));
+  st.events.doors?.(doorLegend(model, [...st.doors].filter(([id]) => tf.boxes.get(id)?.foot === "door").map(([, d]) => d.anchor)));
   // `used by N` badges take the room the labels left, beside their machines (placed once per plan, as the labels are).
   // Each opens its item's layer
   const shown = st.floorLayers.filter((l) => l.usedBy > 0 && geo.machines.has(l.item) && st.machineViews.has(l.item));

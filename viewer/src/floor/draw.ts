@@ -8,6 +8,8 @@ import { arrow } from "./movers";
 import { C, FONT, PICKED_RING } from "./palette";
 import { bigCode, doorText } from "../factory/machines";
 import { doorWords, fitDoorName } from "../factory/boxname";
+import { doorLead } from "../factory/messaging";
+import { LEAD_COLOR, paintLeadMark } from "../factory/messaging-paint";
 import type { SceneState } from "./state";
 import { label } from "./labels";
 import { wireDoor } from "./wiring";
@@ -48,6 +50,10 @@ export function drawDoor(st: SceneState, model: Model, m: Machine, restyle: () =
   // zoomed far out the door shows the code of the building it opens, not the unreadable name
   const big = bigCode(model.codes.get(model.doorShows(st.container, d.anchor)) ?? "", m.x, m.y, m.w, m.h);
   v.addChild(big);
+  // what it leads to: a band across its top and a corner square, red to a dead-letter hub, green to another topic or
+  // queue, yellow to an outside service; plain to a part of the repo
+  const lead = doorLead(model, d.anchor), box = st.tf?.boxes.get(m.id);
+  if (lead && box) { const mark = new Graphics(); paintLeadMark(mark, box, LEAD_COLOR[lead]); v.addChild(mark); }
   st.codeParts.push({ names: [name], big, smalls: [{ objs: [head], size: 9.5 }] });
   st.minName = Math.min(st.minName, fit.size);
   wireDoor(st, model, m, v, new Graphics().rect(m.x - 5, m.y - 5, m.w + 10, m.h + 10).stroke(PICKED_RING), restyle);

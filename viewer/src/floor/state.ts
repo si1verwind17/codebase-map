@@ -12,6 +12,7 @@ import type { ZoomLabel } from "../factory/ground";
 import type { FlightPath, MessagingLabels, MessagingLegend } from "../factory/flights";
 import type { RailLabels, RailLegend, TrainPath } from "../factory/rail-place";
 import type { StoreLegend } from "../factory/machines";
+import type { DoorLegend } from "../factory/messaging";
 import type { Piece } from "../factory/tiles";
 import type { BadgeSpot, PxRect } from "../factory/clear";
 import type { FloorLayer, LayerBundle, LayerId } from "../model/layers";
@@ -46,6 +47,8 @@ export interface SceneEvents {
   rails?(r: RailLegend | null): void;
   /** The current floor's cache and bucket art, for the legend (null on a floor without). */
   storage?(s: StoreLegend | null): void;
+  /** What the current floor's doors lead to, for the legend (null on a floor with no marked door). */
+  doors?(d: DoorLegend | null): void;
   /** The layer shown now (null: the base) and the line kinds it draws, for the layers button and the legend; sent on
    *  every change, a floor change's reset to the base among them. */
   layer?(id: LayerId | null, lines: LayerLines | null): void;

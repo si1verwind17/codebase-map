@@ -4,7 +4,7 @@ import shop from "../fixtures/shop.code-map.json";
 import { Model, SITE } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { layoutTiles } from "../../src/factory/layout";
-import { messaging, type Messaging } from "../../src/factory/messaging";
+import { doorLead, doorLegend, messaging, type Messaging } from "../../src/factory/messaging";
 
 const DEMO = new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url);
 const demoMap = (): CodeMap => JSON.parse(readFileSync(DEMO, "utf8"));
@@ -18,6 +18,22 @@ function on(model: Model, container: string): Messaging {
   return messaging(model, container, layoutTiles(model, container, doors), bundles);
 }
 const hub = (m: Messaging, topic: string) => m.airfields.flatMap((a) => a.hubs).find((h) => h.topic === topic);
+
+describe("what a door leads to", () => {
+  const demo = new Model(demoMap());
+  it("a dead-letter hub, another topic, an outside service; nothing for a part of the repo", () => {
+    expect(doorLead(demo, RES_DLQ)).toBe("dead");
+    expect(doorLead(demo, RES)).toBe("hub");
+    expect(doorLead(demo, "3p:stripe")).toBe("outside");
+    for (const plain of ["svc:nightly-jobs", "lib:common", "db:postgres:DB_HOST"]) expect(doorLead(demo, plain), plain).toBeUndefined();
+  });
+  it("the legend lists only the kinds a floor's doors lead to", () => {
+    const anchors = (c: string) => demo.bundles(c).doors.map((d) => d.anchor);
+    expect(doorLegend(demo, anchors("billing::city.parking.billing/"))).toEqual({ outside: true, hub: true, dead: true });
+    expect(doorLegend(demo, anchors("billing::city.parking.billing.StripeCharger.live$impl"))).toEqual({ outside: true });
+    expect(doorLegend(demo, ["svc:nightly-jobs", "lib:common"])).toBeNull();
+  });
+});
 
 describe("messaging model", () => {
   const demo = new Model(demoMap());
