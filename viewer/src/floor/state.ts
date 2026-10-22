@@ -49,19 +49,22 @@ export interface SceneEvents {
   storage?(s: StoreLegend | null): void;
   /** What the current floor's doors lead to, for the legend (null on a floor with no marked door). */
   doors?(d: DoorLegend | null): void;
-  /** The layer shown now (null: the base) and the line kinds it draws, for the layers button and the legend; sent on
-   *  every change, a floor change's reset to the base among them. */
-  layer?(id: LayerId | null, lines: LayerLines | null): void;
+  /** Whether the current floor draws a shared utility's tab, for the legend. */
+  utility?(shown: boolean): void;
+  /** The layer shown now (null: the base) and the line kinds it draws (the base's too; null while the floor is not
+   *  drawn yet), for the layers button and the legend; sent on every change, a floor change's reset to the base among them. */
+  layer?(id: LayerId | null, lines: DrawnLines | null): void;
   /** A `used by N` badge was pressed: show that layer. */
   openLayer?(id: LayerId): void;
 }
 
-/** The line kinds a shown layer draws, for the legend's line rows (each row only when the layer has it). */
-export interface LayerLines { belt?: true; pipe?: true; rail?: true; drone?: true; tap?: true; under?: true; inferred?: true; plate?: true; both?: true; failed?: true }
+/** The line kinds the base or a shown layer draws, for the legend's line rows (each row only when drawn there).
+ *  `implements`: a dotted trait ↔ implementation link (the base only). */
+export interface DrawnLines { belt?: true; pipe?: true; rail?: true; drone?: true; tap?: true; under?: true; inferred?: true; plate?: true; both?: true; failed?: true; implements?: true }
 
 /** One extra layer as drawn on this floor: its container above the base lines (hidden unless shown), its line views by
  *  bundle key, its routes and its lines. */
-export interface LayerView { box: Container; lineViews: Map<string, Container[]>; routes: TileRoute[]; bundles: LayerBundle[]; lines: LayerLines }
+export interface LayerView { box: Container; lineViews: Map<string, Container[]>; routes: TileRoute[]; bundles: LayerBundle[]; lines: DrawnLines }
 
 export interface SceneState {
   readonly app: Application;
@@ -77,6 +80,8 @@ export interface SceneState {
   droneViews: Map<string, Container[]>;   // a drone route's line and hit area, by bundle key
   /** The extra layer shown now, null for the base; a floor change resets it. */
   layer: LayerId | null;
+  /** The line kinds the base draws on this floor (null until it is drawn), for the legend's line rows. */
+  baseLines: DrawnLines | null;
   /** This floor's extra layers (model/layers.ts `floorLayers`), its lines kept out of the base, and each hub layer as drawn. */
   floorLayers: FloorLayer[];
   layered: LayerBundle[];
@@ -191,6 +196,7 @@ export function createState(events: SceneEvents): SceneState {
     droneViews: new Map(),
     codeLinks: false,
     layer: null,
+    baseLines: null,
     floorLayers: [],
     layered: [],
     layerViews: new Map(),

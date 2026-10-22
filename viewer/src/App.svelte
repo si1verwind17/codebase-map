@@ -17,7 +17,7 @@
   import type { DoorLegend } from "./factory/messaging";
   import { codeLinkCount } from "./factory/conduits";
   import { floorLayers, layerLabel, listEntry, type LayerId } from "./model/layers";
-  import type { LayerLines } from "./floor/state";
+  import type { DrawnLines } from "./floor/state";
   import TracePane from "./ui/TracePane.svelte";
   import { TraceGraph } from "./trace/graph";
   import { initialState, type TraceState } from "./trace/reach";
@@ -58,7 +58,7 @@
   // list's state
   let layers = $derived(model ? floorLayers(model, container) : []);
   let layer = $state<LayerId | null>(null);
-  let layerLines = $state<LayerLines | null>(null);
+  let layerLines = $state<DrawnLines | null>(null);
   let layersOpen = $state(false);
   let shownLayer = $derived(layers.find((l) => l.id === layer));
   let layerName = $derived(layerLabel(shownLayer));
@@ -96,6 +96,7 @@
   let railKinds = $state<RailLegend | null>(null);             // and its rail yards, stations and schedule signs
   let storeKinds = $state<StoreLegend | null>(null);           // and its cache and bucket art
   let doorKinds = $state<DoorLegend | null>(null);             // and what its marked doors lead to
+  let utilityTabs = $state(false);                              // and whether it draws a shared utility's tab
   let host = $state<HTMLDivElement>();
   let scene: FloorScene | null = null;
   let mapText: string | null = null;   // the open map's text until the scene hands it to its layout worker
@@ -156,6 +157,8 @@
     await tick();
     if (!host || !model) return;
     scene?.destroy();   // a map opened over another: the old scene's worker and ticker end
+    // the legend shows what the new scene draws, nothing until it has drawn a floor
+    messagingKinds = null; railKinds = null; storeKinds = null; doorKinds = null; utilityTabs = false; layerLines = null;
     let text = mapText;   // handed to the worker once, then let go: the scene keeps the factory for its lifetime
     mapText = null;
     scene = new FloorScene({
@@ -168,6 +171,7 @@
       rails: (r) => { railKinds = r; },
       storage: (s) => { storeKinds = s; },
       doors: (d) => { doorKinds = d; },
+      utility: (u) => { utilityTabs = u; },
       layer: (id, lines) => { layer = id; layerLines = lines; if (id === null) layersOpen = false; },
       openLayer: (id) => pickLayer(id),
     }, undefined, (m) => {
@@ -534,11 +538,9 @@
       onProblems={() => (showProblems = !showProblems)}
     />
     <section class="floor" aria-label="Factory floor">
-      <!-- with F0's conduits drawn, its legend swaps the implements key for the code-dependency key when F0 draws no
-           implements link (the dotted key would name nothing there), so the open legend stays within its 3-row height; with
-           no uses-code pair there is no conduit, no toggle, and the legend is as before. While a layer shows, the legend's
-           line rows follow it -->
-      <Legend compact={container !== SITE} utility={model.legendUtility() !== null} hasImplements={model.drawsImplements() && !(conduitsDrawn && model.implementLinks(SITE).length === 0)} messaging={messagingKinds} rails={railKinds} storage={storeKinds} doors={doorKinds} codeLinks={conduitsDrawn} lines={layerLines} {guide}>
+      <!-- every legend row follows what is drawn: the floor's base, or the layer shown (nothing before the floor is drawn);
+           the code-dependency key shows while F0's conduits are drawn -->
+      <Legend compact={container !== SITE} utility={utilityTabs} messaging={messagingKinds} rails={railKinds} storage={storeKinds} doors={doorKinds} codeLinks={conduitsDrawn} lines={layerLines} {guide}>
       {#if guideNote}
         <div class="guide-note" role="region" aria-label="Field guide">
           <span>New here? <a href={GUIDE_HREF} target="_blank" rel="noopener">Read the field guide first</a></span>

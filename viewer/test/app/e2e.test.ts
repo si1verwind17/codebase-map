@@ -275,6 +275,58 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
     expect(errors).toEqual([]);
   }, 60_000);
 
+  it("the legend shows only what the floor draws: no line row before the floor is drawn, no 'Drawn straight' row with no such line, door marks by what the doors lead to", async () => {
+    const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
+    const file = join(mkdtempSync(join(tmpdir(), "viz-")), "index.html");
+    writeFileSync(file, readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c")));
+    const LINE_ROWS = ["Request (belt)", "Stream (pipe)", "Batch job (rail)", "Event (drone)", "DB write / read", "Passes under", "Inferred (dashed edge)",
+      "Splitter / merger", "Two-way belt", "Drawn straight: no room for a belt", "Implementation (dotted)"];
+    const browser = await chromium.launch({ executablePath: CHROMIUM, args: GL_ARGS });
+    const errors: string[] = [];
+    try {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      page.on("pageerror", (e) => errors.push(e.message));
+      // every state the legend's list passes through, and whether a floor was drawn by then
+      await page.addInitScript(() => {
+        const seen: { drawn: boolean; rows: string[] }[] = [];
+        (window as unknown as { legendSeen: typeof seen }).legendSeen = seen;
+        new MutationObserver(() => {
+          const ul = document.querySelector(".legend ul");
+          if (!ul) return;
+          const rows = [...ul.querySelectorAll("li")].map((li) => li.textContent ?? "");
+          const drawn = !!document.querySelector("canvas[data-camera]");
+          if (JSON.stringify(seen.at(-1)) !== JSON.stringify({ drawn, rows })) seen.push({ drawn, rows });
+        }).observe(document, { subtree: true, childList: true, characterData: true, attributes: true });
+      });
+      await page.goto("file://" + file);
+      await page.waitForSelector("canvas[data-camera=idle]", { timeout: 15_000 });
+      const seen = await page.evaluate(() => (window as unknown as { legendSeen: { drawn: boolean; rows: string[] }[] }).legendSeen);
+      const before = seen.filter((s) => !s.drawn);
+      expect(before.length, "the legend shows before the first floor is drawn").toBeGreaterThan(0);
+      for (const s of before) expect(s.rows.filter((r) => LINE_ROWS.includes(r)), "no line row while the floor is not drawn").toEqual([]);
+      // floor 0 has no line the router could not place: never a 'Drawn straight' row
+      const site = new Model(JSON.parse(map) as CodeMap), q = site.bundles("site");
+      expect(planFloor(site, "site", q.doors, q.bundles).routes.some((r) => r.failed)).toBe(false);
+      for (const s of seen) expect(s.rows).not.toContain("Drawn straight: no room for a belt");
+      const rows = await page.locator(".legend li").allTextContents();
+      expect(rows).toContain("Request (belt)");
+      expect(rows, "the dotted links are all inside billing").not.toContain("Implementation (dotted)");
+      // the billing package floor: doors to stripe (outside), reservation-events (a topic) and its dead letters
+      await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill("BillingService");
+      await page.locator(".rail .list button", { hasText: "class" }).first().click();   // to its floor, the package's
+      await page.waitForFunction(() => /city\.parking\.billing/.test(document.querySelector(".floors button[aria-current=page]")?.textContent ?? ""), null, { timeout: 15_000 });
+      await page.waitForSelector("canvas[data-camera=idle]", { timeout: 15_000 });
+      await page.getByRole("button", { name: "Legend", exact: true }).click();
+      const inside = await page.locator(".legend li").allTextContents();
+      expect(inside).toContain("Door to outside service / topic or queue / dead letters");
+      expect(inside).toContain("Implementation (dotted)");
+      expect(inside).not.toContain("Drawn straight: no room for a belt");
+    } finally {
+      await browser.close();
+    }
+    expect(errors).toEqual([]);
+  }, 60_000);
+
   it("factory view at Fit shows machine codes; zooming in with the wheel brings the names back, which hold down to about 6 px", async () => {
     const map = readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8");
     const html = readFileSync(BUILT, "utf8").replace("/*CODE_MAP*/", map.replaceAll("<", "\\u003c"));
@@ -288,18 +340,19 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.goto("file://" + file);
       await page.waitForSelector("canvas");
       const mode = () => page.locator("canvas").getAttribute("data-labels");
+      await page.waitForSelector(".legend li:text-is('Request (belt)')");   // the legend lists what the drawn floor has
       // the legend's rows: 12 px text on a 12 px line, which hold as entries are added
       const row = await page.locator(".legend li").first().evaluate((e) => { const c = getComputedStyle(e); return [c.fontSize, c.lineHeight, e.getBoundingClientRect().height]; });
       expect(row).toEqual(["12px", "12px", 12]);
       // the site has every kind of messaging: each legend entry is a plain name, with no map example
-      for (const n of ["Implementation (dotted)", "Queue (waiting stack)", "Push dock", "Pull", "Dead letters"]) await expect(page.locator(".legend li", { hasText: new RegExp(`^${n.replace(/[()]/g, "\\$&")}$`) }).count(), n).resolves.toBe(1);
+      for (const n of ["Queue (waiting stack)", "Push dock", "Pull", "Dead letters"]) await expect(page.locator(".legend li", { hasText: new RegExp(`^${n.replace(/[()]/g, "\\$&")}$`) }).count(), n).resolves.toBe(1);
       // ...and the open legend is no taller than 4 dense rows (12 px, 3 px between, 6 px padding and a 1 px edge a side),
       // so it hides no more of the floor at Fit
       const legendH = await page.locator(".legend ul").evaluate((e) => e.getBoundingClientRect().height);
       expect(legendH, `open legend ${legendH} px`).toBeLessThanOrEqual(LEGEND_MAX_H);
       for (const n of ["Rail yard", "Station", "Schedule sign", "Train"]) await expect(page.locator(".legend li", { hasText: new RegExp(`^${n}$`) }).count(), n).resolves.toBe(1);
       for (const n of ["Cache", "Bucket", "Receiving dock"]) await expect(page.locator(".legend li", { hasText: new RegExp(`^${n}$`) }).count(), n).resolves.toBe(1);
-      await expect(page.locator(".legend li").count()).resolves.toBe(22);   // all of them shown: 10 kinds, implements, 4 messaging (replicas only on inner floors), the webhook's receiving dock, 4 rail and 2 store (cache, bucket)
+      await expect(page.locator(".legend li").count()).resolves.toBe(19);   // what floor 0 draws: 8 line kinds (no line drawn straight, no dotted link, no two-way belt: its two-way lines are a pipe and taps), 4 messaging (replicas only on inner floors), the webhook's receiving dock, 4 rail and 2 store (cache, bucket)
       await page.getByRole("button", { name: "Fit" }).click();
       await page.waitForTimeout(1500);
       await expect(mode()).resolves.toBe("codes");
@@ -344,7 +397,8 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto("file://" + file);
       await page.waitForSelector("canvas");
-      await expect(page.getByText("Implementation (dotted)", { exact: true }).count()).resolves.toBe(1);   // the legend names the dotted link plainly
+      await page.waitForSelector(".legend li:text-is('Request (belt)')");
+      await expect(page.getByText("Implementation (dotted)", { exact: true }).count(), "floor 0 draws no dotted link: no entry").resolves.toBe(0);
       await page.getByRole("searchbox", { name: "Find a node by name or code" }).fill(model.codes.get(trait)!);
       await page.locator(".rail .list button").first().click();                        // the trait, on its package floor (trait and $impl both items)
       await page.waitForFunction(() => document.querySelector(".insp")?.textContent?.includes("Implemented by"), null, { timeout: 10_000 });
@@ -1104,8 +1158,8 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await expect(conduits()).resolves.toBeNull();
       await expect(legend.count()).resolves.toBe(0);
       // a map with no uses-code pair (the fixture without its two, with one implements link inside shop, none on F0), the
-      // toggle remembered on: no button, no conduit, and the legend as with the toggle off (its implements key kept, no
-      // code-dependency key)
+      // toggle remembered on: no button, no conduit, and the legend as with the toggle off (no code-dependency key, and no
+      // implements key: floor 0 draws no dotted link)
       const bare = JSON.parse(readFileSync(new URL("../fixtures/shop.code-map.json", import.meta.url), "utf8")) as CodeMap;
       bare.relations = bare.relations.filter((r) => r.kind !== "uses-code");
       Object.assign(bare.nodes.find((n) => n.id === "shop::io.demo.shop.repo.PgOrderRepo")!, { implements: ["shop::io.demo.shop.repo.OrderRepo"] });
@@ -1124,7 +1178,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       };
       const shown = await legendOf(true);
       expect(shown).not.toContain("Code dependency");
-      expect(shown).toContain("Implementation (dotted)");
+      expect(shown).not.toContain("Implementation (dotted)");
       expect(shown, "the legend is as with Code links off").toEqual(await legendOf(false));
     } finally {
       await browser.close();

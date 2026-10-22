@@ -6,7 +6,7 @@ import { STEP } from "../factory/tiles";
 import { paintGhost } from "../factory/pieces";
 import type { TileRoute } from "../factory/router";
 import { expandKeys, lineEnds, railLine as railLineOf, type RailLine, yardKey } from "../factory/rail-place";
-import type { LayerLines, LayerView, SceneState, Target } from "./state";
+import type { DrawnLines, LayerView, SceneState, Target } from "./state";
 import { peekKeys, type LayerId } from "../model/layers";
 import { stroke } from "./draw";
 import { showTag } from "./labels";
@@ -78,9 +78,10 @@ function layerVisibility(st: SceneState) {
   }
 }
 
-/** The line kinds the shown layer draws (the legend's line rows), null on the base. */
-export function layerLines(st: SceneState): LayerLines | null {
-  if (st.layer === null) return null;
+/** The line kinds drawn now (the legend's line rows): the shown layer's, else the base's; null while the floor is not
+ *  drawn yet. */
+export function layerLines(st: SceneState): DrawnLines | null {
+  if (st.layer === null) return st.baseLines;
   return st.layerViews.get(st.layer)?.lines ?? {};
 }
 

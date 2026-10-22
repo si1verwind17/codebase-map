@@ -1,4 +1,4 @@
-// audit-inputs: b36a3993c1fc75ffc08c6c1f0543c0b434274542e05cdee72daa22e603fa7336
+// audit-inputs: e42c0bb5459ba6e15d3620e3082b70fcc2bfc0797628deb08b5446852ac37e7e
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -439,17 +439,6 @@ var Model = class {
 		}
 		return res;
 	}
-	/** The utility the legend shows as its example: the one most site items carry a tab for; null when no tab is drawn. */
-	legendUtility() {
-		const uses = /* @__PURE__ */ new Map();
-		for (const list of this.badges(SITE).values()) for (const u of list) uses.set(u, (uses.get(u) ?? 0) + 1);
-		const best = [...uses.entries()].filter(([u]) => this.codes.has(u)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-		return best ? {
-			id: best[0],
-			code: this.codes.get(best[0]),
-			label: this.label(best[0])
-		} : null;
-	}
 	/** The classes that implement trait (or class) `id`, as node ids. */
 	implementersOf(id) {
 		return this.implementers.get(id) ?? [];
@@ -488,11 +477,6 @@ var Model = class {
 		if (lifted.length !== 1) return void 0;
 		const here = this.liftTo(container, id);
 		return here && lifted[0] !== here ? lifted[0] : void 0;
-	}
-	drawsImpl;
-	/** Whether some floor draws a dotted implements link (the legend's entry shows only then). Computed once. */
-	drawsImplements() {
-		return this.drawsImpl ??= this.implementers.size > 0 && Object.keys(this.map.layout.containers).some((c) => this.implementLinks(c).length > 0);
 	}
 	/** The relations (no code links) with an end that is `id` or inside it, in map order. */
 	relationsOf(id) {

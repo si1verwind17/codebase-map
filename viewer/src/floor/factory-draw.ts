@@ -19,7 +19,7 @@ import { doorLegend } from "../factory/messaging";
 import { padReserve } from "../factory/pads";
 import { paintRails } from "../factory/rail-paint";
 import { railLabels, railLegend } from "../factory/rail-place";
-import type { FloorPlan, LayerLines, SceneState } from "./state";
+import type { FloorPlan, DrawnLines, SceneState } from "./state";
 import type { FloorLayer, LayerId } from "../model/layers";
 import { crossMarks, dashed, drawDoor, drawFrame, KEYLINE, stroke } from "./draw";
 import { factorySub, label, nameTag, shortName, tabHint } from "./labels";
@@ -71,7 +71,11 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
     const anchor = st.doors.get(id)?.anchor, shows = anchor && model.doorShows(st.container, anchor);
     return { code: model.codes.get(shows || id) ?? "", name: shows ? model.label(shows) : shortName(st, model, id) };
   };
-  paintLines(st, routes, bundleOf, trunkHover(st, routes, bundleOf, end), st.layers.lines, st.lineViews, tf.cols);
+  const baseOps = paintLines(st, routes, bundleOf, trunkHover(st, routes, bundleOf, end), st.layers.lines, st.lineViews, tf.cols);
+  // the legend's line rows: what the base draws here (a route its flights cover is drawn as them: drones)
+  st.baseLines = drawnLines(routes.filter((r) => !st.covered.has(r.key)), bundleOf, baseOps);
+  if (st.flights.length) st.baseLines.drone = true;
+  if (st.implLinks.length) st.baseLines.implements = true;
   // each extra layer's lines, painted as the base's are, in its own container above them: hidden until shown
   st.layerViews.clear();
   const layers = plan?.tf === tf ? plan.layers : undefined;
@@ -82,7 +86,7 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
     box.visible = false;
     st.layers.layered.addChild(box);
     const ops = paintLines(st, l.routes, of, trunkHover(st, l.routes, of, end), box, lineViews, tf.cols);
-    st.layerViews.set(id, { box, lineViews, routes: l.routes, bundles, lines: layerLines(l.routes, bundles, ops) });
+    st.layerViews.set(id, { box, lineViews, routes: l.routes, bundles, lines: drawnLines(l.routes, of, ops) });
   }
   st.chimneys = [];
   st.windows.clear();
@@ -160,6 +164,7 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   }
   st.events.rails?.(railLegend(tf));
   st.events.storage?.(storeLegend(tf.boxes.values(), storeOf));
+  st.events.utility?.([...badges].some(([id, list]) => list.length > 0 && geo.machines.has(id)));
   st.events.doors?.(doorLegend(model, [...st.doors].filter(([id]) => tf.boxes.get(id)?.foot === "door").map(([, d]) => d.anchor)));
   // `used by N` badges take the room the labels left, beside their machines (placed once per plan, as the labels are).
   // Each opens its item's layer
@@ -271,17 +276,19 @@ function paintLines(st: SceneState, routes: TileRoute[], bundleOf: (r: TileRoute
   return ops;
 }
 
-/** The line kinds a layer draws (the legend's line rows while it shows). */
-function layerLines(routes: TileRoute[], bundles: Bundle[], ops: FactoryOp[]): LayerLines {
-  const out: LayerLines = {};
+/** The line kinds `routes` are drawn as, the base's or a layer's (the legend's line rows). A two-way belt is a belt
+ *  that runs both ways, or a shared belt tile drawn two-way (a head-on trunk); a two-way rail or tap is not one. */
+export function drawnLines(routes: TileRoute[], bundleOf: (r: TileRoute) => Bundle, ops: FactoryOp[]): DrawnLines {
+  const out: DrawnLines = {};
   for (const r of routes) {
     if (r.failed) out.failed = true;
     else if (r.kind === "belt" || r.kind === "pipe" || r.kind === "rail" || r.kind === "drone") out[r.kind] = true;
     else out.tap = true;
     if (r.pieces.some((p) => p.under)) out.under = true;
-    if (r.both) out.both = true;
+    if (r.both && r.kind === "belt" && !r.failed) out.both = true;
   }
-  if (bundles.some((b) => b.inferred === b.relations.length && b.relations.length > 0)) out.inferred = true;
+  if (ops.some((o) => o.layer === "tile" && o.tile?.both)) out.both = true;
+  if (routes.some((r) => { const b = bundleOf(r); return b.inferred === b.relations.length && b.relations.length > 0; })) out.inferred = true;
   if (ops.some((o) => o.layer === "plate")) out.plate = true;
   return out;
 }

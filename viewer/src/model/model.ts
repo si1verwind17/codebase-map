@@ -444,14 +444,6 @@ export class Model {
     return res;
   }
 
-  /** The utility the legend shows as its example: the one most site items carry a tab for; null when no tab is drawn. */
-  legendUtility(): { id: string; code: string; label: string } | null {
-    const uses = new Map<string, number>();
-    for (const list of this.badges(SITE).values()) for (const u of list) uses.set(u, (uses.get(u) ?? 0) + 1);
-    const best = [...uses.entries()].filter(([u]) => this.codes.has(u)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-    return best ? { id: best[0], code: this.codes.get(best[0])!, label: this.label(best[0]) } : null;
-  }
-
   /** The classes that implement trait (or class) `id`, as node ids. */
   implementersOf(id: string): string[] {
     return this.implementers.get(id) ?? [];
@@ -489,12 +481,6 @@ export class Model {
     if (lifted.length !== 1) return undefined;
     const here = this.liftTo(container, id);
     return here && lifted[0] !== here ? lifted[0] : undefined;
-  }
-
-  private drawsImpl: boolean | undefined;
-  /** Whether some floor draws a dotted implements link (the legend's entry shows only then). Computed once. */
-  drawsImplements(): boolean {
-    return (this.drawsImpl ??= this.implementers.size > 0 && Object.keys(this.map.layout.containers).some((c) => this.implementLinks(c).length > 0));
   }
 
   /** The relations (no code links) with an end that is `id` or inside it, in map order. */

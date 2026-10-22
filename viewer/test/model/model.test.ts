@@ -134,21 +134,6 @@ describe("Model", () => {
 });
 
 
-describe("legend utility", () => {
-  it("is null when the map has no utility, else the one most site items carry a tab for", () => {
-    expect(new Model(map).legendUtility()).toBeNull();
-    const u = structuredClone(map);
-    const ext = u.nodes.find((n) => n.kind === "external")!;
-    u.layout.containers[SITE].utilities = [ext.id];
-    u.relations.push({ id: "r:legend", kind: "ext-call", from: "svc:shop", to: ext.id, key: null, confidence: "confirmed", evidence: [] } as never);
-    const m = new Model(u);
-    const got = m.legendUtility()!;
-    expect(got.id).toBe(ext.id);
-    expect(got.code).toBe(m.codes.get(ext.id));
-    expect(got.label).toBe(m.label(ext.id));
-  });
-});
-
 describe("implements links", () => {
   const demo = new Model(JSON.parse(readFileSync(new URL("../../../demo/parking-city/docs/viz-code/code-map.json", import.meta.url), "utf8")) as CodeMap);
   const trait = "billing::city.parking.billing.DeadLetters";
@@ -199,14 +184,5 @@ describe("implements links", () => {
     self.nodes.find((n) => n.id === impl)!.implements = [];
     self.nodes.push({ id: "billing::inner.Impl", kind: "class", name: "InnerImpl", parent: trait, implements: [trait] });
     expect(new Model(self).implementerOn(pkg, method)).toBeUndefined();
-  });
-
-  it("tells the legend whether some floor draws a link, and says no when none does", () => {
-    expect(demo.drawsImplements()).toBe(true);
-    expect(new Model(map).drawsImplements()).toBe(false);
-    const inside = structuredClone(demo.map);   // implements present, but every pair lands on one item
-    for (const n of inside.nodes) if (n.implements) n.implements = [];
-    inside.nodes.push({ id: "billing::inner.Impl", kind: "class", name: "InnerImpl", parent: trait, implements: [trait] });
-    expect(new Model(inside).drawsImplements()).toBe(false);
   });
 });
