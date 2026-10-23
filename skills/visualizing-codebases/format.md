@@ -605,7 +605,7 @@ file. A route entry is one of:
   optional `param` group renames the suffixes' `:id`. Optional `handler_class` and
   `handler_method` (both or neither): templates of `{group}`, `{group|camel}` and, with `expand`,
   `{action}` fields naming the handler's class and method by convention, unused when an optional
-  `nohandler` group matched (SKILL.md § Stack).
+  `nohandler` group matched (`references/stack.md`).
 - `form: annotated` (not for Python or Scala): `name`, `verbs` (annotation
   name → HTTP method, or `from-method-arg`), optional `when`, `prefix`,
   `path_args` (default `[value, path, 0]`), `method_arg` (default `method`),
@@ -616,7 +616,7 @@ file. A route entry is one of:
 A `stack.yaml` route, table or queue entry named like a pack entry of its language
 replaces it; any other repeated name is an error. It is data only;
 `extract.py` reads it and rejects invalid content with exit 2. Rules, the
-full format and when to write it: SKILL.md § Stack. `structure.json` holds
+full format and when to write it: `references/stack.md` (when: SKILL.md § Stack). `structure.json` holds
 the `stack` block (`digest`, `unrecognised`, `servers_without_routes`,
 `patterns`, `overrides`) that `summary.md`'s Stack section prints. Each
 `patterns` entry: `group` (`routes`, `tables` or `queues`), `lang`, `name`, `source`
@@ -631,7 +631,7 @@ source}]` (`framework` is the pattern's name; `method` upper-cased; a handler ou
 file node, made for a generic-walker file that has none); its `mounts` facts (key
 present on files with a mount) are `[{path, target, line, framework,
 source, composed}]`, `target` the matched name or null, `composed` (present when above 0) the number of the
-file's routes whose path the scanner prefixed with it (SKILL.md § Stack). Two patterns giving the same
+file's routes whose path the scanner prefixed with it (`references/stack.md`). Two patterns giving the same
 route (method, path, handler) or table (table, line, in) give one fact,
 named after the pattern listed first (packs before `stack.yaml`).
 

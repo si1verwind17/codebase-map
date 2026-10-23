@@ -8,7 +8,7 @@
 # Quill `querySchema[Order]("shop.orders", ...)`: the table is the string.
 # Rules kept in code because a pattern cannot express them: tapir (path trees across vals, server logic,
 # clients), gRPC and proto services.
-# queues: in-process queue creation sites (ZIO `Queue`/`Hub`, cats-effect `Queue`, fs2 `Topic`, Akka/Pekko `Source.queue`): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (ZIO `Queue`/`Hub`, cats-effect `Queue`, fs2 `Topic`, Akka/Pekko `Source.queue`): candidates the agent confirms (references/interactions.md).
 scala:
   ignore: [scala, java, javax, zio]   # zio: the effect library; its kinds (zio.kafka, zio.redis, ...) are imports
   effects: [ZIO, Task, UIO, URIO, IO, RIO, ZLayer, ULayer, URLayer, RLayer, TaskLayer, Layer, ZStream, UStream, Stream, ZSink, ZPipeline]

@@ -90,7 +90,7 @@ def meaning_errors(meaning: dict, structure: dict) -> list[str]:
             if rid in seen:
                 errors.append(f"relation {i} duplicates relation {seen[rid]} ({rid}): merge their evidence, "
                               "or tell them apart by key (a job queue: key each enqueue by its job, "
-                              "SKILL.md § Queues in a store or a job system)")
+                              "references/interactions.md § Queues in a store or a job system)")
             seen.setdefault(rid, i)
     errors += pins.errors(meaning)
     errors += examples.shape_errors(meaning.get("examples") or {})

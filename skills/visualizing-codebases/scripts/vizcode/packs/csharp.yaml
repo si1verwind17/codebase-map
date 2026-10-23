@@ -9,7 +9,7 @@
 # routes: ASP.NET controllers (`form: annotated`: `[Route]` prefix with the `[controller]` token, `[HttpGet]`...;
 # a method template starting with `/` or `~/` overrides the prefix); minimal APIs `app.MapGet("/x", h)` (regex;
 # `MapGroup` is a mount). tables: EF Core `[Table("x")]` (defined on the class) and `ToTable("x")`.
-# queues: in-process queue creation sites (`System.Threading.Channels`, `BlockingCollection`): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (`System.Threading.Channels`, `BlockingCollection`): candidates the agent confirms (references/interactions.md).
 csharp:
   ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions]
   imports:

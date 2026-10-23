@@ -11,7 +11,7 @@
 # `app.use('/v1', router)`, Koa `prefix`, Fastify `register(r, {prefix})` are mounts, nested prefixes the
 # scanner joins to the routes registered on them in the same file and the agent composes elsewhere). tables:
 # TypeORM `@Entity`, Prisma `prisma.<model>.<call>`, Sequelize `define` and `tableName`.
-# queues: in-process queue creation sites (`new EventEmitter()`): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (`new EventEmitter()`): candidates the agent confirms (references/interactions.md).
 typescript:
   ignore: ["node:", fs, path, http, https, crypto, os, url, util, events, stream, child_process, buffer, zlib, net, tls, dns,
            assert, process, timers, querystring, readline, worker_threads, cluster, perf_hooks, async_hooks, vm,

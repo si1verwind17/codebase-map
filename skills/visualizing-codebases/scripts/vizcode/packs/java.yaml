@@ -10,7 +10,7 @@
 # interface (`skip_class`: Feign `@FeignClient`, `@HttpExchange`, MicroProfile `@RegisterRestClient`, Micronaut
 # `@Client`) declares calls out, not routes.
 # tables: JPA `@Table(name = ...)` and `@Entity(name = ...)`: a mapping, defined on the class.
-# queues: in-process queue creation sites (`java.util.concurrent` blocking queues, Guava `EventBus`): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (`java.util.concurrent` blocking queues, Guava `EventBus`): candidates the agent confirms (references/interactions.md).
 java:
   ignore: [android, androidx, java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
            jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json, jakarta.xml.bind,

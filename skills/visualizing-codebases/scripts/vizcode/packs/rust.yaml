@@ -7,7 +7,7 @@
 # calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
 # actix-web attributes `#[get("/x")]` (the function below), `.route("/x", get().to(h))`, and `scope` /
 # `resource` (mounts; a resource's `.route(get().to(h))` is on its path).
-# queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (references/interactions.md).
 rust:
   ignore: [std, core, alloc]
   imports:

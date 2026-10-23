@@ -15,7 +15,7 @@
 # below it. An enclosing `namespace`, `scope module:` or `controller` block is not read: a resource in one is matched
 # by its class name alone, when that name is unique. tables: ActiveRecord `self.table_name = "x"`, without `when` (a Rails
 # model requires nothing): the regex needs `self.table_name =` at the start of a line and a string literal.
-# queues: in-process queue creation sites (`Queue.new`/`SizedQueue.new` (core, so no `when`)): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (`Queue.new`/`SizedQueue.new` (core, so no `when`)): candidates the agent confirms (references/interactions.md).
 ruby:
   ignore: [json, net/http, set, time, date, securerandom, logger, fileutils, yaml, erb, uri, open3, digest,
            base64, csv, optparse]

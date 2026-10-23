@@ -10,7 +10,7 @@
 # registered on them in the same file; the agent composes the rest).
 # tables: gorm `func (T) TableName() string { return "x" }` (in the TableName method). No `when`: a model file
 # often imports nothing; the regex needs the whole method shape (receiver, no arguments, `string`, a literal return).
-# queues: in-process queue creation sites (`make(chan T)`; `chan struct{}` and `chan bool` are signals, not hand-offs; no `when`: channels are built in): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (`make(chan T)`; `chan struct{}` and `chan bool` are signals, not hand-offs; no `when`: channels are built in): candidates the agent confirms (references/interactions.md).
 go:
   imports:
   - {prefix: database/sql, kind: sql-db}

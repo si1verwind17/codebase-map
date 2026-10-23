@@ -8,7 +8,7 @@
 # have the same names; a client interface, `skip_class`, gives none); Ktor's routing DSL (regex: `get("/x") {`;
 # `route("/v1") {` is a mount, a nested prefix joined to the routes in its block). tables: JPA (as in the Java
 # pack) and Exposed `object X : Table("x")` (no argument: the object's name), defined on the object.
-# queues: in-process queue creation sites (coroutine `Channel`, `MutableSharedFlow`, `java.util.concurrent` blocking queues): candidates the agent confirms (SKILL.md § In-process queues).
+# queues: in-process queue creation sites (coroutine `Channel`, `MutableSharedFlow`, `java.util.concurrent` blocking queues): candidates the agent confirms (references/interactions.md).
 kotlin:
   ignore: [android, androidx, kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,
            jakarta.enterprise, jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json,
