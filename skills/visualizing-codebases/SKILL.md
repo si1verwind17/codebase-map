@@ -142,7 +142,8 @@ inside the repo).
    `route.file-handler`, `route.setup-handler` and `pin.few` content warning
    in `meaning.json` and rerun `assemble.py`. An `ext.missing` key that names no
    outside endpoint (a test helper's, a tool's own setting such as `DOCKER_HOST`)
-   gets a `problems` entry naming the key and why; that clears it. So does a
+   gets a `problems` entry naming the key and why (an entry is
+   `{"text": "...", "nodes": ["<node id>", ...]}`, `nodes` optional); that clears it. So does a
    `queue.missing` site that is no hand-off (§ In-process queues): name its `file:line`. A route whose handler is
    a file or the function that registers it (`route.file-handler`, `route.setup-handler`) gets its real handler
    from a `stack.yaml` handler group; when the code has none (a routes file read by the framework, inline
