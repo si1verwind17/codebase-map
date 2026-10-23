@@ -177,7 +177,9 @@ def test_test_files_of_each_language_excluded(make_repo):
                       "web/a.ts": "export const a = 1\n", "core/tests/it.rs": "", "core/src/lib.rs": "fn f() {}\n",
                       "app/spec/models/order_spec.rb": "", "spec/helper.rb": "", "app/x.rb": "class X; end\n",
                       "api/OrderTests.cs": "", "api/Order.cs": "class Order {}", "web/OrderTest.php": "",
-                      "spec/conf.py": "X = 1\n"})
+                      "spec/conf.py": "X = 1\n", "apps/api/src/order.e2e.ts": "", "apps/api/src/order.e2e-ee.ts": "",
+                      "apps/api/e2e/setup.ts": "", "web/flow.e2e-spec.js": "", "core/src/tests.rs": "",
+                      "core/src/post/test.rs": ""})
     s = structure.build(repo)
     assert sorted(s["files"]) == ["api/Order.cs", "app/x.rb", "core/src/lib.rs", "spec/conf.py", "svc/Foo.java",
                                   "svc/foo.go", "web/a.ts"]
