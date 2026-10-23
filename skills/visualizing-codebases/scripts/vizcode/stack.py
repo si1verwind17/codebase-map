@@ -97,6 +97,8 @@ class Stack:
     imports: dict[str, list[tuple[str, str, str]]] = field(default_factory=dict)
     ignore: dict[str, list[str]] = field(default_factory=dict)
     stack_ignore: dict[str, list[str]] = field(default_factory=dict)   # the stack.yaml entries of `ignore`
+    # folder -> a path prefix only config sets (a servlet context path, a URI version), for the routes under it
+    base_paths: dict[str, str] = field(default_factory=dict)
     effects: dict[str, list[Effect]] = field(default_factory=dict)
     patterns: list[RoutePattern | AnnotatedPattern] = field(default_factory=list)
     tables: list[TablePattern] = field(default_factory=list)
@@ -426,6 +428,14 @@ def _read(st: Stack, fname: str, doc, source: str) -> None:
             if not isinstance(groups, list) or not all(isinstance(g, str) and g for g in groups):
                 raise _fail(fname, "exclude", None, "must be a list of globs")
             st.excludes += [g for g in groups if g not in st.excludes]
+            continue
+        if lang == "base_paths":
+            if not isinstance(groups, dict) or not all(isinstance(k, str) and isinstance(v, str)
+                                                       for k, v in groups.items()):
+                raise _fail(fname, "base_paths", None, "must be a mapping of folder to path")
+            if bad := [k for k, v in groups.items() if not v.startswith("/")]:
+                raise _fail(fname, "base_paths", bad[0], "a path must start with /")
+            st.base_paths.update({k.strip("/") or ".": v for k, v in groups.items()})
             continue
         if lang not in LANGS:
             raise _fail(fname, f"unknown language '{lang}'", None, f"the scanner parses {', '.join(LANGS)}")

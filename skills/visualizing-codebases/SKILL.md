@@ -324,7 +324,9 @@ Match an outbound call to an inbound route, topic or table by its **protocol
 key**: HTTP method + path template, topic name, gRPC service/method, table
 name. The structure pass already lists routes per module (the packs' frameworks,
 `format.md` → Stack, and `stack.yaml`; methods upper-cased, and without the
-prefixes of mounts it could not join, which you compose onto them yourself), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
+prefixes of mounts it could not join, which you compose onto them yourself; a prefix only config
+sets, such as a servlet context path or a URI version, goes into `stack.yaml` `base_paths`
+once per deployable folder, citing the config line in the report), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
 lists tapir client endpoints as `http clients` (method + path: match them to
 routes like a URL), the gRPC services and rpcs of every `.proto` file as keys
 `grpc <package>.<Service>/<Rpc>` (each once, with every `.proto` that declares it)

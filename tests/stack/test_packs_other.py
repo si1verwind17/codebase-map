@@ -496,6 +496,18 @@ def test_entity_looking_classes_with_no_table_are_listed(make_repo):
     assert "- php app/Models/Song.php: Song (line 7)" in text
 
 
+def test_stack_base_paths_prefix_the_routes_of_a_folder(make_repo):
+    """A path only config sets (a servlet context path, a URI version, a proxy prefix) is declared once per
+    folder in stack.yaml; the longest matching folder wins."""
+    files = {**LARAVEL_SERVICE, "docs/viz-code/stack.yaml": "base_paths:\n  routes: /api\n  .: /ignored\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert [r["path"] for r in s["facts"]["routes/api.php"]["routes"]] == [
+        "/api/orders/{id}", "/api/orders", "/api/v1/orders/{id}", "/api/sync", "/api/sync"]
+    for bad, why in (("base_paths: [x]", "mapping of folder to path"), ("base_paths:\n  a: v1", "start with /")):
+        with pytest.raises(stack.StackError, match=why):
+            stack._read(stack.load(None), "stack.yaml", yaml.safe_load(bad), "stack")
+
+
 def test_laravel_routes_file_without_a_use_line(make_repo):
     files = {**LARAVEL_SERVICE,
              "routes/api.php": LARAVEL_SERVICE["routes/api.php"].replace("use Illuminate\\Support\\Facades\\Route;\n", "")}

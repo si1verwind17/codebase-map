@@ -584,6 +584,16 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                 route["handler"] = found
 
 
+def _base_paths(st: stack.Stack, results: dict[str, dict]) -> None:
+    """Prefix each route with the stack.yaml base path of the longest folder holding its file."""
+    for f, r in results.items():
+        under = [d for d in st.base_paths if d == "." or f.startswith(d + "/")]
+        if under and r["routes"]:
+            prefix = st.base_paths[max(under, key=lambda d: (d != ".", len(d)))]
+            for route in r["routes"]:
+                route["path"] = stack.normalise(prefix.rstrip("/") + "/" + route["path"].lstrip("/"))
+
+
 def _segments(name: str) -> list[str]:
     return [x for x in re.split(r"::|[./\\]", name) if x]
 
@@ -844,6 +854,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     nodes = sorted(packages.values(), key=lambda n: n["id"]) + nodes
 
     _tapir(results, file_mod)
+    _base_paths(st, results)
 
     _attach(nodes, results)
     _implements(nodes, results, file_mod)

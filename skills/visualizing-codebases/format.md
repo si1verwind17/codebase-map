@@ -591,7 +591,9 @@ language (`python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
 `ignore` (prefixes), `tables` (`name`, `regex` with a `table` group,
 optional `when`) and `queues` (`name`, `regex`, `delivery` `queue` or `fan-out`, optional `when`: in-process queue
 creation sites); and at the top level `exclude`, a list of path globs every scan leaves out (`extract.py --exclude`
-adds to it). A route entry is one of:
+adds to it), and `base_paths`, folder → path prefix (`account-service: /accounts`): a path only config or a proxy
+sets (a servlet context path, a URI version), joined onto every route of the longest folder holding the route's
+file. A route entry is one of:
 
 - `form: regex` (the default): `name`, `regex` (with a `path` group, empty as `(?P<path>)` for a route on its
   mount's own path such as actix `resource("/x").route(get().to(h))`, optional
