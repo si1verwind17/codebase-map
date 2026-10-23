@@ -319,7 +319,9 @@ constant up and write its value in `request` and example keys), URL literals, en
 lists outbound requests as `http clients` (method + path: match them to
 routes like a URL): tapir client endpoints, calls through the code's own HTTP
 helpers (a function passing its parameter on as a client call's address, so
-`http.get(`albums/${id}`)` is `GET /albums/{id}`), and client calls with a path, framework-implemented interfaces (a repository or a
+`http.get(`albums/${id}`)` is `GET /albums/{id}`), and client calls with a path;
+SQL kept outside the code (a mapper XML's statements, as SQL facts of the interface
+method each names; the tables `.sql` files create, in § Tables defined in SQL files), framework-implemented interfaces (a repository or a
 declarative HTTP client: every method bodyless, in a file importing a database or
 HTTP client library) with their bases, annotation and methods: each method is
 where a `db-read`/`db-write` (the table from the entity type the base names) or a

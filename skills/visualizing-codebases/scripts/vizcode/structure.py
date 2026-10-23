@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
-               routes, stack, typelinks, unscanned, wrappers)
+               routes, sqlfiles, stack, typelinks, unscanned, wrappers)
 from .adapters import generic
 from .adapters import python as py_adapter
 from .adapters import scala as scala_adapter
@@ -897,6 +897,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 protos.append(proto.parse(p.read_text(encoding="utf-8", errors="replace"), f))
         not_scanned = unscanned.report(tree, set(results), lambda f: excluded(f, patterns + BUILD_EXCLUDES),
                                        lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
+        mapper_sql, sql_files = sqlfiles.read(root, tree, lambda f: excluded(f, patterns + BUILD_EXCLUDES)
+                                              or (root / f).stat().st_size > MAX_BYTES)
 
     names = _module_names(modules, results, file_mod, build_names)
     for f, r in results.items():
@@ -987,6 +989,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         if queues := queue_use.handled(r.get("queues", []), r["imports"], internal.get(lang, set()), lang):
             file_facts[f]["queues"] = queues   # likewise for in-process queue creation sites
 
+    sqlfiles.attach(mapper_sql, nodes, file_facts)
     file_node = {n["file"]: n["id"] for n in nodes if n["kind"] == "file"}
     first_node = {}
     for n in nodes:
@@ -1019,6 +1022,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         "excluded": excluded_files,
         "generated": gen_files,
         "unscanned": not_scanned,
+        "sql_files": sql_files,
         "stats": {"files": len(results), "modules": len(modules),
                   "classes": sum(1 for n in nodes if n["kind"] == "class"),
                   "methods": sum(1 for n in nodes if n["kind"] == "method"),
@@ -1150,6 +1154,11 @@ def summary_md(s: dict) -> str:
              f"Stats: {s['stats']}", ""]
     lines += _stack_lines(s.get("stack", {}))
     lines += _unscanned_lines(s.get("unscanned") or {})
+    if defined := s.get("sql_files"):
+        lines += [f"## Tables defined in SQL files — {len(defined)}", "",
+                  "`CREATE TABLE` in `.sql` files (migrations, schemas): tables that exist whatever the code shows; "
+                  "name them in the map where code reads or writes them:"]
+        lines += [f"- {d['table']} ({d['file']}:{d['line']})" for d in defined] + [""]
     names = {n["id"]: n["name"] for n in s["nodes"]}
     for m in s["modules"]:
         files = [f for f, i in s["files"].items() if i["module"] == m["id"]]
