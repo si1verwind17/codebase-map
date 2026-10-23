@@ -71,3 +71,12 @@ def test_deployable_unscanned_warning_until_a_service_or_problem_names_it(make_r
     got = [w for w in mapcheck.warnings(cmap, md) if w["id"] == "deployable.unscanned"]
     assert [w["detail"].split("`")[1] for w in got] == ["proxy"]
     assert "model it as a service" in got[0]["detail"]
+
+
+def test_server_templates_are_listed_but_never_make_a_deployable_unscanned(make_repo):
+    files = {"composer.json": "{}\n", "Dockerfile": "FROM php\n", "src/Kernel.php": "<?php\nclass Kernel {}\n",
+             **{f"templates/page{i}.html.twig": "{{ x }}\n" for i in range(3)}, "Views/Home.cshtml": "@model X\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    langs = {x["lang"]: x["files"] for x in s["unscanned"]["languages"]}
+    assert langs == {"Twig": 3, "Razor": 1}
+    assert s["unscanned"]["deployables"] == []

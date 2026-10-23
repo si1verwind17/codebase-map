@@ -9,6 +9,10 @@ import re
 import yaml
 
 # file suffix -> language, for source the scanner has no reader for
+# server templates and components: page routes and calls can live in them, but a web app holding many of them is
+# still the scanned code's deployable, so they never make a deployable "mostly unscanned"
+TEMPLATES = {"Razor": (".cshtml", ".razor"), "Twig": (".twig",), "ERB": (".erb",), "Handlebars": (".hbs",),
+             "Liquid": (".liquid",), "Jinja": (".jinja", ".j2")}
 SOURCE = {
     **dict.fromkeys((".c",), "C"), **dict.fromkeys((".h",), "C/C++ header"),
     **dict.fromkeys((".cc", ".cpp", ".cxx", ".c++", ".hpp", ".hh", ".hxx"), "C++"),
@@ -18,6 +22,7 @@ SOURCE = {
     ".vb": "Visual Basic", **dict.fromkeys((".clj", ".cljs", ".cljc"), "Clojure"), ".groovy": "Groovy",
     **dict.fromkeys((".pl", ".pm"), "Perl"), ".lua": "Lua", ".r": "R", ".jl": "Julia", ".zig": "Zig",
     ".nim": "Nim", ".cr": "Crystal", ".elm": "Elm", ".sol": "Solidity",
+    **{suf: lang for lang, sufs in TEMPLATES.items() for suf in sufs},
     **dict.fromkeys((".sh", ".bash", ".zsh"), "shell"), ".ps1": "PowerShell",
     **dict.fromkeys((".conf", ".vcl"), "server config"),
 }
@@ -88,7 +93,7 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         mine = sum(1 for f in scanned if _inside(f, folder))
         missed: dict[str, int] = {}
         for f, lang in source.items():
-            if _inside(f, folder):
+            if _inside(f, folder) and lang not in TEMPLATES:
                 missed[lang] = missed.get(lang, 0) + 1
         if mine == 0 or sum(missed.values()) > mine:
             deployables.append({"folder": folder, **how, "scanned": mine,
