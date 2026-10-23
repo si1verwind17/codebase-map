@@ -607,6 +607,7 @@ def _bodyless_spans(r: dict) -> list[tuple[int, int]]:
 
 
 IMPLEMENTED_KINDS = ("sql-db", "doc-db", "http-out", "http")
+SUMMARY_CHUNK = 25   # items per summary.md module line
 
 
 def _implemented(r: dict, sinks: list[dict]) -> list[dict]:
@@ -1168,8 +1169,8 @@ def summary_md(s: dict) -> str:
                             ("tables (patterns)", [_table_line(t, names) for t in sorted(tables)]),
                             ("in-process queues", queues),
                             ("url literals", sorted(urls)), ("env keys", sorted(envs))):
-            if vals:
-                lines.append(f"- **{label}:** " + "; ".join(vals))
+            for i in range(0, len(vals), SUMMARY_CHUNK):   # a long list on several lines, each with its label
+                lines.append(f"- **{label}:** " + "; ".join(vals[i:i + SUMMARY_CHUNK]))
         lines.append("")
     rpcs: dict[tuple[str, str], list[str]] = {}   # one line per key and shape, with every .proto that declares it
     for p in s.get("proto", []):

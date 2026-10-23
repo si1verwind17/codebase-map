@@ -611,3 +611,11 @@ def test_unrecognised_imports_leave_out_language_items_and_keep_the_repos_own_pa
     assert got == [("typescript", "hono", "server"), ("java", "com.acme.tools", None),
                    ("php", "Monolog", None), ("rust", "dashmap", None)]
     assert "- typescript `hono` — 1 file: web/assets/js/app.ts:2 (looks like a server library)" in structure.summary_md(s)
+
+
+def test_a_long_summary_list_is_split_over_lines_with_its_label(make_repo):
+    routes = "".join(f'@app.get("/r{i}")\ndef r{i}():\n    return 1\n\n' for i in range(30))
+    files = {"app/__init__.py": "", "app/main.py": "from fastapi import FastAPI\n\napp = FastAPI()\n\n" + routes}
+    md = structure.summary_md(structure.build(make_repo(files)))
+    lines = [x for x in md.splitlines() if x.startswith("- **routes:**")]
+    assert [x.count("; ") + 1 for x in lines] == [25, 5]
