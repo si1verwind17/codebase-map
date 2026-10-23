@@ -692,7 +692,7 @@ def _tapir(results: dict[str, dict], file_mod: dict[str, str]) -> None:
             if not known:
                 continue
             for i, (fid, line, body) in enumerate(r["tapir"]["bodies"]):
-                for method, path in routes.tapir_uses(body, known):
+                for method, path in routes.tapir_uses(body, known, r["tapir"].get("consts")):
                     found.append({"file": f, "fid": fid, "line": line, "method": method, "path": path,
                                   "qual": r["tapir"].get("named", {}).get(i), "client": r["tapir"].get("client")})
     binds: dict[tuple[str, str, int], str] = {}   # (file, endpoint as written, line) -> innermost binding body

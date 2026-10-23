@@ -411,3 +411,17 @@ def test_tapir_binding_follows_the_import_among_same_named_endpoints(make_repo):
     got = sorted((r["path"], r["handler"].split("::")[1]) for ff in s["facts"].values() for r in ff["routes"])
     assert got == [("/quote/v1", "acme.shop.v1.QuoteServer$#serverEndpoint/0"),
                    ("/quote/v2", "acme.shop.v2.QuoteServer$#serverEndpoint/0")]
+
+
+def test_scala_string_constants_and_a_prefix_def_that_is_no_endpoint():
+    src = b"""package io.demo.api
+import sttp.tapir.*
+object Http:
+  private val UserPath = "user"
+  val base = endpoint.errorOut(stringBody)
+  def secure[T] = base.securityIn(auth.bearer[String]())
+"""
+    res = scala.parse(src, "shop/src/main/scala/io/demo/api/Http.scala", SHOP_MOD, ids.IdRegistry())
+    assert res["tapir"]["consts"] == {"UserPath": "user"}
+    assert {"Http.base", "Http.secure"} <= set(res["tapir"]["vals"])
+    assert not any("securityIn" in body for _, _, body in res["tapir"]["bodies"])

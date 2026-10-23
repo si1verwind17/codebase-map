@@ -160,6 +160,28 @@ def test_tapir_shared_base_val_with_slash_paths():
     assert routes.tapir_val(["X"], "e", 'base.get.in(path[UUID]("id"))') is None
 
 
+def test_tapir_prefix_that_adds_errors_headers_and_security():
+    """A shared base endpoint adds an error output, headers or a security input before any path: still a prefix."""
+    vals = dict([routes.tapir_val(["Http"], "baseEndpoint",
+                                  'endpoint\n  .errorOut(failOutput)\n  // see https://example.org/x\n'
+                                  '  .out(header("X-Frame-Options", "DENY")) /* the base */'),
+                 routes.tapir_val(["Http"], "secureEndpoint",
+                                  'baseEndpoint.securityIn(auth.bearer[String]().map(_.asId[T])(_.toString))'),
+                 routes.tapir_val(["Api"], "v1", 'baseEndpoint.in("api" / "v1").in(header[String]("X-Trace"))')])
+    resolved = routes.resolve_tapir(vals)
+    assert resolved == {"Http.baseEndpoint": [], "Http.secureEndpoint": [], "Api.v1": ["api", "v1"]}
+    assert routes.tapir_uses('baseEndpoint.post.in("user" / "register").out(jsonBody[Out])', resolved) == [
+        ("POST", "/user/register")]
+    assert routes.tapir_uses('secureEndpoint[ApiKey].get.in("user").out(jsonBody[Out])', resolved) == [
+        ("GET", "/user")]
+    # a path segment written as the file's string constant
+    assert routes.tapir_uses('baseEndpoint.post.in(UserPath / "login").out(jsonBody[Out])', resolved,
+                             {"UserPath": "user"}) == [("POST", "/user/login")]
+    # a value that is no endpoint never becomes one, nor does a layer built by calls
+    assert routes.tapir_val(["X"], "f", 'filters.contains(x)') is None
+    assert routes.tapir_val(["X"], "live", 'ZLayer.fromFunction(Live.apply)') is None
+
+
 def test_tapir_method_after_inputs_and_method_less_endpoint():
     root = {"endpoint": []}
     # scala-zio example HealthCheck.scala: the method comes after the path

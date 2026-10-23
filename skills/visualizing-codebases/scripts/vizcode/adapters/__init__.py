@@ -16,7 +16,8 @@ includes  [{app, router, prefix, line}]   FastAPI include_router calls (Python o
 tapir     {"vals": {qualname: {...}}, "bodies": [(method_id, line, body_text)], "root": imports sttp.tapir,
            "client": imports sttp.tapir.client, "named": {body index: qualified val name},
            "binds": [(method_id, endpoint as written, line)] server logic bound to an endpoint,
-           "mentions"?: [dotted names] in a file importing an sttp client}  (Scala only)
+           "mentions"?: [dotted names] in a file importing an sttp client,
+           "consts"?: {name: text} the file's string constants, for a path segment written as one}  (Scala only)
 supers    [(class_id, [type name as written])]  what a class extends or an anonymous body implements (Scala, generic)
 bases     [(class_id, [base as written])]  a class's bases (Python only; gRPC servicers and `implements`)
 dags      [{framework, id, schedule, tasks, node, line}]  Airflow DAGs: `@dag` functions, `with DAG(...)` blocks (Python)

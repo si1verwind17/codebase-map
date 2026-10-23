@@ -46,6 +46,15 @@ NOT_TAPIR = {"contains", "exists", "forall", "getOrElse", "orElse", "isDefined",
              "find", "foreach", "fold", "flatMap", "headOption", "head", "toList", "toSet", "toSeq", "size", "length",
              "mkString", "startsWith", "endsWith", "equals", "split", "trim", "collect", "count", "apply"}
 ROOT = "endpoint"   # tapir's own root endpoint: no path segments
+COMMENT = re.compile(r'("(?:\\.|[^"\\\n])*")|//[^\n]*|/\*[\s\S]*?\*/')   # a string is kept, a comment dropped
+
+
+def _uncommented(text: str) -> str:
+    return COMMENT.sub(lambda m: m.group(1) or " ", text)
+# endpoint builder steps that add no path: a prefix may carry them (a shared base with its errors and security)
+TAPIR_STEPS = {"in", "out", "errorOut", "errorOutVariant", "errorOutVariants", "errorOutEither", "securityIn",
+               "prependIn", "prependSecurityIn", "mapIn", "mapOut", "mapErrorOut", "tag", "tags", "name", "summary",
+               "description", "deprecated", "attribute", "info"}
 
 
 def _chain(text: str, bare: frozenset | set = frozenset()) -> tuple[list[tuple[str, str | None]], int]:
@@ -75,9 +84,9 @@ def _chain(text: str, bare: frozenset | set = frozenset()) -> tuple[list[tuple[s
         i = j
 
 
-def _path_segs(arg: str) -> list[str] | None:
-    """Segments of a path input: `"v1" / "quote"`, `path[UUID]("id") / "cancel"`; None for anything else
-    (`query[..]`, `jsonBody[..]`, headers)."""
+def _path_segs(arg: str, consts: dict[str, str] | None = None) -> list[str] | None:
+    """Segments of a path input: `"v1" / "quote"`, `path[UUID]("id") / "cancel"`, a string constant of the file
+    (`UserPath / "login"`); None for anything else (`query[..]`, `jsonBody[..]`, headers)."""
     parts, depth, cur = [], 0, ""
     for ch in arg:
         if ch == "/" and depth == 0 and cur.count('"') % 2 == 0:
@@ -92,6 +101,8 @@ def _path_segs(arg: str) -> list[str] | None:
     for p in parts:
         if (m := TAPIR_LIT.match(p)) is not None:
             out += [s for s in m.group(1).split("/") if s]
+        elif consts and p in consts:
+            out += [s for s in consts[p].split("/") if s]
         elif (m := TAPIR_CAP.match(p)) is not None:
             out.append("{" + (m.group(1) or "param") + "}")
         else:
@@ -101,9 +112,10 @@ def _path_segs(arg: str) -> list[str] | None:
 
 def tapir_val(scope: list[str], name: str, value_text: str, key: str | None = None) -> tuple[str, dict] | None:
     """A `val name = base.in("a" / "b")` endpoint prefix, keyed by its qualified name (or `key`: an object's own
-    name for its `def apply() = prefix`). A val that already picks an HTTP method is an endpoint, not a prefix: it
-    is read as a body by tapir_uses."""
-    v = re.sub(r"\s+", "", value_text)
+    name for its `def apply() = prefix`). Steps that add no path (an error output, headers, a security input) keep
+    it a prefix. A val that already picks an HTTP method is an endpoint, not a prefix: it is read as a body by
+    tapir_uses."""
+    v = re.sub(r"\s+", "", _uncommented(value_text))
     m = TAPIR_DOTTED.match(v)
     if not m or m.group(0).rsplit(".", 1)[-1] in HTTP_METHODS:
         return None
@@ -112,10 +124,10 @@ def tapir_val(scope: list[str], name: str, value_text: str, key: str | None = No
         return None
     segs = []
     for step, arg in steps:
-        got = _path_segs(arg) if step == "in" else None
-        if got is None:
+        if step not in TAPIR_STEPS:
             return None
-        segs += got
+        if step == "in" and (got := _path_segs(arg)) is not None:
+            segs += got
     return key or ".".join(scope + [name]), {"base": m.group(0), "segs": segs, "scope": scope}
 
 
@@ -131,12 +143,14 @@ def resolve_tapir(vals: dict[str, dict]) -> dict[str, list[str]]:
         if v["base"] == ROOT:
             out = list(v["segs"])
         else:
-            for i in range(len(v["scope"]), -1, -1):
-                cand = ".".join(v["scope"][:i] + [v["base"]])
-                if cand in vals and cand not in seen:
-                    parent = res(cand, seen | {cand})
-                    out = None if parent is None else parent + v["segs"]
-                    break
+            scoped = [c for i in range(len(v["scope"]), -1, -1)
+                      if (c := ".".join(v["scope"][:i] + [v["base"]])) in vals]
+            # a base another object defines (`baseEndpoint` from an imported `Http`): the one val of that name
+            elsewhere = [q2 for q2 in vals if q2.endswith("." + v["base"])]
+            cand = scoped[0] if scoped else (elsewhere[0] if len(elsewhere) == 1 else None)
+            if cand is not None and cand not in seen:
+                parent = res(cand, seen | {cand})
+                out = None if parent is None else parent + v["segs"]
         cache[q] = out
         return out
 
@@ -160,13 +174,15 @@ def _known(dotted: str, resolved: dict[str, list[str]]) -> tuple[list[str], str 
     return None
 
 
-def tapir_uses(body_text: str, resolved: dict[str, list[str]]) -> list[tuple[str, str]]:
+def tapir_uses(body_text: str, resolved: dict[str, list[str]],
+               consts: dict[str, str] | None = None) -> list[tuple[str, str]]:
     """(METHOD, /path) for each endpoint chain on a known prefix in a body: `<prefix>.get.in(..)`,
     `<prefix>.in(..).get.out(..)`, or a whole body that is one finished endpoint with no method (tapir's
     default, GET). Pass `endpoint: []` in `resolved` when the file imports tapir."""
-    text = re.sub(r"\s+", " ", body_text.strip())   # one space first, so two words never join
+    text = re.sub(r"\s+", " ", _uncommented(body_text).strip())   # one space first, so two words never join
     text = re.sub(r" (?=\W)|(?<=\W) ", "", text)
     text = re.sub(r"(?<=\w)\(\)", "", re.sub(r"\.apply\(\)", "", text))   # `Base.V1()`: a prefix a method returns
+    text = re.sub(r"(?<=\w)\[[\w.,\[\]]+\](?=\.)", "", text)   # `secureEndpoint[ApiKey].get`: a generic prefix
     out = []
     for m in TAPIR_USE_START.finditer(text):
         hit = _known(m.group(0), resolved)
@@ -181,7 +197,7 @@ def tapir_uses(body_text: str, resolved: dict[str, list[str]]) -> list[tuple[str
             elif step in HTTP_METHODS:          # `x.get("k")`: a lookup, not tapir
                 ok = False
                 break
-            elif step == "in" and (got := _path_segs(arg)) is not None:
+            elif step == "in" and (got := _path_segs(arg, consts)) is not None:
                 extra += got
             elif method is None and step in NOT_TAPIR:   # `filters.contains(..)`: a value named like an endpoint
                 ok = False

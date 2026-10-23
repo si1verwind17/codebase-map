@@ -227,6 +227,7 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                     continue
                 params = _params(c)
                 body = c.child_by_field_name("body")
+                hit = None
                 if not params and body is not None and (hit := routes.tapir_val(
                         qual, text(name_node), text(body), key=".".join(qual) if text(name_node) == "apply" else None)):
                     res["tapir"]["vals"][hit[0]] = hit[1]   # `def v1() = base.in("v1")`: also a prefix, as a val
@@ -241,7 +242,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
                 parent["metrics"]["methods"] += 1
                 scope_ids[c.start_byte] = fid
                 if body is not None:
-                    res["tapir"]["bodies"].append((fid, n["line"], text(body)))
+                    if not hit:   # a prefix's body is no endpoint (`def secure = base.securityIn(..)`)
+                        res["tapir"]["bodies"].append((fid, n["line"], text(body)))
                     starts.append(body.start_point[0] + 1)
                     def_names[len(starts) - 1] = ".".join(qual + [text(name_node)])
                     method_bodies.append((fid, text(body)))
@@ -250,6 +252,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st: stac
             elif c.type == "val_definition":
                 pat, val = c.child_by_field_name("pattern"), c.child_by_field_name("value")
                 if pat is not None and val is not None and pat.type == "identifier":
+                    if val.type == "string" and (lit := routes.TAPIR_LIT.match(text(val))):
+                        res["tapir"].setdefault("consts", {})[text(pat)] = lit.group(1)   # `val UserPath = "user"`
                     hit = routes.tapir_val(qual, text(pat), text(val))
                     if hit:
                         res["tapir"]["vals"][hit[0]] = hit[1]
