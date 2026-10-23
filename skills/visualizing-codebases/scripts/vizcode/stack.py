@@ -1170,14 +1170,29 @@ ROUTE_LIKE = re.compile(
 
 
 def route_like(src: str, lang: str) -> list[dict]:
-    """The lines of a server file that look like route registrations (ROUTE_LIKE), comments left out."""
+    """The lines of a server file that look like route registrations (ROUTE_LIKE), comments left out. A decorator
+    or annotation line also carries `decorates`: the line of what it decorates, where a route on it is recorded."""
     clean = _blank_comments(src, lang)
     lines = src.split("\n")
-    seen: dict[int, str] = {}
+    seen: dict[int, dict] = {}
     for m in ROUTE_LIKE.finditer(clean):
         line = clean.count("\n", 0, m.start()) + 1
-        seen.setdefault(line, lines[line - 1].strip()[:120])
-    return [{"line": n, "text": t} for n, t in seen.items()]
+        if line in seen:
+            continue
+        seen[line] = {"line": line, "text": lines[line - 1].strip()[:120]}
+        if lines[line - 1].lstrip().startswith("@"):
+            nxt = line
+            while nxt < len(lines) and (not lines[nxt].strip() or lines[nxt].lstrip().startswith(("@", "#", "//"))
+                                        or _open_brackets(lines[line - 1:nxt]) > 0):
+                nxt += 1
+            seen[line]["decorates"] = nxt + 1
+    return list(seen.values())
+
+
+def _open_brackets(lines: list[str]) -> int:
+    """How many brackets the lines leave open: a decorator's arguments may run over several lines."""
+    text = "\n".join(lines)
+    return sum(text.count(c) for c in "([{") - sum(text.count(c) for c in ")]}")
 
 
 DB_KINDS = ("sql-db", "doc-db")
@@ -1213,7 +1228,7 @@ def _unmatched_routes(files: dict[str, dict]) -> list[dict]:
     out = []
     for path, f in sorted(files.items()):
         done = {r["line"] for r in f["routes"]} | {m["line"] for m in f["mounts"]}
-        if left := [x for x in f.get("route_like", []) if x["line"] not in done]:
+        if left := [x for x in f.get("route_like", []) if x["line"] not in done and x.get("decorates") not in done]:
             out.append({"lang": f["lang"], "file": path, "lines": [x["line"] for x in left], "example": left[0]["text"]})
     return out
 

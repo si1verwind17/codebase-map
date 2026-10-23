@@ -619,3 +619,13 @@ def test_a_long_summary_list_is_split_over_lines_with_its_label(make_repo):
     md = structure.summary_md(structure.build(make_repo(files)))
     lines = [x for x in md.splitlines() if x.startswith("- **routes:**")]
     assert [x.count("; ") + 1 for x in lines] == [25, 5]
+
+
+def test_a_decorator_route_recorded_on_its_function_is_no_route_looking_line(make_repo):
+    """FastAPI records a route on the `def` below its decorators; the decorator line is matched through it."""
+    src = ('from fastapi import APIRouter\n\nrouter = APIRouter()\n\n\n@router.get("/", response_model=list)\n'
+           '@cache(\n    ttl=5,\n)\ndef read_items():\n    return []\n\n\n@router.post("/x")\nasync def create():\n'
+           '    return 1\n')
+    s = structure.build(make_repo({"app/__init__.py": "", "app/items.py": src}))
+    assert len(s["facts"]["app/items.py"]["routes"]) == 2
+    assert s["stack"]["routes_unmatched"] == []
