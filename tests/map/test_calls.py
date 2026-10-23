@@ -1020,3 +1020,106 @@ def test_a_call_on_a_field_typed_with_a_repo_class_reaches_that_class():
     rels, _ = calls.resolve(nodes, [], {"p/s.java": {"calls": site}})
     assert sorted((r["to"], r["confidence"]) for r in rels) == [("a::p.OrderRepository#find/1", "confirmed"),
                                                                ("a::p.OrderRepository#save/1", "confirmed")]
+
+
+def _classes(*specs):
+    """A service of classes: (name, [methods], [repo classes it extends], lang)."""
+    nodes = [{"id": "svc:a", "kind": "service", "name": "a", "parent": None},
+             {"id": "a::p/", "kind": "package", "name": "p", "parent": "svc:a"}]
+    for name, methods, supers, lang in specs:
+        nodes.append({"id": f"a::p.{name}", "kind": "class", "name": name, "parent": "a::p/", "lang": lang,
+                      "implements": [f"a::p.{s}" for s in supers]})
+        nodes += [{"id": f"a::p.{name}#{m}/0", "kind": "method", "name": m, "parent": f"a::p.{name}"} for m in methods]
+    return nodes
+
+
+def _targets(nodes, *calls_in):
+    facts = {"p/x": {"calls": [{"callee": callee, "in": f"a::p.{caller}/0", "line": i + 1}
+                               for i, (caller, callee) in enumerate(calls_in)]}}
+    rels, _ = calls.resolve(nodes, [], facts)
+    return sorted((r["from"].removeprefix("a::p."), r["to"].removeprefix("a::p.")) for r in rels)
+
+
+def test_a_self_call_reaches_only_the_callers_own_lineage():
+    """`$this->authorize()` inherited from a framework base is no call to an unrelated class's `authorize`; a base
+    class calling a method only its subclass defines (a template method) still reaches the subclass."""
+    nodes = _classes(("Controller", [], [], "php"), ("SongController", ["show"], ["Controller"], "php"),
+                     ("SongRequest", ["authorize"], [], "php"), ("UserRequest", ["authorize"], [], "php"),
+                     ("Job", ["run"], [], "php"), ("ImportJob", ["handle"], ["Job"], "php"),
+                     ("Audits", ["audit"], [], "php"), ("Base", ["go"], ["Audits"], "php"))
+    assert _targets(nodes, ("SongController#show", "$this->authorize"), ("Job#run", "$this->handle"),
+                    ("Base#go", "$this->audit")) == [
+        ("Base#go/0", "Audits#audit/0"), ("Job#run/0", "ImportJob#handle/0")]
+
+
+def test_go_ruby_and_rust_keep_methods_a_value_may_embed_include_or_deref_to():
+    nodes = _classes(("Server", ["serve"], [], "go"), ("Logger", ["log"], [], "go"), ("Post", [], [], "rust"),
+                     ("Wrapper", ["inner"], [], "rust"))
+    assert _targets(nodes, ("Server#serve", "self.log"), ("Server#serve", "post.inner")) == [
+        ("Server#serve/0", "Logger#log/0"), ("Server#serve/0", "Wrapper#inner/0")]
+
+
+def test_an_object_method_on_an_unknown_value_is_no_call():
+    nodes = _classes(("Rates", ["current"], [], "java"), ("ItemMetric", ["equals", "toString"], [], "java"))
+    assert _targets(nodes, ("Rates#current", "container.getDate().equals"),
+                    ("Rates#current", "UUID.randomUUID().toString"), ("Rates#current", "other.toString")) == []
+    assert _targets(nodes, ("ItemMetric#equals", "this.toString")) == [("ItemMetric#equals/0", "ItemMetric#toString/0")]
+
+
+def test_a_value_named_after_a_repo_class_is_that_class():
+    nodes = _classes(("UserModel", ["find"], [], "scala"), ("ApiKeyModel", ["insert"], [], "scala"),
+                     ("EmailModel", ["insert"], [], "scala"), ("UserService", ["register"], [], "scala"))
+    assert _targets(nodes, ("UserService#register", "userModel.insert"), ("UserService#register", "userModel.find"),
+                    ("UserService#register", "emailRepo.insert")) == [
+        ("UserService#register/0", "EmailModel#insert/0"), ("UserService#register/0", "UserModel#find/0")]
+
+
+def test_a_value_named_after_a_class_of_another_service_names_nothing():
+    """`downloadService.fromAlbum` in the web app is no call into the server's class DownloadService."""
+    nodes = _classes(("Page", ["show"], [], "typescript"), ("Exports", ["fromAlbum"], [], "typescript")) + [
+        {"id": "svc:b", "kind": "service", "name": "b", "parent": None},
+        {"id": "b::q.DownloadService", "kind": "class", "name": "DownloadService", "parent": "svc:b", "lang": "php"}]
+    assert _targets(nodes, ("Page#show", "downloadService.fromAlbum")) == [("Page#show/0", "Exports#fromAlbum/0")]
+
+
+def test_a_repo_method_named_like_an_object_method_is_still_reached():
+    nodes = _classes(("Money", ["valueOf"], [], "java"), ("PasswordHasher", ["hash"], [], "java"),
+                     ("Signup", ["run"], [], "java"))
+    assert _targets(nodes, ("Signup#run", "Money.valueOf"), ("Signup#run", "passwordHasher.hash")) == [
+        ("Signup#run/0", "Money#valueOf/0"), ("Signup#run/0", "PasswordHasher#hash/0")]
+    assert _targets(nodes, ("Signup#run", "hasher.hash")) == [("Signup#run/0", "PasswordHasher#hash/0")]
+
+
+def test_a_value_named_after_a_class_still_reaches_extensions_and_module_functions():
+    """Kotlin `fun User.toDto()` at top level, C# `static ToDto(this Order o)`, a Python module `config`."""
+    nodes = _classes(("User", [], [], "kotlin"), ("Order", [], [], "csharp"), ("Config", [], [], "python"),
+                     ("OrderExtensions", [], [], "csharp"), ("Page", ["show"], [], "kotlin")) + [
+        {"id": "a::p/UserMappers.kt", "kind": "file", "name": "UserMappers.kt", "parent": "a::p/"},
+        {"id": "a::p/UserMappers.kt#toDto/0", "kind": "method", "name": "toDto", "parent": "a::p/UserMappers.kt"},
+        {"id": "a::p/config.py", "kind": "file", "name": "config.py", "parent": "a::p/"},
+        {"id": "a::p/config.py#load/0", "kind": "method", "name": "load", "parent": "a::p/config.py"},
+        {"id": "a::p.OrderExtensions#ToDto/1", "kind": "method", "name": "ToDto", "parent": "a::p.OrderExtensions",
+         "signature": {"params": [{"name": "o", "type": "this Order"}], "returns": None}}]
+    got = _targets(nodes, ("Page#show", "user.toDto"), ("Page#show", "config.load"), ("Page#show", "order.ToDto"))
+    assert [t for _, t in got] == ["OrderExtensions#ToDto/1", "a::p/UserMappers.kt#toDto/0", "a::p/config.py#load/0"]
+
+
+def test_a_self_call_reaches_a_sibling_base_of_a_subclass_and_an_outer_class():
+    """A mixin's `self.save()` is the model's that the class using the mixin extends; Java `Outer.this.refresh()`
+    is the outer class's."""
+    nodes = _classes(("TimestampMixin", ["touch"], [], "python"), ("Model", ["save"], [], "python"),
+                     ("Order", [], ["TimestampMixin", "Model"], "python"), ("Other", ["save"], [], "python"),
+                     ("Outer", ["refresh"], [], "java"), ("Inner", ["go"], [], "java"),
+                     ("Cache", ["refresh"], [], "java"))
+    assert _targets(nodes, ("TimestampMixin#touch", "self.save"), ("Inner#go", "Outer.this.refresh")) == [
+        ("Inner#go/0", "Outer#refresh/0"), ("TimestampMixin#touch/0", "Model#save/0")]
+
+
+def test_a_self_call_reaches_the_other_part_of_a_split_class_and_a_scala_self_type():
+    """C# `partial class Foo` in two files is two nodes (`Foo`, `Foo~2`) of one class; a Scala trait's self-type
+    (`self: Repo =>`) is not in its header."""
+    nodes = _classes(("Foo", ["Go"], [], "csharp"), ("Audit", ["log"], [], "scala"), ("Repo", ["save"], [], "scala"))
+    nodes += [{"id": "a::p.Foo~2", "kind": "class", "name": "Foo", "parent": "a::p/", "lang": "csharp"},
+              {"id": "a::p.Foo~2#Helper/0", "kind": "method", "name": "Helper", "parent": "a::p.Foo~2"}]
+    assert _targets(nodes, ("Foo#Go", "this.Helper"), ("Audit#log", "self.save")) == [
+        ("Audit#log/0", "Repo#save/0"), ("Foo#Go/0", "Foo~2#Helper/0")]

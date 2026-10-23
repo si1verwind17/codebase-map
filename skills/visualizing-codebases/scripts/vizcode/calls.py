@@ -8,6 +8,21 @@ from .adapters import without_suffix
 
 MAX_CANDIDATES = 3
 SELF_RECEIVERS = {"self", "this", "cls"}
+# methods every object has: on a value of unknown type that names no repo class the call is to its own class or a
+# library's, never matched to a repo method by name
+OBJECT_METHODS = {"equals", "hashCode", "toString", "compareTo", "clone", "getClass", "Equals", "GetHashCode",
+                  "ToString", "CompareTo", "String", "__str__", "__repr__", "__eq__", "__hash__", "__lt__",
+                  "to_string", "to_s", "eql?", "fmt", "eq"}
+# languages whose class header does not list everything a method can come from (Go embedding, Ruby `include`,
+# Rust `impl Trait for T` anywhere in the crate graph and `Deref`); for a self call also Scala's self-types
+# (`self: Repo =>`)
+OPEN_LINEAGE = {"go", "ruby", "rust"}
+OPEN_SELF = OPEN_LINEAGE | {"scala"}
+PART = re.compile(r"~\d+$")   # `Foo~2`: another part of class Foo (C# `partial`, a class reopened elsewhere)
+# words of a value's name that say its role, not which class it holds: `emailRepo` holds the email class
+ROLE_NAMES = {"repo", "repository", "model", "service", "svc", "dao", "store", "client", "manager", "impl",
+              "provider", "gateway", "handler", "controller", "helper"}
+CAMEL = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
 IDENT = re.compile(r"[A-Za-z_]\w*")
 TYPE_WORD = re.compile(r"[A-Za-z_][\w.]*")
 TYPE_SKIP = {"mut", "const", "final", "in", "out", "ref", "dyn", "impl", "readonly", "var", "val",
@@ -111,6 +126,12 @@ def _field_type(owner: dict | None, name: str) -> tuple[str, list[str]] | None:
         if f.get("name") == name and (outer := _outer_type(f.get("type"))):
             return outer, []
     return None
+
+
+def _subject(name: str) -> tuple[str, ...]:
+    """The words of a class or value name without its role words: `EmailModel`, `emailRepo` -> ("email",)."""
+    words = tuple(w.lower() for w in CAMEL.findall(name.replace("_", " ")))
+    return tuple(w for w in words if w not in ROLE_NAMES) or words
 
 
 def _ancestors(cid: str, by_id: dict[str, dict]) -> set[str]:
@@ -241,9 +262,41 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
     known = {name for n in nodes if n["kind"] in ("class", "file")
              for name in _owner_names({"parent": n["id"]}, by_id)}
     classes: dict[str, list[str]] = {}   # a class's own name -> its ids (`Book`, a Scala object `Book$` too)
+    subclasses: dict[str, list[str]] = {}
+    split: dict[str, list[str]] = {}   # a class id without its part suffix -> every part's id
     for n in nodes:
         if n["kind"] == "class":
+            split.setdefault(PART.sub("", n["id"]), []).append(n["id"])
             classes.setdefault(n["name"].rstrip("$"), []).append(n["id"])
+            for sup in n.get("implements") or []:
+                subclasses.setdefault(sup, []).append(n["id"])
+    by_lower = {}   # `usermodel` -> the ids of class UserModel
+    for name, cids in classes.items():
+        by_lower.setdefault(name.lower(), []).extend(cids)
+
+    def lineage(cid: str) -> set[str]:
+        """A class, every repo class it extends, every repo class extending it, and what those extend (a mixin's
+        `self.save()` is the model's that a class using the mixin also extends)."""
+        out: set[str] = set()
+        for part in split.get(PART.sub("", cid), [cid]):
+            out |= _ancestors(part, by_id)
+        todo = list(out)
+        while todo:
+            for sub in subclasses.get(todo.pop(), []):
+                if sub not in out:
+                    out |= _ancestors(sub, by_id)
+                    todo.append(sub)
+        return out
+
+    def outside(m: str, held: list[str]) -> bool:
+        """A method of a class unrelated to the held ones: not a top-level or extension function (its first
+        parameter typed with a held class: C# `this Order o`)."""
+        owner_node = by_id.get(by_id[m].get("parent") or "", {})
+        if owner_node.get("kind") != "class":
+            return False
+        first = ((by_id[m].get("signature") or {}).get("params") or [{}])[0].get("type") or ""
+        names = {by_id[c]["name"].rstrip("$") for c in held}
+        return not (set(TYPE_WORD.findall(first)) & names)
 
     def root(nid: str) -> str | None:
         n = by_id.get(nid)
@@ -278,7 +331,10 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             if not parts:
                 continue
             name, receiver = parts[-1], (parts[-2] if len(parts) > 1 else None)
-            if receiver is not None and receiver == c.get("self") and len(parts) == 2:
+            if receiver in SELF_RECEIVERS and len(parts) == 3 and parts[0][:1].isupper():
+                receiver = parts[0]    # Java `Outer.this.refresh()`: the outer class's own object
+                parts = [parts[0], name]
+            elif receiver is not None and receiver == c.get("self") and len(parts) == 2:
                 receiver = "self"      # the method's own object under the name it gives it (Go receiver)
             elif receiver == "Self" and len(parts) == 2 and "::" in c["callee"]:
                 receiver = "self"      # Rust `Self::x()` inside an `impl`: the caller's own type
@@ -316,8 +372,15 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             if not cands:
                 continue
             caller_owner = by_id[caller].get("parent")
+            owner = by_id.get(caller_owner or "", {})
             if receiver in SELF_RECEIVERS:
                 same = [m for m in cands if by_id[m].get("parent") == caller_owner]
+                if not same and owner.get("kind") == "class" and owner.get("lang") not in OPEN_SELF:
+                    # nothing of its own lineage: the method comes from a base the scan does not hold
+                    kin = lineage(caller_owner)
+                    same = [m for m in cands if by_id[m].get("parent") in kin]
+                    if not same:
+                        continue
                 cands = same or cands
             elif receiver == "super" and name.startswith("__") and name.endswith("__"):
                 continue   # super().__init__() and friends: the base class is unknown and every class has one
@@ -335,6 +398,16 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 cands = [m for m in cands if by_id[m].get("parent") in mine]
                 if not cands:
                     continue
+            if typed is None and receiver and len(parts) == 2 and receiver not in SELF_RECEIVERS | {"super", "?"} \
+                    and not receiver[:1].isupper() and (held := [c for c in by_lower.get(receiver.lower(), [])
+                                                                 if (root(c) == rt or root(c) in uses.get(rt, ()))
+                                                                 and by_id[c].get("lang") not in OPEN_LINEAGE]):
+                # `userModel.insert`: a value named after a repo class holds that class or one of its kin; none
+                # of theirs means the method reaches it some way the scan does not follow
+                kin = {k for c in held for k in lineage(c)}
+                cands = [m for m in cands if by_id[m].get("parent") in kin or not outside(m, held)]
+                if not cands:
+                    continue
             if receiver is None and len(cands) > 1:
                 # a bare name that collides means the nearest definition: the caller's own file, then package
                 near = [m for m in cands if by_id[m].get("file") == file] or \
@@ -342,10 +415,16 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 cands = near or cands
             elif receiver not in SELF_RECEIVERS and receiver not in ("super", "?") and len(cands) > 1:
                 # another object: the class its name points at, else anything but the caller's own class
-                named = [m for m in cands if receiver.lower() in _owner_names(by_id[m], by_id)]
+                subject = _subject(receiver)
+                named = [m for m in cands if receiver.lower() in _owner_names(by_id[m], by_id)] or \
+                    [m for m in cands if subject and _subject(by_id.get(by_id[m].get("parent") or "", {})
+                                                             .get("name", "")) == subject]
                 others = [m for m in cands if by_id[m].get("parent") != caller_owner]
                 cands = named or others or cands
             trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None
+            if not trusted and name in OBJECT_METHODS and not (receiver and (
+                    receiver in classes or receiver.lower() in by_lower)):
+                continue
             narrowed = False
             if not trusted and len(cands) > 1:
                 # an untyped receiver: the caller's declared types may name which implementation it holds; that one
