@@ -1,5 +1,8 @@
 """HTTP client wrappers: a function passing its own parameter to an HTTP client is a wrapper, and a call to it with a
 path literal is a request (format.md § http clients), so a frontend's calls through its own API helper are found."""
+from conftest import with_stack
+
+
 from vizcode import structure
 
 
@@ -162,3 +165,14 @@ def test_a_wrapper_from_another_python_module_or_the_same_java_package(make_repo
     assert clients(s, "a/one.py") == [("GET", "/w", "a.one#run/0")]
     assert clients(s, "a/two.py") == [("GET", "/v", "a.two#run/0")]
     assert clients(s, "src/main/java/p/Use.java") == [("GET", "/j", "p.Use#go/0")]
+
+
+def test_a_route_handler_beside_a_plain_module_import(make_repo):
+    """`import x` records no names: finding where a pattern's handler name comes from must not trip over it."""
+    files = {"app/__init__.py": "", "app/views.py": "def ping():\n    return 'ok'\n",
+             "app/urls.py": "import os\nfrom app.views import ping\n\nurlpatterns = [path('ping/', ping)]\n"}
+    repo = make_repo(files)
+    with_stack(repo, "python:\n  routes:\n    - name: django-path\n      path: literal\n      method: ANY\n"
+                     "      regex: '\\bpath\\(\\s*[\"''](?P<path>[^\"'']*)[\"'']\\s*,\\s*(?P<handler>\\w+)'\n")
+    s = structure.build(repo, "docs/viz-code")
+    assert [r["handler"] for r in s["facts"]["app/urls.py"]["routes"]] == ["app::app.views#ping/0"]

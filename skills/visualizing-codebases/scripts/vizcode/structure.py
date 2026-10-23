@@ -452,7 +452,7 @@ def _import_hints(r: dict, f: str, name: str, qualifier: str | None, results: di
     out: list[str | tuple] = []
     for imp in r["imports"]:
         parts = [x for x in re.split(r"::|[./\\]", imp["target"]) if x and x not in ("crate", "self", "super")]
-        if name in imp.get("names") or []:
+        if name in (imp.get("names") or []):
             hit = _relative_file(f, imp["target"], results) if imp["relative"] else None
             out.append(hit or tuple(parts[-1:]))
         elif parts and parts[-1] == name and len(parts) > 1:
