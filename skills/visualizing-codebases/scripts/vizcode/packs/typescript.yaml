@@ -42,6 +42,12 @@ typescript:
   - {prefix: node-fetch, kind: http-out}
   - {prefix: got, kind: http-out}
   - {prefix: undici, kind: http-out}
+  - {prefix: ky, kind: http-out}
+  - {prefix: ofetch, kind: http-out}
+  - {prefix: superagent, kind: http-out}
+  - {prefix: wretch, kind: http-out}
+  - {prefix: cross-fetch, kind: http-out}
+  - {prefix: isomorphic-fetch, kind: http-out}
   - {prefix: "@nestjs/axios", kind: http-out}
   - {prefix: express, kind: http-in}
   - {prefix: koa, kind: http-in}

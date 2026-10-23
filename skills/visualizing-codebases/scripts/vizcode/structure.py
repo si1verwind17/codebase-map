@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
-               routes, stack, typelinks, unscanned)
+               routes, stack, typelinks, unscanned, wrappers)
 from .adapters import generic
 from .adapters import python as py_adapter
 from .adapters import scala as scala_adapter
@@ -631,6 +631,16 @@ def _implemented(r: dict, sinks: list[dict]) -> list[dict]:
             and all(m["id"] in bodyless for m in methods[n["id"]])]
 
 
+def _client_heads(st: stack.Stack, r: dict, lang: str) -> list[str]:
+    """The local names a file gives the HTTP client libraries it imports (`axios`, `HttpClient`, `requests`)."""
+    out = []
+    for imp in r["imports"]:
+        if any(h["kind"] in ("http-out", "http") for h in stack.import_sinks(st, lang, imp)):
+            out += [*(imp.get("names") or []), *(imp.get("renames") or {}), imp.get("as") or "",
+                    re.split(r"[./\\:]+", imp["target"])[-1]]
+    return [x for x in out if x]
+
+
 def _segments(name: str) -> list[str]:
     return [x for x in re.split(r"::|[./\\]", name) if x]
 
@@ -807,6 +817,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         + ([out_dir.rstrip("/") + "/*"] if out_dir else [])
     results: dict[str, dict] = {}
     texts: dict[str, str] = {}
+    sources: dict[str, str] = {}   # every scanned file's text, for the HTTP client wrappers (dropped after)
     lines: dict[str, int] = {}     # a generic-walker file's line count, for a file node made after the scan
     skipped: list[dict] = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -841,6 +852,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
                 r["routes"] += _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                sources[f] = decode(data)
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
                     r["route_like"] = [x for x in stack.route_like(decode(data), lang)
                                        if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
@@ -875,6 +887,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)
+    wrappers.find(results, sources, lambda f: _client_heads(st, results[f], LANGS[Path(f).suffix][0]))
+    sources.clear()
     handlers = {route["handler"] for r in results.values() for route in r["routes"]}
     for f in gen_files:
         generated.keep_needed(results[f], handlers, LANGS[Path(f).suffix][0])
