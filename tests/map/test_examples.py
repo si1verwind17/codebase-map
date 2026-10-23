@@ -233,3 +233,17 @@ def test_seeds_entry_points_else_boundary_methods_else_itself():
 
 def test_downstream_of_a_container_walks_from_its_seeds():
     assert examples.downstream(shelf(), "lib:x") == ["x::x.util#a/0", "x::x.util#b/0"]
+
+
+def test_a_type_example_may_fill_the_fields_its_class_inherits():
+    """`class UserCreate(UserBase)`: email comes from the base, so the value may carry it; a key no class in the
+    lineage declares is still refused."""
+    from vizcode import examples as ex
+    nodes = [{"id": "a::m.UserBase", "kind": "class", "name": "UserBase", "fields": [{"name": "email", "type": "str"}]},
+             {"id": "a::m.UserCreate", "kind": "class", "name": "UserCreate", "implements": ["a::m.UserBase"],
+              "fields": [{"name": "password", "type": "str"}]}]
+    cmap = {"nodes": nodes, "examples": {"types": {"a::m.UserCreate": {"value": {"email": "a@b.c", "password": "x"}}},
+                                         "entries": []}}
+    assert ex.check(cmap) == []
+    cmap["examples"]["types"]["a::m.UserCreate"]["value"]["nick"] = "n"
+    assert len(ex.check(cmap)) == 1 and "nick not among its fields (password, email)" in ex.check(cmap)[0]

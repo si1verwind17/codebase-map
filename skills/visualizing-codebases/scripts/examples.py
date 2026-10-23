@@ -54,7 +54,7 @@ def report(cmap: dict, meaning: dict | None) -> str:
              + (f", {some} missing some keys" if some else "") + ")"]
     lines += [f"- {s:<7}  {m}  {'; '.join(keys) or '(no key)'}" for m, keys, s in entries]
     lines.append(f"Data types: {len(types)} ({sum(s == 'missing' for *_, s in types)} without an example)")
-    lines += [f"- {s:<7}  {c}  fields: {', '.join(f['name'] for f in nodes[c]['fields'])}  — {'; '.join(why)}"
+    lines += [f"- {s:<7}  {c}  fields: {', '.join(examples.field_names(c, nodes))}  — {'; '.join(why)}"
               for c, why, s in types]
     return "\n".join(lines) + "\n"
 

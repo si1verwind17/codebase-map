@@ -179,6 +179,19 @@ def shape_errors(examples: dict) -> list[str]:
     return out
 
 
+def field_names(cid: str, nodes: dict[str, dict]) -> list[str]:
+    """The fields an example of class `cid` may fill: its own, then those of the repo classes it extends."""
+    out, todo, seen = [], [cid], set()
+    while todo:
+        c = todo.pop(0)
+        if c in seen or c not in nodes:
+            continue
+        seen.add(c)
+        out += [f["name"] for f in nodes[c].get("fields") or [] if f["name"] not in out]
+        todo += nodes[c].get("implements") or []
+    return out
+
+
 def check(cmap: dict) -> list[str]:
     """Assemble.py's refusals for an assembled map's examples, as a fix list (format.md § Examples)."""
     nodes = {n["id"]: n for n in cmap.get("nodes", [])}
@@ -190,7 +203,7 @@ def check(cmap: dict) -> list[str]:
             errors.append(f"example type {cid}: not a class with fields — key it by the id of a class that declares "
                           "fields (find.py OUT/code-map.json NAME --kind class), or delete it")
         else:
-            names = [f["name"] for f in n["fields"]]
+            names = field_names(cid, nodes)
             if extra := [k for k in e.get("value", {}) if k not in names]:
                 errors.append(f"example type {cid}: {', '.join(extra)} not among its fields ({', '.join(names)}) — "
                               "rename or drop them; a field left out is fine")
@@ -236,12 +249,12 @@ def stamped(examples: dict | None, nodes: dict[str, dict]) -> dict:
     return {"types": types, "entries": entries}
 
 
-def _field_diff(cls: dict | None, value) -> dict:
+def _field_diff(cls: dict | None, value, nodes: dict[str, dict] | None = None) -> dict:
     """What a stale type example's value misses against its class now: `value_lacks` (fields the value has no key
     for, such as a field added since) and `value_extra` (keys that are no longer fields); empty lists left out."""
     if not _class_with_fields(cls) or not isinstance(value, dict):
         return {}
-    names = [f["name"] for f in cls["fields"]]
+    names = field_names(cls["id"], nodes) if nodes else [f["name"] for f in cls["fields"]]
     diff = {"value_lacks": [f for f in names if f not in value], "value_extra": [k for k in value if k not in names]}
     return {k: v for k, v in diff.items() if v}
 
@@ -261,7 +274,7 @@ def flag_stale(examples: dict | None, nodes: dict[str, dict]) -> tuple[dict, lis
                else "still flagged" if e.get("stale") else None)
         types[cid] = {**e, "stale": True} if why else e
         if why:
-            flagged.append({"type": cid, **_field_diff(n, e.get("value")), "why": why})
+            flagged.append({"type": cid, **_field_diff(n, e.get("value"), nodes), "why": why})
     entries = []
     for e in ex.get("entries", []):
         n = nodes.get(e.get("node"))
