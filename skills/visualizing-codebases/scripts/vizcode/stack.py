@@ -658,7 +658,9 @@ def _when_line(when: str, imports: list[dict], lang: str) -> int | None:
 
 
 def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
-    """(pattern, match, text) of every non-empty path match of the language's regex patterns (mounts or routes)."""
+    """(pattern, match, text) of every path match of the language's regex patterns (mounts or routes). A route
+    written with the empty string (`route("")`) is the path of the mount around it; an empty mount adds nothing,
+    and a match with no path written (`route()`) is no route."""
     for pat in st.patterns:
         if not isinstance(pat, RoutePattern) or pat.lang != lang or pat.mount != mount \
                 or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
@@ -666,6 +668,9 @@ def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
         for m in pat.regex.finditer(src):
             if text := (m.group("path") or "").strip():
                 yield pat, m, text
+            elif not mount and m.group("path") == "" and 0 < m.start("path") < len(src) \
+                    and src[m.start("path") - 1] in "\"'`" and src[m.end("path")] == src[m.start("path") - 1]:
+                yield pat, m, ""
 
 
 def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],

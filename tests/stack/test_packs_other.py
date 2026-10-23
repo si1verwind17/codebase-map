@@ -430,6 +430,16 @@ def test_laravel_service(make_repo):
     assert s["stack"]["unrecognised"] == [] and s["stack"]["servers_without_routes"] == []
 
 
+def test_an_empty_route_path_is_the_mount_path(make_repo):
+    src = ("<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n\n"
+           "Route::prefix('v1')->group(function () {\n    Route::get('', fn () => 1);\n"
+           "    Route::post(\"\", fn () => 2);\n});\nRoute::get('', fn () => 3);\n"
+           "Route::prefix('')->group(fn () => 4);\n")
+    s = build(make_repo, {"composer.json": LARAVEL_SERVICE["composer.json"], "routes/api.php": src})
+    assert [r[:2] for r in routes(s, "routes/api.php")] == [("GET", "/v1"), ("POST", "/v1"), ("GET", "/")]
+    assert mounts(s, "routes/api.php") == [("/v1", None, 5, "laravel-prefix")]
+
+
 def test_laravel_routes_file_without_a_use_line(make_repo):
     files = {**LARAVEL_SERVICE,
              "routes/api.php": LARAVEL_SERVICE["routes/api.php"].replace("use Illuminate\\Support\\Facades\\Route;\n", "")}
