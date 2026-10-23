@@ -4,7 +4,7 @@ import shop from "../fixtures/shop.code-map.json";
 import { Model } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { layoutTiles, type TileFloor } from "../../src/factory/layout";
-import { corridorLoad, crossings, layFloor, planFloor, startGap, trafficGaps } from "../../src/factory/plan";
+import { corridorLoad, crampedZones, crossings, layFloor, planFloor, startGap, trafficGaps } from "../../src/factory/plan";
 import { routeTiles, type TileRoute } from "../../src/factory/router";
 import { SITE } from "../../src/model/model";
 import { T, type Piece } from "../../src/factory/tiles";
@@ -725,5 +725,59 @@ describe("floor plan", () => {
     // Jdbc$ implements Config$ as well as Jdbc: it sits beside Config$, the first by id
     tf = plan({ Jdbc$: ["Jdbc", "Config$"] });
     expect(beside(tf, `${P}Config$`, `${P}Jdbc$`)).toBe(true);
+  });
+});
+
+/** A one-service site: the service's taps to two stores drop through the production line's label row, and a request
+ *  runs to one external. `cache`: the second store is a cache only the service uses. */
+function tapSite(cache = false): Model {
+  return new Model({
+    meta: { schema_version: 3, repo: "t", commit: "c", scanned_at: "", languages: [] },
+    nodes: [{ id: "svc:api", kind: "service", name: "api" }, { id: "svc:api::m1", kind: "method", name: "m1", parent: "svc:api" },
+      { id: "3p:mail", kind: "external", name: "mail" },
+      { id: "db:a", kind: "datastore", name: "a", store: "database" }, { id: "db:b", kind: "datastore", name: "b", store: cache ? "cache" : "database" }],
+    relations: [{ id: "r1", kind: "db-write", from: "svc:api", to: "db:a", confidence: "confirmed" },
+      { id: "r2", kind: "db-read", from: "svc:api", to: "db:b", confidence: "confirmed" },
+      { id: "r3", kind: "request", from: "svc:api", to: "3p:mail", confidence: "confirmed" }],
+    problems: [],
+    layout: { version: 1, containers: { site: { strategy: "main-bus", items: {
+      "svc:api": { region: "line", col: 0, row: 0 }, "3p:mail": { region: "line", col: 1, row: 0 },
+      "db:a": { region: "bus", col: 0, row: 0 }, "db:b": { region: "bus", col: 1, row: 0 } } } } },
+  } as unknown as CodeMap);
+}
+
+describe("floor plan: cramped zones", () => {
+  it("a zone whose name the taps leave no clear spot grows on the right until it has one; its neighbour moves over", () => {
+    const m = tapSite(), { bundles, doors } = m.bundles(SITE);
+    const first = layFloor(m, SITE, doors, bundles, { gap: startGap(bundles) });
+    expect(crampedZones(first, routeTiles(first, bundles), bundles)).toEqual(["production line"]);
+    const { tf, routes } = planFloor(m, SITE, doors, bundles);
+    expect(crampedZones(tf, routes, bundles)).toEqual([]);
+    const zone = (t: TileFloor, n: string) => t.zones.find((z) => z.name === n)!;
+    const [was, now] = [zone(first, "production line"), zone(tf, "production line")];
+    expect(now).toMatchObject({ x: was.x, y: was.y, h: was.h });
+    expect(now.w).toBeGreaterThan(was.w);
+    expect(zone(tf, "outside world").x - (now.x + now.w)).toBe(zone(first, "outside world").x - (was.x + was.w));
+    expect(tf.boxes.get("svc:api")).toMatchObject({ x: first.boxes.get("svc:api")!.x, y: first.boxes.get("svc:api")!.y });
+    expect(routes.filter((r) => r.failed)).toHaveLength(0);
+  });
+
+  it("the room a zone gains for its name never turns a laned cache into a chest", () => {
+    const m = tapSite(true), { bundles, doors } = m.bundles(SITE);
+    const first = layFloor(m, SITE, doors, bundles, { gap: startGap(bundles) });
+    expect(first.boxes.get("db:b")!.foot).not.toBe("chest");
+    const { tf, routes } = planFloor(m, SITE, doors, bundles);
+    expect(crampedZones(tf, routes, bundles)).toEqual([]);
+    expect(tf.boxes.get("db:b")!.foot).toBe(first.boxes.get("db:b")!.foot);
+    expect(tf.lanes.map((l) => l.id)).toEqual(first.lanes.map((l) => l.id));
+  });
+
+  it("a floor with every zone name clear is planned as before", () => {
+    const model = new Model(shop as unknown as CodeMap);
+    for (const c of Object.keys(model.map.layout.containers)) {
+      const { bundles, doors } = model.bundles(c);
+      const { tf, routes } = planFloor(model, c, doors, bundles);
+      expect(crampedZones(tf, routes, bundles), c).toEqual([]);
+    }
   });
 });

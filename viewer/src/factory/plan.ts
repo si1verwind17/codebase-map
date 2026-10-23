@@ -3,11 +3,13 @@
 // and every corridor widened once more if a line still fails.
 import { flies, type Bundle, type Door, type Model } from "../model/model";
 import type { LayerBundle, LayerId } from "../model/layers";
-import { laneGaps, layoutTiles, type LaneGap, type LayoutOpts, type TileFloor } from "./layout";
+import { laneGaps, layoutTiles, soleCaches, type LaneGap, type LayoutOpts, type TileFloor } from "./layout";
 import { hasWebhooks, landing, reservedRects, webhookDocks, type Landing } from "./pads";
 import { routeTiles, type TileRoute } from "./router";
 import { inYardRows, rails, yardLadders, type Ladders } from "./yards";
 import { inside, type Piece, type Rect } from "./tiles";
+import { Clearance, planZoneLabel } from "./clear";
+import { coveredKeys, flightPaths, messagingObstacles } from "./flights";
 
 const WIDEN = 2;       // tiles added to every corridor on the one retry
 const MAX_START = 3;
@@ -178,16 +180,49 @@ function routeFloor(model: Model, container: string, doors: Door[], bundles: Bun
     const routes3 = routeTiles(wider, bundles);
     if (failures(routes3) <= failures(best.routes)) { best = { tf: wider, routes: routes3, gap: gap + WIDEN }; opts = { gap: gap + WIDEN }; }
   }
-  return roomierLanes(model, container, doors, bundles, ladders, best, opts);
+  const roomy = roomierLanes(model, container, doors, bundles, ladders, best, opts);
+  return roomierZones(model, container, doors, bundles, ladders, roomy.plan, roomy.opts);
+}
+
+const ZONE_WIDEN_MAX = 8;   // tiles a zone may grow by for its name: past that, a label row is crossed end to end
+
+/** The zones whose name finds no clear spot (`planZoneLabel`, against what the drawing keeps labels off, zones in
+ *  drawing order). */
+export function crampedZones(tf: TileFloor, routes: TileRoute[], bundles: Bundle[]): string[] {
+  const flights = flightPaths(tf);
+  const clear = new Clearance(messagingObstacles(tf, routes, flights, coveredKeys(flights, bundles)), tf.cols + 8);
+  return tf.zones.filter((z) => !planZoneLabel({ ...z, name: z.name.toUpperCase() }, clear).clear).map((z) => z.name);
+}
+
+/** A plan with a cramped zone (lines crossing its label row leave its name no clear spot) laid out again with each
+ *  such zone a tile wider on the right, then another, until every name it widened finds a spot (at most
+ *  ZONE_WIDEN_MAX); kept if no more lines fail. A cache that kept its lane keeps it: the room a zone gains is for its
+ *  name, not for a chest that would move the lines. None found, or a zone that cannot grow (a door column): the plan as it
+ *  was. */
+function roomierZones(model: Model, container: string, doors: Door[], bundles: Bundle[], ladders: Ladders | undefined, best: FloorPlan, opts: LayoutOpts): FloorPlan {
+  const cramped = crampedZones(best.tf, best.routes, bundles);
+  if (!cramped.length) return best;
+  const width = (tf: TileFloor) => tf.zones.filter((z) => cramped.includes(z.name)).map((z) => z.w).join();
+  let prev = width(best.tf);
+  const laned = new Set([...opts.laned ?? [], ...[...soleCaches(model, container).keys()].filter((id) => best.tf.boxes.get(id)?.foot !== "chest")]);
+  for (let k = 1; k <= ZONE_WIDEN_MAX; k++) {
+    const tf = layFloor(model, container, doors, bundles, { ...opts, ...(laned.size ? { laned } : {}), zoneWiden: Object.fromEntries(cramped.map((n) => [n, k])) }, ladders);
+    if (width(tf) === prev) break;
+    prev = width(tf);
+    const routes = routeTiles(tf, bundles);
+    const left = crampedZones(tf, routes, bundles);
+    if (failures(routes) <= failures(best.routes) && !cramped.some((n) => left.includes(n))) return { ...best, tf, routes };
+  }
+  return best;
 }
 
 /** A plan whose lane gaps are full (`crowdedLaneGaps`) laid out once more with one more row in each, kept if no more
  *  lines fail and fewer gaps are full: the owner's 2026-10-21 comment, lanes too close where lines crowd the gap. */
-function roomierLanes(model: Model, container: string, doors: Door[], bundles: Bundle[], ladders: Ladders | undefined, best: FloorPlan, opts: LayoutOpts): FloorPlan {
+function roomierLanes(model: Model, container: string, doors: Door[], bundles: Bundle[], ladders: Ladders | undefined, best: FloorPlan, opts: LayoutOpts): { plan: FloorPlan; opts: LayoutOpts } {
   const full = crowdedLaneGaps(best.tf, best.routes);
-  if (!full.length) return best;
+  if (!full.length) return { plan: best, opts };
   const laneGaps = best.tf.lanes.map((_, i) => (full.some((f) => f.gap.above === i) ? 1 : 0));
   const tf = layFloor(model, container, doors, bundles, { ...opts, laneGaps }, ladders);
   const routes = routeTiles(tf, bundles);
-  return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? { ...best, tf, routes } : best;
+  return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? { plan: { ...best, tf, routes }, opts: { ...opts, laneGaps } } : { plan: best, opts };
 }

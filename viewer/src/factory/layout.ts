@@ -51,7 +51,10 @@ export interface LayoutOpts { gap?: number; colGaps?: number[]; rowGaps?: number
    *  every such cache is a chest or listed here). */
   laned?: ReadonlySet<string>;
   /** Rows the in column keeps free below `door`, for a free-standing rail yard (yards.ts `inYardRows`). */
-  inYard?: { door: string; rows: number } }
+  inYard?: { door: string; rows: number };
+  /** Extra tiles on the right of a zone, by zone name: lines crossing its label row leave its name no clear spot
+   *  (plan.ts `roomierZones`). Only the zones round machines grow; the door columns keep their width. */
+  zoneWiden?: Record<string, number> }
 
 const M = 2;      // margin round the floor
 const GX0 = 6;    // tiles between machines in a row: room for lines to run between them
@@ -100,7 +103,7 @@ export function settleChests(sole: Iterable<string>, pass: (laned: ReadonlySet<s
 
 /** Caches only one machine uses on the site floor, each with that machine: store id → machine id. "One machine" is
  *  counted by lifted bundle ends, so a service's several methods are one user. Inside a factory, none. */
-function soleCaches(model: Model, container: string): Map<string, string> {
+export function soleCaches(model: Model, container: string): Map<string, string> {
   const out = new Map<string, string>();
   if (container !== SITE) return out;
   const items = model.floor(SITE)?.items ?? {};
@@ -264,7 +267,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
   const zone = (name: string, list: Rect[], airfield = false): Zone | undefined => {
     if (!list.length) return undefined;
     const x = Math.min(...list.map((b) => b.x)) - PAD, y = Math.min(...list.map((b) => b.y)) - PAD;
-    const z: Zone = { name, x, y, w: Math.max(right(list, 0) + PAD - x, labelTiles(name)), h: bottom(list, 0) + PAD + LABEL - y, airfield };
+    const z: Zone = { name, x, y, w: Math.max(right(list, 0) + PAD - x, labelTiles(name)) + (opts.zoneWiden?.[name] ?? 0), h: bottom(list, 0) + PAD + LABEL - y, airfield };
     zones.push(z);
     return z;
   };
@@ -299,7 +302,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     const line = cells("line", "grid");
     const works = grid(line.filter(([id]) => kindOf(id) !== "external"), "line", x0, y, true);
     work(works);
-    const ox = right(works, x0) + GX + 2 * PAD;
+    const ox = right(works, x0) + GX + 2 * PAD + (opts.zoneWiden?.["production line"] ?? 0);   // a wider production line pushes it over
     // the externals wrap into as many columns as keep the zone no taller than the production line, in order
     const [dw, dh] = FOOT.dock;
     const perCol = Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
@@ -405,7 +408,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
       const edge = right([...boxes.values()], 0) + PAD;
       for (const l of lanes) l.x1 = Math.max(l.x1 + colPer * (colXs.length - 1), edge);   // lanes still run under every machine
     }
-    zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => (isQueue(b.id) ? [stackTile(b)] : []))], true);
+    const air = zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => (isQueue(b.id) ? [stackTile(b)] : []))], true);
     /** A fixed-width column zone from row y0; returns the first row below it. */
     const column = (name: string, list: Box[], x: number, y0: number, y1 = 0): number => {
       if (!list.length) return y0;
@@ -422,7 +425,7 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     dy = libTop;
     const libBoxes = libs.map((d) => { const b = put(d.id, "door", "installed", cx, dy, "installed"); dy += ih + gL; return b; });
     column("installed libraries", libBoxes, cx, libTop, room);
-    const ox = right([...boxes.values(), ...lanes.map(laneBand)], x1) + GX + PAD;
+    const ox = Math.max(right([...boxes.values(), ...lanes.map(laneBand)], x1) + GX + PAD, air ? air.x + air.w + GX : 0);   // clear of a widened airfield
     const gR = spread(outs.length, rightNeed - top, room - top);
     const outBoxes = outs.map((d, i) => put(d.id, "door", "out", ox, top + i * (dh + gR), "door"));
     column("out", outBoxes, ox, top, Math.max(room, ...zones.map((z) => z.y + z.h)));   // the out column runs the room's height

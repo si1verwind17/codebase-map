@@ -1,4 +1,4 @@
-// audit-inputs: 761af6b90abae7a4a9446404f893d53b3c55e162c98738e713fff86a82d0251e
+// audit-inputs: 5aab1ff085d797eb6890439f5341df213feef044bf62fa95caefe40ec648a64a
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -1430,7 +1430,7 @@ function layoutOnce(model, container, doors, opts) {
 			name,
 			x,
 			y,
-			w: Math.max(right(list, 0) + PAD - x, labelTiles(name)),
+			w: Math.max(right(list, 0) + PAD - x, labelTiles(name)) + (opts.zoneWiden?.[name] ?? 0),
 			h: bottom(list, 0) + PAD + LABEL - y,
 			airfield
 		};
@@ -1476,7 +1476,7 @@ function layoutOnce(model, container, doors, opts) {
 		const line = cells("line", "grid");
 		const works = grid(line.filter(([id]) => kindOf(id) !== "external"), "line", x0, y, true);
 		work(works);
-		const ox = right(works, x0) + GX + 2;
+		const ox = right(works, x0) + GX + 2 + (opts.zoneWiden?.["production line"] ?? 0);
 		const [dw, dh] = FOOT.dock;
 		const perCol = Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
 		const outside = line.filter(([id]) => kindOf(id) === "external").map(([id], i) => put(id, "external", "outside", ox + Math.floor(i / perCol) * (dw + GX), y + i % perCol * (dh + GY)));
@@ -1599,7 +1599,7 @@ function layoutOnce(model, container, doors, opts) {
 			const edge = right([...boxes.values()], 0) + PAD;
 			for (const l of lanes) l.x1 = Math.max(l.x1 + colPer * (colXs.length - 1), edge);
 		}
-		zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => isQueue(b.id) ? [stackTile(b)] : [])], true);
+		const air = zone(IN_PROCESS, [...inq, ...inq.flatMap((b) => isQueue(b.id) ? [stackTile(b)] : [])], true);
 		/** A fixed-width column zone from row y0; returns the first row below it. */
 		const column = (name, list, x, y0, y1 = 0) => {
 			if (!list.length) return y0;
@@ -1629,7 +1629,7 @@ function layoutOnce(model, container, doors, opts) {
 			dy += ih + gL;
 			return b;
 		}), cx, libTop, room);
-		const ox = right([...boxes.values(), ...lanes.map(laneBand)], x1) + GX + PAD;
+		const ox = Math.max(right([...boxes.values(), ...lanes.map(laneBand)], x1) + GX + PAD, air ? air.x + air.w + GX : 0);
 		const gR = spread(outs.length, rightNeed - top, room - top);
 		column("out", outs.map((d, i) => put(d.id, "door", "out", ox, top + i * (dh + gR), "door")), ox, top, Math.max(room, ...zones.map((z) => z.y + z.h)));
 	}
@@ -4105,233 +4105,6 @@ var Heap = class {
 		return top;
 	}
 };
-// src/factory/plan.ts
-var WIDEN = 2;
-var MAX_START = 3;
-var MAX_EXTRA = 6;
-/** Starting corridor gap from demand: lines at the busiest box beyond what its sides carry comfortably. The base
-*  corridors are already 6 across and 4 down (they were 4 and 3), so one extra tile per six lines past eight. */
-function startGap(bundles) {
-	const load = /* @__PURE__ */ new Map();
-	for (const b of bundles) {
-		if (flies(b.kind)) continue;
-		load.set(b.a, (load.get(b.a) ?? 0) + 1);
-		load.set(b.b, (load.get(b.b) ?? 0) + 1);
-	}
-	const busiest = Math.max(0, ...load.values());
-	return Math.min(MAX_START, Math.max(0, Math.ceil((busiest - 8) / 6)));
-}
-/** Belts side by side in a corridor: the most on-top tiles travelling along it (down a column corridor, across a row
-*  corridor) in any one cross-section. A trunk tile is one belt however many lines ride it. Cross-sections where the
-*  corridor meets a crossing one (`cross`) are not counted: lines turn there. */
-function corridorLoad(r, routes, along, cross = [], held = []) {
-	if (r.w <= 0 || r.h <= 0) return 0;
-	const axis = along === "down" ? ["n", "s"] : ["e", "w"];
-	const span = along === "down" ? r.h : r.w;
-	const seen = Array.from({ length: span }, () => /* @__PURE__ */ new Set());
-	for (const q of routes) if (!q.failed) for (const p of q.pieces) {
-		if (p.under || !inside(r, p.x, p.y) || !(axis.includes(p.in) || axis.includes(p.out))) continue;
-		if (along === "down") seen[p.y - r.y].add(p.x);
-		else seen[p.x - r.x].add(p.y);
-	}
-	for (const h of held) for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) {
-		if (!inside(r, x, y)) continue;
-		if (along === "down") seen[y - r.y].add(x);
-		else seen[x - r.x].add(y);
-	}
-	const crossed = (i) => cross.some((c) => along === "down" ? i + r.y >= c.y && i + r.y < c.y + c.h : i + r.x >= c.x && i + r.x < c.x + c.w);
-	return Math.max(0, ...seen.filter((_, i) => !crossed(i)).map((s) => s.size));
-}
-/** Extra tiles per corridor: a corridor whose load reaches its width minus one is full and gets one tile per belt
-*  past width minus two (so one or two: belts on top never outnumber tiles), at most MAX_EXTRA; undefined when no
-*  corridor is full. Belts, not lines: lines riding one trunk share its tile, and widening for them measured worse
-*  (the large real map: +6% floor area, one file floor at 78% of its baseline tiles, against +1% and 73%). */
-function trafficGaps(tf, routes) {
-	const cols = tf.aisles?.cols ?? [], rows = tf.aisles?.rows ?? [], held = reservedRects(tf);
-	const extra = (r, along) => {
-		const width = along === "down" ? r.w : r.h, load = corridorLoad(r, routes, along, along === "down" ? rows : cols, held);
-		return width > 0 && load >= width - 1 ? Math.min(MAX_EXTRA, load - (width - 2)) : 0;
-	};
-	const colGaps = cols.map((r) => extra(r, "down"));
-	const rowGaps = rows.map((r) => extra(r, "across"));
-	return [...colGaps, ...rowGaps].some((g) => g > 0) ? {
-		colGaps,
-		rowGaps
-	} : void 0;
-}
-/** Lane gaps whose lines run along more rows than the gap has inner rows (rows next to no lane): a line then runs along
-*  a row next to a lane, where the lanes' taps end and their underground runs come up, so it passes those stubs as if it
-*  touched them. A gap of two rows has no inner row. Each with the first line along it and where. */
-function crowdedLaneGaps(tf, routes) {
-	const out = [];
-	for (const g of laneGaps(tf)) {
-		const rect = {
-			x: g.x0,
-			y: g.y0,
-			w: g.x1 - g.x0,
-			h: g.y1 - g.y0
-		};
-		const along = routes.flatMap((r) => r.pieces.filter((p) => !p.under && alongRow(p) && inside(rect, p.x, p.y)).map((p) => ({
-			key: r.key,
-			at: {
-				x: p.x,
-				y: p.y
-			}
-		})));
-		if (new Set(along.map((a) => a.at.y)).size > g.y1 - g.y0 - 2) out.push({
-			gap: g,
-			...along[0]
-		});
-	}
-	return out;
-}
-/** A piece that enters or leaves its tile sideways: its line runs along the row there. */
-var alongRow = (p) => p.in === "e" || p.in === "w" || p.out === "e" || p.out === "w";
-var failures = (routes) => routes.filter((r) => r.failed).length;
-/** Crossings as drawn: underground runs, a trunk going under counted once however many lines ride it. */
-function crossings$1(routes) {
-	const runs = /* @__PURE__ */ new Set();
-	for (const r of routes) r.pieces.forEach((p, i) => {
-		if (!p.under || i === 0 || r.pieces[i - 1].under) return;
-		let e = i;
-		while (e < r.pieces.length - 1 && r.pieces[e].under) e++;
-		const a = r.pieces[i - 1], b = r.pieces[e];
-		runs.add(`${a.x},${a.y}>${b.x},${b.y}`);
-	});
-	return runs.size;
-}
-/** The floor laid out with its messaging, rails and webhook docks placed (tf.landing, tf.rails, tf.webhooks) before
-*  any routing: pads inside their machines, receiving docks reserved outside them; rail yards, their signs and stations
-*  reserved after the docks; then the site's inbound webhook docks, where a first routing's belts arrive. A floor with a
-*  free-standing yard is laid out again with rows kept for it in the in column. A floor with no hub and no yard is exactly layoutTiles.
-*  `ladders`: the yards that stand as ladders (a throat column), planned from a first routing (`planFloor`). */
-function layFloor(model, container, doors, bundles, opts = {}, ladders) {
-	let tf = layoutTiles(model, container, doors, opts);
-	const inYard = inYardRows(model, container, tf, bundles);
-	if (inYard) tf = layoutTiles(model, container, doors, {
-		...opts,
-		inYard
-	});
-	const l = landing(model, container, tf, bundles);
-	if (l) tf.landing = l;
-	const r = rails(model, container, tf, bundles, ladders);
-	if (r) tf.rails = r;
-	if (hasWebhooks(model, tf, bundles)) {
-		const w = webhookDocks(model, tf, bundles, routeTiles(tf, bundles));
-		if (w?.docks.length) tf.webhooks = w.docks;
-		if (w?.notes.length) tf.notes = [...tf.notes ?? [], ...w.notes];
-	}
-	return tf;
-}
-/** The floor's base plan (`planBase`), then each extra layer's lines (`layered`, from `Model.bundles`) routed over it. */
-function planFloor(model, container, doors, bundles, layered = []) {
-	const base = planBase(model, container, doors, bundles);
-	return layered.length ? {
-		...base,
-		layers: routeLayers(base, layered)
-	} : base;
-}
-/** Each layer's lines routed on the base's floor over its lines (`routeTiles`' `base`): the base plan is never touched,
-*  and no layer sees another's lines (one layer shows at a time), so a line in two layers is routed in each. Planned
-*  in item-id order, which changes nothing (each layer is independent); the list's order is `floor.hubs` (layers.ts). */
-function routeLayers(base, layered) {
-	const by = /* @__PURE__ */ new Map();
-	for (const b of layered) by.set(b.layer, [...by.get(b.layer) ?? [], b]);
-	const out = {};
-	for (const id of [...by.keys()].sort()) out[id] = { routes: routeTiles(base.tf, by.get(id), base.routes) };
-	return out;
-}
-/** Route once; widen the crowded corridors and route a second time, kept only if no more lines fail and it crosses
-*  strictly less. Only a floor with no crowded corridor, whose lines still fail, gets the old retry (every corridor
-*  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time, but for a full lane gap's one more row
-*  (`roomierLanes`). When the traffic pass already routed, its answer stands, failures included. A floor where some
-*  yard sends more than one platform's rail out by one exit is planned once more with that yard a ladder (`yardLadders`;
-*  twice when an exit leaves from a group's middle row: its top end, or its bottom end when that crosses strictly
-*  less), kept if no more lines fail and no more rails go unplaced. */
-function planBase(model, container, doors, bundles) {
-	let best = routeFloor(model, container, doors, bundles);
-	const top = yardLadders(best.tf, best.routes, "top");
-	if (top) {
-		const bottom = yardLadders(best.tf, best.routes, "bottom");
-		const same = JSON.stringify([...top]) === JSON.stringify([...bottom]);
-		const unplaced = (q) => q.tf.rails?.unplaced.length ?? 0;
-		const ok = (q) => failures(q.routes) <= failures(best.routes) && unplaced(q) <= unplaced(best);
-		let laddered;
-		for (const l of same ? [top] : [top, bottom]) {
-			const q = routeFloor(model, container, doors, bundles, l);
-			if (ok(q) && (!laddered || crossings$1(q.routes) < crossings$1(laddered.routes))) laddered = q;
-		}
-		if (laddered) best = laddered;
-	}
-	return best.tf.landing ? {
-		...best,
-		landing: best.tf.landing
-	} : best;
-}
-function routeFloor(model, container, doors, bundles, ladders) {
-	const gap = startGap(bundles);
-	let opts = { gap };
-	const tf = layFloor(model, container, doors, bundles, opts, ladders);
-	let best = {
-		tf,
-		routes: routeTiles(tf, bundles),
-		gap
-	};
-	const widths = trafficGaps(best.tf, best.routes);
-	if (widths) {
-		const tf2 = layFloor(model, container, doors, bundles, {
-			gap,
-			...widths
-		}, ladders);
-		const routes2 = routeTiles(tf2, bundles);
-		if (failures(routes2) <= failures(best.routes) && crossings$1(routes2) < crossings$1(best.routes)) {
-			best = {
-				tf: tf2,
-				routes: routes2,
-				gap
-			};
-			opts = {
-				gap,
-				...widths
-			};
-		}
-	}
-	if (!widths && failures(best.routes)) {
-		const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
-		const routes3 = routeTiles(wider, bundles);
-		if (failures(routes3) <= failures(best.routes)) {
-			best = {
-				tf: wider,
-				routes: routes3,
-				gap: gap + WIDEN
-			};
-			opts = { gap: gap + WIDEN };
-		}
-	}
-	return roomierLanes(model, container, doors, bundles, ladders, best, opts);
-}
-/** A plan whose lane gaps are full (`crowdedLaneGaps`) laid out once more with one more row in each, kept if no more
-*  lines fail and fewer gaps are full: the owner's 2026-10-21 comment, lanes too close where lines crowd the gap. */
-function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
-	const full = crowdedLaneGaps(best.tf, best.routes);
-	if (!full.length) return best;
-	const laneGaps = best.tf.lanes.map((_, i) => full.some((f) => f.gap.above === i) ? 1 : 0);
-	const tf = layFloor(model, container, doors, bundles, {
-		...opts,
-		laneGaps
-	}, ladders);
-	const routes = routeTiles(tf, bundles);
-	return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? {
-		...best,
-		tf,
-		routes
-	} : best;
-}
-// src/factory/plan-job.ts
-/** Floor `container`'s plan: its bundles (`b`, when the caller has them already), then `planFloor` over them. */
-function planJob(model, container, b = model.bundles(container)) {
-	return planFloor(model, container, b.doors, b.bundles, b.layered);
-}
 // src/factory/flights.ts
 var DOT = 4;
 var centre = (r) => ({
@@ -5018,6 +4791,286 @@ function messagingLabels(model, tf, paths, clear, inside) {
 		signs,
 		plates: placePlates(paths, clear, bounds)
 	};
+}
+// src/factory/plan.ts
+var WIDEN = 2;
+var MAX_START = 3;
+var MAX_EXTRA = 6;
+/** Starting corridor gap from demand: lines at the busiest box beyond what its sides carry comfortably. The base
+*  corridors are already 6 across and 4 down (they were 4 and 3), so one extra tile per six lines past eight. */
+function startGap(bundles) {
+	const load = /* @__PURE__ */ new Map();
+	for (const b of bundles) {
+		if (flies(b.kind)) continue;
+		load.set(b.a, (load.get(b.a) ?? 0) + 1);
+		load.set(b.b, (load.get(b.b) ?? 0) + 1);
+	}
+	const busiest = Math.max(0, ...load.values());
+	return Math.min(MAX_START, Math.max(0, Math.ceil((busiest - 8) / 6)));
+}
+/** Belts side by side in a corridor: the most on-top tiles travelling along it (down a column corridor, across a row
+*  corridor) in any one cross-section. A trunk tile is one belt however many lines ride it. Cross-sections where the
+*  corridor meets a crossing one (`cross`) are not counted: lines turn there. */
+function corridorLoad(r, routes, along, cross = [], held = []) {
+	if (r.w <= 0 || r.h <= 0) return 0;
+	const axis = along === "down" ? ["n", "s"] : ["e", "w"];
+	const span = along === "down" ? r.h : r.w;
+	const seen = Array.from({ length: span }, () => /* @__PURE__ */ new Set());
+	for (const q of routes) if (!q.failed) for (const p of q.pieces) {
+		if (p.under || !inside(r, p.x, p.y) || !(axis.includes(p.in) || axis.includes(p.out))) continue;
+		if (along === "down") seen[p.y - r.y].add(p.x);
+		else seen[p.x - r.x].add(p.y);
+	}
+	for (const h of held) for (let y = h.y; y < h.y + h.h; y++) for (let x = h.x; x < h.x + h.w; x++) {
+		if (!inside(r, x, y)) continue;
+		if (along === "down") seen[y - r.y].add(x);
+		else seen[x - r.x].add(y);
+	}
+	const crossed = (i) => cross.some((c) => along === "down" ? i + r.y >= c.y && i + r.y < c.y + c.h : i + r.x >= c.x && i + r.x < c.x + c.w);
+	return Math.max(0, ...seen.filter((_, i) => !crossed(i)).map((s) => s.size));
+}
+/** Extra tiles per corridor: a corridor whose load reaches its width minus one is full and gets one tile per belt
+*  past width minus two (so one or two: belts on top never outnumber tiles), at most MAX_EXTRA; undefined when no
+*  corridor is full. Belts, not lines: lines riding one trunk share its tile, and widening for them measured worse
+*  (the large real map: +6% floor area, one file floor at 78% of its baseline tiles, against +1% and 73%). */
+function trafficGaps(tf, routes) {
+	const cols = tf.aisles?.cols ?? [], rows = tf.aisles?.rows ?? [], held = reservedRects(tf);
+	const extra = (r, along) => {
+		const width = along === "down" ? r.w : r.h, load = corridorLoad(r, routes, along, along === "down" ? rows : cols, held);
+		return width > 0 && load >= width - 1 ? Math.min(MAX_EXTRA, load - (width - 2)) : 0;
+	};
+	const colGaps = cols.map((r) => extra(r, "down"));
+	const rowGaps = rows.map((r) => extra(r, "across"));
+	return [...colGaps, ...rowGaps].some((g) => g > 0) ? {
+		colGaps,
+		rowGaps
+	} : void 0;
+}
+/** Lane gaps whose lines run along more rows than the gap has inner rows (rows next to no lane): a line then runs along
+*  a row next to a lane, where the lanes' taps end and their underground runs come up, so it passes those stubs as if it
+*  touched them. A gap of two rows has no inner row. Each with the first line along it and where. */
+function crowdedLaneGaps(tf, routes) {
+	const out = [];
+	for (const g of laneGaps(tf)) {
+		const rect = {
+			x: g.x0,
+			y: g.y0,
+			w: g.x1 - g.x0,
+			h: g.y1 - g.y0
+		};
+		const along = routes.flatMap((r) => r.pieces.filter((p) => !p.under && alongRow(p) && inside(rect, p.x, p.y)).map((p) => ({
+			key: r.key,
+			at: {
+				x: p.x,
+				y: p.y
+			}
+		})));
+		if (new Set(along.map((a) => a.at.y)).size > g.y1 - g.y0 - 2) out.push({
+			gap: g,
+			...along[0]
+		});
+	}
+	return out;
+}
+/** A piece that enters or leaves its tile sideways: its line runs along the row there. */
+var alongRow = (p) => p.in === "e" || p.in === "w" || p.out === "e" || p.out === "w";
+var failures = (routes) => routes.filter((r) => r.failed).length;
+/** Crossings as drawn: underground runs, a trunk going under counted once however many lines ride it. */
+function crossings$1(routes) {
+	const runs = /* @__PURE__ */ new Set();
+	for (const r of routes) r.pieces.forEach((p, i) => {
+		if (!p.under || i === 0 || r.pieces[i - 1].under) return;
+		let e = i;
+		while (e < r.pieces.length - 1 && r.pieces[e].under) e++;
+		const a = r.pieces[i - 1], b = r.pieces[e];
+		runs.add(`${a.x},${a.y}>${b.x},${b.y}`);
+	});
+	return runs.size;
+}
+/** The floor laid out with its messaging, rails and webhook docks placed (tf.landing, tf.rails, tf.webhooks) before
+*  any routing: pads inside their machines, receiving docks reserved outside them; rail yards, their signs and stations
+*  reserved after the docks; then the site's inbound webhook docks, where a first routing's belts arrive. A floor with a
+*  free-standing yard is laid out again with rows kept for it in the in column. A floor with no hub and no yard is exactly layoutTiles.
+*  `ladders`: the yards that stand as ladders (a throat column), planned from a first routing (`planFloor`). */
+function layFloor(model, container, doors, bundles, opts = {}, ladders) {
+	let tf = layoutTiles(model, container, doors, opts);
+	const inYard = inYardRows(model, container, tf, bundles);
+	if (inYard) tf = layoutTiles(model, container, doors, {
+		...opts,
+		inYard
+	});
+	const l = landing(model, container, tf, bundles);
+	if (l) tf.landing = l;
+	const r = rails(model, container, tf, bundles, ladders);
+	if (r) tf.rails = r;
+	if (hasWebhooks(model, tf, bundles)) {
+		const w = webhookDocks(model, tf, bundles, routeTiles(tf, bundles));
+		if (w?.docks.length) tf.webhooks = w.docks;
+		if (w?.notes.length) tf.notes = [...tf.notes ?? [], ...w.notes];
+	}
+	return tf;
+}
+/** The floor's base plan (`planBase`), then each extra layer's lines (`layered`, from `Model.bundles`) routed over it. */
+function planFloor(model, container, doors, bundles, layered = []) {
+	const base = planBase(model, container, doors, bundles);
+	return layered.length ? {
+		...base,
+		layers: routeLayers(base, layered)
+	} : base;
+}
+/** Each layer's lines routed on the base's floor over its lines (`routeTiles`' `base`): the base plan is never touched,
+*  and no layer sees another's lines (one layer shows at a time), so a line in two layers is routed in each. Planned
+*  in item-id order, which changes nothing (each layer is independent); the list's order is `floor.hubs` (layers.ts). */
+function routeLayers(base, layered) {
+	const by = /* @__PURE__ */ new Map();
+	for (const b of layered) by.set(b.layer, [...by.get(b.layer) ?? [], b]);
+	const out = {};
+	for (const id of [...by.keys()].sort()) out[id] = { routes: routeTiles(base.tf, by.get(id), base.routes) };
+	return out;
+}
+/** Route once; widen the crowded corridors and route a second time, kept only if no more lines fail and it crosses
+*  strictly less. Only a floor with no crowded corridor, whose lines still fail, gets the old retry (every corridor
+*  GAP + WIDEN, taken if no more lines fail): a floor never routes a third time, but for a full lane gap's one more row
+*  (`roomierLanes`). When the traffic pass already routed, its answer stands, failures included. A floor where some
+*  yard sends more than one platform's rail out by one exit is planned once more with that yard a ladder (`yardLadders`;
+*  twice when an exit leaves from a group's middle row: its top end, or its bottom end when that crosses strictly
+*  less), kept if no more lines fail and no more rails go unplaced. */
+function planBase(model, container, doors, bundles) {
+	let best = routeFloor(model, container, doors, bundles);
+	const top = yardLadders(best.tf, best.routes, "top");
+	if (top) {
+		const bottom = yardLadders(best.tf, best.routes, "bottom");
+		const same = JSON.stringify([...top]) === JSON.stringify([...bottom]);
+		const unplaced = (q) => q.tf.rails?.unplaced.length ?? 0;
+		const ok = (q) => failures(q.routes) <= failures(best.routes) && unplaced(q) <= unplaced(best);
+		let laddered;
+		for (const l of same ? [top] : [top, bottom]) {
+			const q = routeFloor(model, container, doors, bundles, l);
+			if (ok(q) && (!laddered || crossings$1(q.routes) < crossings$1(laddered.routes))) laddered = q;
+		}
+		if (laddered) best = laddered;
+	}
+	return best.tf.landing ? {
+		...best,
+		landing: best.tf.landing
+	} : best;
+}
+function routeFloor(model, container, doors, bundles, ladders) {
+	const gap = startGap(bundles);
+	let opts = { gap };
+	const tf = layFloor(model, container, doors, bundles, opts, ladders);
+	let best = {
+		tf,
+		routes: routeTiles(tf, bundles),
+		gap
+	};
+	const widths = trafficGaps(best.tf, best.routes);
+	if (widths) {
+		const tf2 = layFloor(model, container, doors, bundles, {
+			gap,
+			...widths
+		}, ladders);
+		const routes2 = routeTiles(tf2, bundles);
+		if (failures(routes2) <= failures(best.routes) && crossings$1(routes2) < crossings$1(best.routes)) {
+			best = {
+				tf: tf2,
+				routes: routes2,
+				gap
+			};
+			opts = {
+				gap,
+				...widths
+			};
+		}
+	}
+	if (!widths && failures(best.routes)) {
+		const wider = layFloor(model, container, doors, bundles, { gap: gap + WIDEN }, ladders);
+		const routes3 = routeTiles(wider, bundles);
+		if (failures(routes3) <= failures(best.routes)) {
+			best = {
+				tf: wider,
+				routes: routes3,
+				gap: gap + WIDEN
+			};
+			opts = { gap: gap + WIDEN };
+		}
+	}
+	const roomy = roomierLanes(model, container, doors, bundles, ladders, best, opts);
+	return roomierZones(model, container, doors, bundles, ladders, roomy.plan, roomy.opts);
+}
+var ZONE_WIDEN_MAX = 8;
+/** The zones whose name finds no clear spot (`planZoneLabel`, against what the drawing keeps labels off, zones in
+*  drawing order). */
+function crampedZones(tf, routes, bundles) {
+	const flights = flightPaths(tf);
+	const clear = new Clearance(messagingObstacles(tf, routes, flights, coveredKeys(flights, bundles)), tf.cols + 8);
+	return tf.zones.filter((z) => !planZoneLabel({
+		...z,
+		name: z.name.toUpperCase()
+	}, clear).clear).map((z) => z.name);
+}
+/** A plan with a cramped zone (lines crossing its label row leave its name no clear spot) laid out again with each
+*  such zone a tile wider on the right, then another, until every name it widened finds a spot (at most
+*  ZONE_WIDEN_MAX); kept if no more lines fail. A cache that kept its lane keeps it: the room a zone gains is for its
+*  name, not for a chest that would move the lines. None found, or a zone that cannot grow (a door column): the plan as it
+*  was. */
+function roomierZones(model, container, doors, bundles, ladders, best, opts) {
+	const cramped = crampedZones(best.tf, best.routes, bundles);
+	if (!cramped.length) return best;
+	const width = (tf) => tf.zones.filter((z) => cramped.includes(z.name)).map((z) => z.w).join();
+	let prev = width(best.tf);
+	const laned = /* @__PURE__ */ new Set([...opts.laned ?? [], ...[...soleCaches(model, container).keys()].filter((id) => best.tf.boxes.get(id)?.foot !== "chest")]);
+	for (let k = 1; k <= ZONE_WIDEN_MAX; k++) {
+		const tf = layFloor(model, container, doors, bundles, {
+			...opts,
+			...laned.size ? { laned } : {},
+			zoneWiden: Object.fromEntries(cramped.map((n) => [n, k]))
+		}, ladders);
+		if (width(tf) === prev) break;
+		prev = width(tf);
+		const routes = routeTiles(tf, bundles);
+		const left = crampedZones(tf, routes, bundles);
+		if (failures(routes) <= failures(best.routes) && !cramped.some((n) => left.includes(n))) return {
+			...best,
+			tf,
+			routes
+		};
+	}
+	return best;
+}
+/** A plan whose lane gaps are full (`crowdedLaneGaps`) laid out once more with one more row in each, kept if no more
+*  lines fail and fewer gaps are full: the owner's 2026-10-21 comment, lanes too close where lines crowd the gap. */
+function roomierLanes(model, container, doors, bundles, ladders, best, opts) {
+	const full = crowdedLaneGaps(best.tf, best.routes);
+	if (!full.length) return {
+		plan: best,
+		opts
+	};
+	const laneGaps = best.tf.lanes.map((_, i) => full.some((f) => f.gap.above === i) ? 1 : 0);
+	const tf = layFloor(model, container, doors, bundles, {
+		...opts,
+		laneGaps
+	}, ladders);
+	const routes = routeTiles(tf, bundles);
+	return failures(routes) <= failures(best.routes) && crowdedLaneGaps(tf, routes).length < full.length ? {
+		plan: {
+			...best,
+			tf,
+			routes
+		},
+		opts: {
+			...opts,
+			laneGaps
+		}
+	} : {
+		plan: best,
+		opts
+	};
+}
+// src/factory/plan-job.ts
+/** Floor `container`'s plan: its bundles (`b`, when the caller has them already), then `planFloor` over them. */
+function planJob(model, container, b = model.bundles(container)) {
+	return planFloor(model, container, b.doors, b.bundles, b.layered);
 }
 // src/audit/lines.ts
 /** A line's possible ends, by id: its key's two boxes (or lanes), for a rail the rail yards and stations, and for an
