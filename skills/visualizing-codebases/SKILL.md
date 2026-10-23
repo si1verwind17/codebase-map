@@ -413,7 +413,10 @@ which you create and write for this repo without asking; it is committed
 and reused on later runs. The Stack section at the top of `summary.md` lists what neither
 covers, total first: unrecognised imports (two `file:line` examples each),
 server libraries without routes (an `http-in` or `http` import with no route
-in its importers' modules), and `stack.yaml` route or table patterns with 0 matches.
+in its importers' modules), route-looking lines with no route (in a file importing a
+server library, a verb, `route` or resource call or annotation with a path that no
+pattern read: `Route::apiResource('songs', ..)`), and `stack.yaml` route or table
+patterns with 0 matches.
 It never lists the standard library (the packs' `ignore` lists, Go paths
 without a host, Python's own list) or the repo's own code: relative imports,
 module folders and package names, Python sibling modules and `<stem>_pb2`
@@ -475,6 +478,9 @@ Sort each line into one group of its language:
   endpoints) goes into `ignore`; that clears the line. So does a framework
   whose routes the scanner cannot read (Django `urls.py`): say so in the
   report.
+- Route-looking lines with no route are a route style no pattern reads: add a
+  `stack.yaml` route pattern for that style, rescan, and check the lines are gone;
+  lines that are no routes (an outbound call with a path) go into `problems`.
 - Prefixes match on the language's separator boundaries, in every group and
   in `when`: `.` (Python, Scala, Java, Kotlin, C#), `/` (TypeScript,
   JavaScript, Go, Ruby), `::` (Rust), `\` (PHP). Write a prefix without a

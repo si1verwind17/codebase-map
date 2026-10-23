@@ -380,9 +380,13 @@ def test_report_flask_without_stack(flask_repo):
     assert unrecognised(s) == {"celery", "marshmallow"}
     assert [(x["lang"], x["prefix"], x["kind"], x["files"]) for x in rep["servers_without_routes"]] == \
         [("python", "flask", "http-in", 3)]
-    assert rep["patterns"] == [] and stack.count(rep) == 3
+    # the server files' decorator lines are listed too: what the missing route pattern has to read
+    assert [(x["file"], x["lines"]) for x in rep["routes_unmatched"]] == [
+        ("shopfront/__init__.py", [6]), ("shopfront/users.py", [6, 11, 16])]
+    assert rep["patterns"] == [] and stack.count(rep) == 5
     md = structure.summary_md(s)
-    assert "## Stack — 2 unrecognised imports, 1 server library without routes, 0 patterns with no match\n" in md
+    assert "## Stack — 2 unrecognised imports, 1 server library without routes, 0 patterns with no match, " \
+           "4 route-looking lines with no route\n" in md
     assert "- python `celery` — 1 file: shopfront/tasks.py:1" in md
     assert "- python `flask` (http-in) — 3 files import it; no route pattern matched in them" in md
 
@@ -436,7 +440,7 @@ def test_stdlib_not_unrecognised(make_repo):
 
 def test_extract_prints_stack_count(flask_repo):
     p = run_extract(flask_repo)
-    assert json.loads(p.stdout)["stack"] == 3
+    assert json.loads(p.stdout)["stack"] == 5
 
 
 def test_summary_stack_section_position(shop_repo):

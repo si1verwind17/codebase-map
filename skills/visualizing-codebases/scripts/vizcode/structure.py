@@ -792,6 +792,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
                 r["routes"] += _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
+                    r["route_like"] = stack.route_like(decode(data), lang)
                 r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
                 r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
                 r["grpc_text"] = _grpc_text(decode(data), r, lang)
@@ -909,6 +911,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                                        "queues": file_facts[f].get("queues", []),
                                        "mounts": file_facts[f].get("mounts", []), "module": file_mod[f],
                                        "deduped": results[f].get("deduped", []),
+                                       "route_like": results[f].get("route_like", []),
                                        "src": texts.get(f, ""), "package": results[f]["package"]} for f in results},
                               internal,
                               {LANGS[Path(f).suffix][0] for f in results}),
@@ -953,11 +956,14 @@ def _stack_lines(rep: dict) -> list[str]:
     if "unrecognised" not in rep:
         return []
     unrec, servers, pats = rep["unrecognised"], rep["servers_without_routes"], rep["patterns"]
+    missed = rep.get("routes_unmatched", [])
     dead = [p for p in pats if stack.flagged(p)]
-    if unrec or servers or dead:
+    if unrec or servers or dead or missed:
         lines = [f"## Stack — {_plural(len(unrec), 'unrecognised import', 'unrecognised imports')}, "
                  f"{_plural(len(servers), 'server library', 'server libraries')} without routes, "
-                 f"{_plural(len(dead), 'pattern', 'patterns')} with no match", ""]
+                 f"{_plural(len(dead), 'pattern', 'patterns')} with no match"
+                 + (f", {_plural(sum(len(x['lines']) for x in missed), 'route-looking line', 'route-looking lines')}"
+                    " with no route" if missed else ""), ""]
     else:
         lines = ["## Stack — nothing unrecognised", ""]
     if unrec or servers:
@@ -971,6 +977,13 @@ def _stack_lines(rep: dict) -> list[str]:
         lines.append(f"Server libraries without routes ({len(servers)}):")
         lines += [f"- {x['lang']} `{x['prefix']}` ({x['kind']}) — {_plural(x['files'], 'file', 'files')} "
                   f"{'imports' if x['files'] == 1 else 'import'} it; no route pattern matched in them" for x in servers]
+        lines.append("")
+    if missed:
+        n = sum(len(x["lines"]) for x in missed)
+        lines.append(f"Route-looking lines with no route ({n} in {_plural(len(missed), 'file', 'files')}): a route "
+                     "style no pattern reads; add a stack.yaml route pattern, or say in problems why they are none:")
+        lines += [f"- {x['lang']} {x['file']}: {'line' if len(x['lines']) == 1 else 'lines'} "
+                  f"{', '.join(map(str, x['lines']))} — `{x['example']}`" for x in missed]
         lines.append("")
     for group, label, one0, many0 in (("routes", "Route patterns:", "route", "routes"),
                                     ("tables", "Table patterns:", "table", "tables"),

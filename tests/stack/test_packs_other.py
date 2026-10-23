@@ -465,6 +465,22 @@ def test_an_empty_route_path_is_the_mount_path(make_repo):
     assert mounts(s, "routes/api.php") == [("/v1", None, 5, "laravel-prefix")]
 
 
+def test_route_looking_lines_no_pattern_matched_are_listed(make_repo):
+    """A server file's lines that look like route registrations but gave no route are listed for the agent, so a
+    route style the packs miss is never silent; matched lines, map lookups and outbound paths are not."""
+    files = {**LARAVEL_SERVICE, "routes/api.php": LARAVEL_SERVICE["routes/api.php"]
+             + "Route::apiResource('songs', SongController::class);\n"
+             + "Route::get('/weird/' . $x, fn () => 1);\n$cfg = $config->get('db');\n// Route::get('/old', x)\n"}
+    s = build(make_repo, files)
+    assert s["stack"]["routes_unmatched"] == [
+        {"lang": "php", "file": "routes/api.php", "lines": [12, 13],
+         "example": "Route::apiResource('songs', SongController::class);"}]
+    from vizcode import structure as st_mod
+    text = "\n".join(st_mod._stack_lines(s["stack"]))
+    assert "Route-looking lines with no route (2 in 1 file)" in text
+    assert "- php routes/api.php: lines 12, 13 — `Route::apiResource('songs', SongController::class);`" in text
+
+
 def test_laravel_routes_file_without_a_use_line(make_repo):
     files = {**LARAVEL_SERVICE,
              "routes/api.php": LARAVEL_SERVICE["routes/api.php"].replace("use Illuminate\\Support\\Facades\\Route;\n", "")}

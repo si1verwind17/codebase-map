@@ -1150,6 +1150,35 @@ def find_annotated(st: Stack, lang: str, annotations: list[dict], nodes: list[di
 
 BUILT_IN = {"fastapi": "python", "tapir": "scala"}   # route rules kept in code, counted in the pattern report
 SERVER_KINDS = ("http-in", "http")
+# a line that looks like a route registration in a server file: an HTTP verb, `route`, `match` or `any` called or
+# annotated with a path (`.get("/x"`, `@Post("/x"`, `@GetMapping("/x"`, `->get("/x"`), or a resource route
+# (`Route::apiResource('songs'`, `resources :orders`)
+ROUTE_LIKE = re.compile(
+    r"(?:[.@]|::|->)\s*(?i:(?:get|post|put|patch|delete|options|head|any|match|route|api_route)(?:mapping)?)"
+    r"\s*\(\s*(?:\[[^\]\n]*\]\s*,\s*)?[\"'`]/[^\"'`\n]*[\"'`]"
+    r"|(?:::|\.)\s*(?:apiResources?|resources?)\s*\(\s*[\"'][\w./-]+[\"']|^\s*resources?\s+:\w+", re.M)
+
+
+def route_like(src: str, lang: str) -> list[dict]:
+    """The lines of a server file that look like route registrations (ROUTE_LIKE), comments left out."""
+    clean = _blank_comments(src, lang)
+    lines = src.split("\n")
+    seen: dict[int, str] = {}
+    for m in ROUTE_LIKE.finditer(clean):
+        line = clean.count("\n", 0, m.start()) + 1
+        seen.setdefault(line, lines[line - 1].strip()[:120])
+    return [{"line": n, "text": t} for n, t in seen.items()]
+
+
+def _unmatched_routes(files: dict[str, dict]) -> list[dict]:
+    """Per server file, the route-looking lines (route_like) no route or mount came from: a route style the
+    patterns miss."""
+    out = []
+    for path, f in sorted(files.items()):
+        done = {r["line"] for r in f["routes"]} | {m["line"] for m in f["mounts"]}
+        if left := [x for x in f.get("route_like", []) if x["line"] not in done]:
+            out.append({"lang": f["lang"], "file": path, "lines": [x["line"] for x in left], "example": left[0]["text"]})
+    return out
 
 
 GROUP_DEPTH = {"python": 1, "scala": 2, **{spec.lang: spec.group_depth for spec in ALL}}
@@ -1292,7 +1321,8 @@ def _patterns(st: Stack, files: dict[str, dict], langs: set[str]) -> list[dict]:
 def report(st: Stack, files: dict[str, dict], internal: dict[str, set[str]], langs: set[str]) -> dict:
     """The Stack block of structure.json: what no pack or stack.yaml covers, and how each route pattern did."""
     return {"digest": st.digest, "unrecognised": _unrecognised(st, files, internal),
-            "servers_without_routes": _servers(st, files), "patterns": _patterns(st, files, langs),
+            "servers_without_routes": _servers(st, files), "routes_unmatched": _unmatched_routes(files),
+            "patterns": _patterns(st, files, langs),
             "overrides": list(st.overrides)}
 
 
@@ -1303,5 +1333,5 @@ def flagged(p: dict) -> bool:
 
 
 def count(rep: dict) -> int:
-    return len(rep["unrecognised"]) + len(rep["servers_without_routes"]) \
+    return len(rep["unrecognised"]) + len(rep["servers_without_routes"]) + len(rep.get("routes_unmatched", [])) \
         + sum(1 for p in rep["patterns"] if flagged(p))
