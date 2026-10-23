@@ -151,8 +151,7 @@ export class Motion {
       const before = mv.phase;
       mv.phase = (mv.phase + ms * 0.06 * ((moverSpeed(mv.kind, flies(mv.kind) ? this.flyLongest : mv.total) / 60) * (60 / spacing))) % 60;
       if (mv.phase < before) mv.cycle++;   // a pass finished: a two-way belt carries the next item the other way
-      for (let d = mv.phase * (spacing / 60); d < mv.total; d += spacing) {
-        const forward = !mv.both || mv.cycle % 2 === 0;
+      for (const { d, forward } of itemPlaces(mv.kind, mv.both, mv.total, mv.phase, mv.cycle)) {
         const pos = at(mv.route.points, mv.lengths, forward ? d : mv.total - d);
         if (mv.kind === "stream") g.circle(pos.x, pos.y, 2.2).fill(C.paper);
         else if (flies(mv.kind)) drone(g, pos, false, false);
@@ -198,6 +197,19 @@ export function itemSpacing(kind: string, total: number): number {
   return kind === "stream" ? (total + 60) / PIPE_BLOBS : total + 60;
 }
 export const PIPE_BLOBS = 3;
+
+/** Where the items of a line `total` px long stand at `phase` (0–60, one item spacing per round) of pass `cycle`: `d`
+ *  px from the end the item leaves, `forward` when that is the line's start. A two-way belt carries one item, the next
+ *  the other way. A two-way pipe flows both ways at once: its blobs each way, those going back half a spacing out of
+ *  step, so no blob ever turns or jumps. */
+export function itemPlaces(kind: string, both: boolean, total: number, phase: number, cycle: number): { d: number; forward: boolean }[] {
+  const spacing = itemSpacing(kind, total), out: { d: number; forward: boolean }[] = [];
+  const run = (from: number, forward: boolean) => { for (let d = from; d < total; d += spacing) out.push({ d, forward }); };
+  const off = phase * (spacing / 60);
+  if (kind === "stream" && both) { run(off, true); run((off + spacing / 2) % spacing, false); }
+  else run(off, !both || cycle % 2 === 0);
+  return out;
+}
 
 /** A drone: a keylined body with four rotors, green (red for a failure), a yellow crate slung under it when loaded. */
 function drone(g: Graphics, p: Pt, loaded: boolean, red: boolean) {

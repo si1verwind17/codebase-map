@@ -268,4 +268,29 @@ describe("items on lit lines (the owner, 2026-10-06: every line moves while noth
       expect(itemSpacing("stream", total) * PIPE_BLOBS).toBeCloseTo(itemSpacing("request", total), 6);   // evenly spaced
     }
   });
+
+  it("a two-way pipe flows both ways at once: every blob moves on smoothly, none turns or jumps", async () => {
+    const { itemPlaces, itemSpacing } = await import("../../src/floor/movers");
+    for (const total of [48, 300, 1200]) {
+      const step = 0.4;   // phase per frame: under 1 px of travel on these lines
+      const where = (phase: number, cycle: number) =>
+        itemPlaces("stream", true, total, phase, cycle).map(({ d, forward }) => ({ x: forward ? d : total - d, forward }));
+      let phase = 0, cycle = 0, prev = where(phase, cycle);
+      const ways = new Set<boolean>();
+      for (let f = 0; f < 600; f++) {
+        const before = phase;
+        phase = (phase + step) % 60;
+        if (phase < before) cycle++;
+        const now = where(phase, cycle), move = (step * itemSpacing("stream", total)) / 60;
+        for (const b of now) {
+          ways.add(b.forward);
+          const entering = (b.forward ? b.x : total - b.x) <= move + 1e-6;
+          const came = prev.some((a) => a.forward === b.forward && Math.abs((b.x - a.x) * (b.forward ? 1 : -1) - move) <= 1e-6);
+          expect(entering || came, `pipe ${total} frame ${f}: a blob at ${b.x.toFixed(1)} jumped`).toBe(true);
+        }
+        prev = now;
+      }
+      expect([...ways].sort()).toEqual([false, true]);
+    }
+  });
 });
