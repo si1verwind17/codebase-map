@@ -3,6 +3,12 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 6 — 2026-10-23
+- Tables by naming default (SKILL.md § Stack): each class the Stack section lists as entity-looking with no table takes its table from the ORM's naming default; write those tables and their reads and writes.
+- Framework-implemented interfaces (SKILL.md § Run, the structure pass's lists): a repository's or declarative HTTP client's methods start the `db-read`/`db-write` or `request` relations; a call to a method only the library base supplies starts at the calling method. Move relations written elsewhere onto them.
+- Base paths (SKILL.md § Run, `stack.yaml` `base_paths`): a path prefix only config sets goes into `base_paths` once per deployable folder; route keys, `request` keys and example keys carry it.
+- Route styles (SKILL.md § Stack): each route-looking line with no route gets a route pattern, or a `problems` entry saying why it is none.
+
 ## Rules 5 — 2026-10-21
 - Job triggers (SKILL.md § Deployables, not folders): a job that triggers a job of its own service is a `batch` relation too, from the calling job's method to the target task method, keyed `task <name>`; turn a `problems` entry that records such a trigger into that relation.
 - Generic jobs (SKILL.md § Matching interactions): a job whose tables come from its inputs is one relation per direction with a wildcard key and the concrete tables in `tables`, also when every caller passes literal tables; merge relations written one per table into that one.
