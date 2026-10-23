@@ -1,4 +1,4 @@
-// audit-inputs: bfc2e5620a24d7fce156d9d95c0af44b045a0ee070efa54417d4bf1d392f92c6
+// audit-inputs: c0a1060c81e7d31d72be3e0e6c829a413fbf93ea7fa242b2dd4a96b317cdc39d
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -1478,8 +1478,9 @@ function layoutOnce(model, container, doors, opts) {
 		work(works);
 		const ox = right(works, x0) + GX + 2 + (opts.zoneWiden?.["production line"] ?? 0);
 		const [dw, dh] = FOOT.dock;
-		const perCol = Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
-		const outside = line.filter(([id]) => kindOf(id) === "external").map(([id], i) => put(id, "external", "outside", ox + Math.floor(i / perCol) * (dw + GX), y + i % perCol * (dh + GY)));
+		const ext = line.filter(([id]) => kindOf(id) === "external");
+		const perCol = ext.length >= 6 ? Math.ceil(ext.length / Math.ceil(Math.sqrt(ext.length))) : Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
+		const outside = ext.map(([id], i) => put(id, "external", "outside", ox + Math.floor(i / perCol) * (dw + GX), y + i % perCol * (dh + GY)));
 		y = Math.max(next(zone("production line", works), y), next(zone("outside world", outside), y));
 		const topics = cells("bus").filter(([id]) => kindOf(id) === "topic");
 		const brokers = [...new Set(topics.map(([id]) => id.split(":")[1]))].sort();
@@ -6152,6 +6153,25 @@ function minNameSize(model, container, plan) {
 	const ctx = nameContext(model, container, plan.tf.boxes.values(), model.bundles(container).doors);
 	return Math.min(14, ...[...plan.tf.boxes.values()].map((b) => boxNameFit(model, ctx, b).size));
 }
+/** The outside world (the externals, which wrap near-square from STRIP_MIN of them) laid out as a strip: its long
+*  side holds over twice the items of a near-square grid (20 externals in one row, not 5 × 4). */
+function stripViolations(plan) {
+	const out = [];
+	for (const z of plan.tf.zones) {
+		if (z.name !== "outside world") continue;
+		const inside = [...plan.tf.boxes.values()].filter((b) => b.kind !== "door" && b.x >= z.x && b.y >= z.y && b.x + b.w <= z.x + z.w && b.y + b.h <= z.y + z.h);
+		const side = Math.ceil(Math.sqrt(inside.length));
+		const cols = new Set(inside.map((b) => b.x)).size, rows = new Set(inside.map((b) => b.y)).size;
+		if (inside.length >= 6 && Math.max(cols, rows) > 2 * side) out.push({
+			detail: `${z.name}: ${inside.length} machines in ${cols}×${rows}, a near-square ${side}×${Math.ceil(inside.length / side)} fits`,
+			at: {
+				x: z.x,
+				y: z.y
+			}
+		});
+	}
+	return out;
+}
 /** A floor more than WIDE times as wide (for its height) as the Fit canvas whose names do not read at Fit: Fit is held
 *  back by its width, so a row of it should wrap (row 46: an airfield's hubs in one long row). Small wide floors read
 *  at Fit and pass. */
@@ -6315,6 +6335,7 @@ var ROW = {
 	"flights.hidden": "—",
 	"lost.relation": "40",
 	"floor.wide": "46",
+	"zone.strip": "47",
 	"plan.crashed": "—"
 };
 /** Advisory checks: what they find is a look that is known and kept for now, not a map limit. audit.py lists it in
@@ -6357,7 +6378,8 @@ function checks(model, c, plan, measured) {
 		["flights.in-line", () => inLineViolations(tf, flights())],
 		["flights.hidden", () => hiddenViolations(tf, flights())],
 		["lost.relation", () => lostViolations(model, c, plan)],
-		["floor.wide", () => wideViolations(measured(), plan)]
+		["floor.wide", () => wideViolations(measured(), plan)],
+		["zone.strip", () => stripViolations(plan)]
 	];
 }
 /** What the audit may spend, in boxes: each floor costs its box count plus FLOOR_COST, for the work every floor takes

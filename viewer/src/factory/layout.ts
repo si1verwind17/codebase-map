@@ -63,6 +63,7 @@ const PAD = 1;    // a zone's edge stands one tile off its machines
 const DOOR_GAP = 3;  // tiles between doors in a column, at the least
 const LABEL = 1;  // and keeps one more row at its bottom for its name
 const AIR_MIN = 4;
+export const STRIP_MIN = 6;   // a zone of this many machines or more wraps near-square (audit `zone.strip`)
 const ROWS = new Set(["shelf", "bay", "hubs"]);   // regions laid in one row, wrapped when it grows too long
 const ROW_TILES = 60;   // the 1440 px Fit canvas at full size: a row shorter than it never wraps  // hubs a service's airfield row holds at the least, however narrow its work area
 
@@ -303,10 +304,13 @@ function layoutOnce(model: Model, container: string, doors: Door[], opts: Layout
     const works = grid(line.filter(([id]) => kindOf(id) !== "external"), "line", x0, y, true);
     work(works);
     const ox = right(works, x0) + GX + 2 * PAD + (opts.zoneWiden?.["production line"] ?? 0);   // a wider production line pushes it over
-    // the externals wrap into as many columns as keep the zone no taller than the production line, in order
+    // the externals wrap in order into columns as tall as the production line; from STRIP_MIN of them into a
+    // near-square grid whatever the line's height (20 externals: 5 × 4), never one long row or column
     const [dw, dh] = FOOT.dock;
-    const perCol = Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
-    const outside = line.filter(([id]) => kindOf(id) === "external")
+    const ext = line.filter(([id]) => kindOf(id) === "external");
+    const perCol = ext.length >= STRIP_MIN ? Math.ceil(ext.length / Math.ceil(Math.sqrt(ext.length)))
+      : Math.max(1, Math.floor((bottom(works, y) - y + GY) / (dh + GY)));
+    const outside = ext
       .map(([id], i) => put(id, "external", "outside", ox + Math.floor(i / perCol) * (dw + GX), y + (i % perCol) * (dh + GY)));
     y = Math.max(next(zone("production line", works), y), next(zone("outside world", outside), y));
 

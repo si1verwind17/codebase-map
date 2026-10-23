@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { Model } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { planFloor, type FloorPlan } from "../../src/factory/plan";
-import { measure, wideViolations, type FloorMeasures } from "../../src/audit/floor";
+import { measure, stripViolations, wideViolations, type FloorMeasures } from "../../src/audit/floor";
+import { SITE } from "../../src/model/model";
 
 const IN_PROCESS = new URL("../../guide/maps/in_process.code-map.json", import.meta.url);
 const SVC = "svc:orders";
@@ -55,5 +56,21 @@ describe("long rows wrap", () => {
     expect(wideViolations(m(0.3, 0.6), tf(168, 15))).toEqual([{ detail: "168×15 tiles, 11.2:1: at Fit (0.30) names need 0.60" }]);
     expect(wideViolations(m(0.9, 0.6), tf(43, 8))).toEqual([]);     // wide, but it reads at Fit
     expect(wideViolations(m(0.3, 0.6), tf(80, 60))).toEqual([]);    // too big to read, but not because of its width
+  });
+
+  it("zone.strip: 20 externals beside a short production line wrap near-square (5 × 4), never one long row", () => {
+    const map = JSON.parse(readFileSync(IN_PROCESS, "utf8")) as CodeMap;   // a small site
+    const items = map.layout.containers[SITE].items;
+    for (let i = 0; i < 20; i++) {
+      const id = `ext:http:vendor${i}`;
+      map.nodes.push({ id, kind: "external", name: `vendor${i}` } as CodeMap["nodes"][number]);
+      items[id] = { region: "line", col: 100 + i, row: 0 };
+    }
+    const model = new Model(map), b = model.bundles(SITE), p = planFloor(model, SITE, b.doors, b.bundles, b.layered);
+    const outside = [...p.tf.boxes.values()].filter((x) => x.region === "outside");
+    const cols = new Set(outside.map((x) => x.x)).size, rows = new Set(outside.map((x) => x.y)).size;
+    expect(outside.length).toBeGreaterThanOrEqual(20);
+    expect(Math.max(cols, rows)).toBeLessThanOrEqual(2 * Math.ceil(Math.sqrt(outside.length)));
+    expect(stripViolations(p)).toEqual([]);
   });
 });

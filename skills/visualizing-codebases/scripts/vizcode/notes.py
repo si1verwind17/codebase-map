@@ -8,7 +8,7 @@ from dataclasses import dataclass
 KNOWN_CHECKS = ("lines.failed", "lines.plugged", "lines.trunks", "lines.under", "lines.mid-side", "lines.plate-wall",
                 "lines.lane-drop", "lines.gap-stub", "lines.lane-gap", "text.cut", "text.over-line", "zone.narrow",
                 "pads.corridor", "travel.long", "flights.overlap", "flights.in-line", "flights.hidden", "lost.relation",
-                "floor.wide", "plan.crashed")
+                "floor.wide", "zone.strip", "plan.crashed")
 ACCEPT = re.compile(r"^\s*-\s*accept\b")
 SEPS = ("—", "–", "--", "-")
 

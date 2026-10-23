@@ -9,7 +9,7 @@ import { flightPaths, type FlightPath } from "../factory/flights";
 import type { TileRoute } from "../factory/router";
 import { failedViolations, gapStubViolations, laneDropViolations, laneGapViolations, midSideViolations, plateWallViolations, pluggedViolations, trunkViolations, underViolations } from "./lines";
 import { cutViolations, narrowZoneViolations, overLineViolations } from "./text";
-import { lostViolations, measure, padCorridorViolations, travelViolations, wideViolations, type FloorMeasures } from "./floor";
+import { lostViolations, measure, padCorridorViolations, travelViolations, stripViolations, wideViolations, type FloorMeasures } from "./floor";
 import { hiddenViolations, inLineViolations, overlapViolations } from "./flights";
 import { ADVISORIES, ROW, type CheckId, type CheckResult, type Violation } from "./types";
 
@@ -56,6 +56,7 @@ function checks(model: Model, c: string, plan: FloorPlan, measured: () => FloorM
     ["flights.hidden", () => hiddenViolations(tf, flights())],
     ["lost.relation", () => lostViolations(model, c, plan)],
     ["floor.wide", () => wideViolations(measured(), plan)],
+    ["zone.strip", () => stripViolations(plan)],
   ];
 }
 

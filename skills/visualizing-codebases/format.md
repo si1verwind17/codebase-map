@@ -720,6 +720,7 @@ warnings, Findings, Measured (no threshold yet), Not checked.
 | `flights.hidden` | — | an **advisory**, not a map limit: a flight path runs 8 px or more (a dot and its gap) under the face of a box that is neither its machine's nor its hub's (a machine, hub, store or door, a dock, a waiting stack; not the shadow); paths are drawn under the machines, so that stretch is hidden |
 | `lost.relation` | 40 | a relation that belongs on the floor is in neither the base nor a layer |
 | `floor.wide` | 46 | a floor is more than twice as wide, for its height, as the 1440×900 Fit canvas, and its names do not read at Fit (a row that should wrap) |
+| `zone.strip` | 47 | the outside world (6 externals or more) is a strip: its long side holds over twice the items of a near-square grid |
 
 A floor whose plan throws is one `plan.crashed` limit. What an advisory check
 (`flights.in-line`, `flights.hidden`) finds is a look that is known and kept

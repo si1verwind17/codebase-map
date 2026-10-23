@@ -11,6 +11,7 @@ import { boxNameFit, nameContext } from "../factory/boxname";
 import { coveredKeys, flightPaths } from "../factory/flights";
 import { FLIGHT_SECS, moverSpeed, TRAIN_SECS } from "../floor/lane";
 import { fitZoom } from "../floor/fitscale";
+import { STRIP_MIN } from "../factory/layout";
 import type { Violation } from "./types";
 
 /** The longest a moving item may take over one line, seconds (audit row 25): a train over its rail, a drone over its
@@ -89,6 +90,23 @@ export function minNameSize(model: Model, container: string, plan: FloorPlan): n
 
 /** How much wider than the Fit canvas a floor may be, side to side against its height, before a row is too long. */
 export const WIDE = 2;
+
+/** The outside world (the externals, which wrap near-square from STRIP_MIN of them) laid out as a strip: its long
+ *  side holds over twice the items of a near-square grid (20 externals in one row, not 5 × 4). */
+export function stripViolations(plan: FloorPlan): Violation[] {
+  const out: Violation[] = [];
+  for (const z of plan.tf.zones) {
+    if (z.name !== "outside world") continue;
+    const inside = [...plan.tf.boxes.values()].filter((b) => b.kind !== "door" && b.x >= z.x && b.y >= z.y
+      && b.x + b.w <= z.x + z.w && b.y + b.h <= z.y + z.h);
+    const side = Math.ceil(Math.sqrt(inside.length));
+    const cols = new Set(inside.map((b) => b.x)).size, rows = new Set(inside.map((b) => b.y)).size;
+    if (inside.length >= STRIP_MIN && Math.max(cols, rows) > 2 * side)
+      out.push({ detail: `${z.name}: ${inside.length} machines in ${cols}×${rows}, a near-square ${side}×${Math.ceil(inside.length / side)} fits`,
+                 at: { x: z.x, y: z.y } });
+  }
+  return out;
+}
 
 /** A floor more than WIDE times as wide (for its height) as the Fit canvas whose names do not read at Fit: Fit is held
  *  back by its width, so a row of it should wrap (row 46: an airfield's hubs in one long row). Small wide floors read

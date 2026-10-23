@@ -69,7 +69,7 @@ describe("auditMap on the known maps", () => {
     const site = r.results.filter((x) => x.floor === SITE);
     expect(site.map((x) => x.check)).toEqual(["lines.failed", "lines.plugged", "lines.trunks", "lines.under",
       "lines.mid-side", "lines.plate-wall", "lines.lane-drop", "lines.gap-stub", "lines.lane-gap", "text.cut", "text.over-line", "zone.narrow", "pads.corridor", "travel.long",
-      "flights.overlap", "flights.in-line", "flights.hidden", "lost.relation", "floor.wide"]);
+      "flights.overlap", "flights.in-line", "flights.hidden", "lost.relation", "floor.wide", "zone.strip"]);
     expect(site.find((x) => x.check === "text.over-line")).toMatchObject({ code: "site", row: "7, 8, 45", ok: true });
     for (const x of r.results) if (x.at) expect(Object.keys(x.at).sort()).toEqual(["x", "y"]);
     expect(Object.keys(r.measured)).toContain("site");
@@ -124,13 +124,13 @@ describe("auditMap's budget and crashes", () => {
     expect(worker[0]).toMatchObject({ check: "plan.crashed", ok: false, row: "—" });
     expect(worker[0].detail).not.toContain("\n");
     expect(worker[0].detail.length).toBeGreaterThan(0);
-    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(19);
+    expect(r.results.filter((x) => x.floor === SITE)).toHaveLength(20);
     // every floor was planned: none skipped, and a non-empty floor ordered after the crashed one has all 19 results
     expect(r.skipped).toEqual([]);
     expect(r.checked).toHaveLength(Object.keys(map.layout.containers).length - r.skipped.length);
     const after = r.checked.slice(r.checked.indexOf("svc:worker") + 1).filter((c) => Object.keys(map.layout.containers[c].items ?? {}).length);
     expect(after.length).toBeGreaterThan(0);
-    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(19);
+    for (const c of after) expect(r.results.filter((x) => x.floor === c), c).toHaveLength(20);
   });
 
   it("an empty floor is checked with no results", () => {

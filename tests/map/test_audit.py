@@ -248,7 +248,7 @@ def test_real_node_on_the_demo(tmp_path, capsys):
     assert audit.main([str(repo)]) == 0
     line = capsys.readouterr().out.strip().splitlines()[-1]
     text = (o / "audit.md").read_text()
-    assert "Drawing checks: 19 run on " in text
+    assert "Drawing checks: 20 run on " in text
     # the counts follow the demo's map-notes and the checks; only the shape is pinned here
     assert line.startswith("Map ")
     if line.startswith("Map audit: no limits"):
