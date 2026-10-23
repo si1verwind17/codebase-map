@@ -594,6 +594,41 @@ def _base_paths(st: stack.Stack, results: dict[str, dict]) -> None:
                 route["path"] = stack.normalise(prefix.rstrip("/") + "/" + route["path"].lstrip("/"))
 
 
+def _bodyless_spans(r: dict) -> list[tuple[int, int]]:
+    """The lines of each class whose every method is bodyless (an interface: a declarative client's mappings
+    describe calls out, not routes)."""
+    bodyless = set(r.get("bodyless", []))
+    methods: dict[str, list[str]] = {}
+    for n in r["nodes"]:
+        if n["kind"] == "method":
+            methods.setdefault(n.get("parent") or "", []).append(n["id"])
+    return [(n["line"], n["line"] + n.get("metrics", {}).get("loc", 1) - 1) for n in r["nodes"]
+            if n["kind"] == "class" and methods.get(n["id"]) and set(methods[n["id"]]) <= bodyless]
+
+
+IMPLEMENTED_KINDS = ("sql-db", "doc-db", "http-out", "http")
+
+
+def _implemented(r: dict, sinks: list[dict]) -> list[dict]:
+    """Interfaces a framework implements: in a file importing a database or HTTP client library, a class whose
+    every method is bodyless (a repository, a declarative HTTP client), with its bases and first annotation."""
+    if not any(x["kind"] in IMPLEMENTED_KINDS for x in sinks) or not r.get("bodyless"):
+        return []
+    bodyless = set(r["bodyless"])
+    methods: dict[str, list[dict]] = {}
+    for n in r["nodes"]:
+        if n["kind"] == "method":
+            methods.setdefault(n.get("parent") or "", []).append(n)
+    bases = dict(r.get("supers", []))
+    notes = {}
+    for a in r.get("annotations", []):
+        notes.setdefault(a["node"], a["text"])
+    return [{"class": n["name"], "line": n["line"], "methods": [m["name"] for m in methods[n["id"]]],
+             "bases": bases.get(n["id"], []), "annotation": notes.get(n["id"])}
+            for n in r["nodes"] if n["kind"] == "class" and methods.get(n["id"])
+            and all(m["id"] in bodyless for m in methods[n["id"]])]
+
+
 def _segments(name: str) -> list[str]:
     return [x for x in re.split(r"::|[./\\]", name) if x]
 
@@ -803,7 +838,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
                 r["routes"] += _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names)
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
-                    r["route_like"] = stack.route_like(decode(data), lang)
+                    r["route_like"] = [x for x in stack.route_like(decode(data), lang)
+                                       if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
                 r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
                 r["untabled"] = stack.entities_without_table(r, any(
                     h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
@@ -908,6 +944,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                          "workflows": r.get("workflows", []), "reference_tasks": r.get("reference_tasks", [])}
         if r["mounts"]:   # likewise for mount entries
             file_facts[f]["mounts"] = r["mounts"]
+        if implemented := _implemented(r, sinks):
+            file_facts[f]["implemented"] = implemented
         if r["tables"]:   # the key appears only where a table pattern matched
             file_facts[f]["tables"] = r["tables"]
         if queues := queue_use.handled(r.get("queues", []), r["imports"], internal.get(lang, set()), lang):
@@ -1081,6 +1119,7 @@ def summary_md(s: dict) -> str:
         files = [f for f, i in s["files"].items() if i["module"] == m["id"]]
         lines.append(f"## {m['id']} ({m['lang']}, {m['build']}, {len(files)} files)")
         routes_, clients, sinks, reads, writes, urls, envs = [], [], set(), set(), set(), set(), set()
+        implemented: list[str] = []
         tables, queues = [], []
         grpc_ends: dict[tuple[str, str], list[str]] = {}
         dags, wfs, refs, mounts = [], [], [], []
@@ -1100,6 +1139,10 @@ def summary_md(s: dict) -> str:
             urls |= {u["url"] for u in ff["urls"]}
             envs |= {e["key"] for e in ff["env_keys"]}
             clients += [f"{c['method']} {c['path']} ← {c['in']} ({f}:{c['line']})" for c in ff.get("clients", [])]
+            implemented += [" ".join([i["class"]] + ([f"extends {', '.join(i['bases'])}"] if i["bases"] else [])
+                                     + ([i["annotation"]] if i["annotation"] else [])
+                                     + [f"[{', '.join(i['methods'])}]", f"({f}:{i['line']})"])
+                            for i in ff.get("implemented", [])]
             for g in ff.get("grpc", []):
                 grpc_ends.setdefault((g["side"], _service_keys(g)), []).append(f"{g['in']} ({f}:{g['line']})")
             for d in ff.get("dags", []):
@@ -1118,6 +1161,7 @@ def summary_md(s: dict) -> str:
         grpc_c = [f"{svc} ← {', '.join(at)}" for (side, svc), at in grpc_ends.items() if side == "client"]
         uses = [r["to"] for r in s["relations"] if r["from"] == m["id"]]
         for label, vals in (("uses-code", uses), ("routes", routes_), ("mounts", mounts), ("http clients", clients),
+                            ("framework-implemented interfaces", sorted(implemented)),
                             ("grpc servers", grpc_s), ("grpc clients", grpc_c), ("dags", dags),
                             ("flyte workflows", wfs), ("reference tasks", refs), ("sinks", sorted(sinks)),
                             ("sql reads", sorted(reads)), ("sql writes", sorted(writes)),

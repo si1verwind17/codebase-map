@@ -19,6 +19,7 @@ tapir     {"vals": {qualname: {...}}, "bodies": [(method_id, line, body_text)], 
            "mentions"?: [dotted names] in a file importing an sttp client,
            "consts"?: {name: text} the file's string constants, for a path segment written as one}  (Scala only)
 supers    [(class_id, [type name as written])]  what a class extends or an anonymous body implements (Scala, generic)
+bodyless? [method_id]  methods declared without a body (an interface's, an abstract one) (generic)
 bases     [(class_id, [base as written])]  a class's bases (Python only; gRPC servicers and `implements`)
 dags      [{framework, id, schedule, tasks, node, line}]  Airflow DAGs: `@dag` functions, `with DAG(...)` blocks (Python)
 workflows [{framework, id, node, line, launch_plans: [{name, schedule, line}]}]  Flyte workflows (Python)

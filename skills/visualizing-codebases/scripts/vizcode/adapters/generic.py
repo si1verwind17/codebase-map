@@ -14,6 +14,8 @@ from .langs import LangSpec
 
 QUOTED = re.compile(r'^([@$A-Za-z]{0,3}#*)("""|"|\'|`)(.*)\2(#*)$', re.S)     # Rust r#"..."#
 TURBOFISH = re.compile(r"::(?=\(|$)")      # `parse::<u32>()` once its type arguments are cut
+BODIES = {"block", "function_body", "constructor_body", "compound_statement", "expression_body",
+          "arrow_expression_clause", "statement_block"}   # the node types a function's body may have
 Import = tuple       # target, names, relative, the node giving the line[, the local name of the whole import
                      # [, {local name: imported name} of the names it renames]]
 _PARSERS: dict[str, object] = {}
@@ -560,6 +562,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         parent["metrics"]["methods"] += 1
         if spec.self_name and (own := _path(fn, spec.self_name)) is not None:
             selves[fid] = text(own)
+        if fn.child_by_field_name("body") is None and not any(c.type in BODIES for c in fn.named_children):
+            res.setdefault("bodyless", []).append(fid)   # an interface's or abstract method: no code of its own
         return fid
 
     def bound(n):

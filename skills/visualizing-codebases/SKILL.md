@@ -313,7 +313,13 @@ prefixes of mounts it could not join, which you compose onto them yourself; a pr
 sets, such as a servlet context path or a URI version, goes into `stack.yaml` `base_paths`
 once per deployable folder, citing the config line in the report), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
 lists tapir client endpoints as `http clients` (method + path: match them to
-routes like a URL), the gRPC services and rpcs of every `.proto` file as keys
+routes like a URL), framework-implemented interfaces (a repository or a
+declarative HTTP client: every method bodyless, in a file importing a database or
+HTTP client library) with their bases, annotation and methods: each method is
+where a `db-read`/`db-write` (the table from the entity type the base names) or a
+`request` (the path from the method's annotation) starts, and a call to a method
+only the library base supplies (`repo.save`, `findAll`) has no node, so that
+relation starts at the calling method, the gRPC services and rpcs of every `.proto` file as keys
 `grpc <package>.<Service>/<Rpc>` (each once, with every `.proto` that declares it)
 with the client and server ends tied to them, named as protoc's gRPC plugin names
 generated code in Python, Java, Kotlin, Scala, Go, C# and JavaScript/TypeScript

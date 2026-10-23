@@ -118,3 +118,42 @@ def test_a_handler_imported_from_outside_the_repo_is_not_found_in_another_servic
              "b/handlers/health.go": "package handlers\n\nfunc Health() {}\n"}
     s = structure.build(make_repo(files))
     assert [r["handler"].split("::")[0] for r in s["facts"]["a/main.go"]["routes"]] == ["a"]
+
+
+def test_interfaces_a_framework_implements_are_listed(make_repo):
+    """A declarative HTTP client or a repository interface (every method bodyless) in a file importing an HTTP
+    client or database library is listed in summary.md with its annotation, bases and methods: its methods are
+    where a request or a table access starts."""
+    files = {"pom.xml": "<project/>\n",
+             "src/main/java/a/StatsClient.java":
+                 "package a;\n\nimport org.springframework.cloud.openfeign.FeignClient;\n\n"
+                 "@FeignClient(name = \"statistics-service\")\npublic interface StatsClient {\n"
+                 "    @PutMapping(\"/statistics/{name}\")\n    void update(String name, Account account);\n}\n",
+             "src/main/java/a/AccountRepository.java":
+                 "package a;\n\nimport org.springframework.data.mongodb.repository.MongoRepository;\n\n"
+                 "public interface AccountRepository extends MongoRepository<Account, String> {\n"
+                 "    Account findByName(String name);\n}\n",
+             "src/main/java/a/Account.java": "package a;\n\npublic class Account {\n    void touch() {}\n}\n"}
+    s = structure.build(make_repo(files))
+    got = {f: ff.get("implemented") for f, ff in s["facts"].items() if ff.get("implemented")}
+    assert got == {
+        "src/main/java/a/StatsClient.java": [{"class": "StatsClient", "line": 5, "methods": ["update"], "bases": [],
+                                              "annotation": '@FeignClient(name = "statistics-service")'}],
+        "src/main/java/a/AccountRepository.java": [{"class": "AccountRepository", "line": 5, "methods": ["findByName"],
+                                                    "bases": ["MongoRepository"], "annotation": None}]}
+    md = structure.summary_md(s)
+    assert "- **framework-implemented interfaces:** AccountRepository extends MongoRepository [findByName] " \
+           "(src/main/java/a/AccountRepository.java:5); " \
+           'StatsClient @FeignClient(name = "statistics-service") [update] (src/main/java/a/StatsClient.java:5)' in md
+
+
+def test_a_declarative_client_s_mappings_are_no_route_looking_lines(make_repo):
+    """`@PostMapping("/payments")` on a `@FeignClient` interface's method is a call out, not a route missed."""
+    files = {"pom.xml": "<project/>\n",
+             "src/main/java/a/PaymentsClient.java":
+                 "package a;\n\nimport org.springframework.cloud.openfeign.FeignClient;\n"
+                 "import org.springframework.web.bind.annotation.PostMapping;\n\n"
+                 "@FeignClient(name = \"payments\", url = \"${payments.url}\")\npublic interface PaymentsClient {\n"
+                 "    @PostMapping(\"/payments\")\n    Receipt charge(Charge c);\n}\n"}
+    s = structure.build(make_repo(files))
+    assert s["stack"]["routes_unmatched"] == []
