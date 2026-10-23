@@ -157,3 +157,13 @@ def test_a_declarative_client_s_mappings_are_no_route_looking_lines(make_repo):
                  "    @PostMapping(\"/payments\")\n    Receipt charge(Charge c);\n}\n"}
     s = structure.build(make_repo(files))
     assert s["stack"]["routes_unmatched"] == []
+
+
+def test_a_queue_created_outside_any_method_sits_in_its_file_node():
+    """A queue made in a class field or at file level: its site is the file's node, never the placeholder (a NUL
+    byte in summary.md made the file read as binary)."""
+    from vizcode import ids
+    r = {"nodes": [], "package": "src", "routes": [], "tables": [],
+         "queues": [{"line": 3, "in": structure.NEW_FILE_NODE, "delivery": "fan-out"}]}
+    structure._file_node(r, "src/bus.ts", "mod:.", "typescript", 10, ids.IdRegistry())
+    assert r["queues"][0]["in"] == r["nodes"][0]["id"] and "\0" not in r["queues"][0]["in"]

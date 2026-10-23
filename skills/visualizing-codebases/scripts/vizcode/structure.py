@@ -355,10 +355,11 @@ def _file_id(r: dict, module: dict, lang: str) -> str:
 
 
 def _file_node(r: dict, f: str, module_id: str, lang: str, loc: int, reg: ids.IdRegistry) -> None:
-    """Create the file node of a generic-walker file whose route handler or table site is the file itself (an
+    """Create the file node of a generic-walker file whose route handler, table or queue site is the file itself (an
     inline function, a file of no functions), as the walker creates it on a top-level function. Runs after
     _resolve_handlers: a route whose handler name resolves needs none."""
-    facts = [x for x in (*r["routes"], *r["tables"]) if NEW_FILE_NODE in (x.get("handler"), x.get("in"))]
+    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []))
+             if NEW_FILE_NODE in (x.get("handler"), x.get("in"))]
     if not facts:
         return
     pid, name = ids.package_id(module_id, r["package"]), Path(f).name
