@@ -232,6 +232,11 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> Non
             nth = seen[(f, c["line"], name)] = seen.get((f, c["line"], name), -1) + 1
             text = _args(lines[f], c["line"], name, nth)
             first = _first_arg(text)   # the address is the first argument, or a `url:` key of an options object
+            lead = next((x for x in sm.groups() if x is not None), "") if (sm := STRING.fullmatch(first)) else ""
+            lead = lead.upper() if lead.lower() in VERBS else None
+            if lead:   # `request("POST", "/x")`: the method comes first
+                text = text[text.index(first) + len(first):].lstrip(" ,\n\t")
+                first = _first_arg(text)
             keyed = KEYED.search(first) if first.startswith("{") else None
             lit = keyed.group(1)[1:-1] if keyed else next((x for g in STRING.finditer(first) for x in g.groups()
                                                             if x is not None), None)
@@ -239,7 +244,7 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> Non
             if path is None or (how == "weak" and "/" not in lit):
                 continue   # a value only named like a client needs a path that reads as one
             method_key = METHOD_KEY.search(text)
-            verb = (method_key.group(1).upper() if method_key else None) or (w["verb"] if w else None) \
+            verb = lead or (method_key.group(1).upper() if method_key else None) or (w["verb"] if w else None) \
                 or verb_of(name) or ("GET" if name in ("fetch", "$fetch", "ofetch") else "ANY")
             results[f].setdefault("clients", []).append(
                 {"method": verb, "path": path, "in": mid, "line": c["line"],

@@ -167,6 +167,14 @@ def test_a_wrapper_from_another_python_module_or_the_same_java_package(make_repo
     assert clients(s, "src/main/java/p/Use.java") == [("GET", "/j", "p.Use#go/0")]
 
 
+def test_a_method_passed_first_is_the_method_not_the_path(make_repo):
+    files = {"a/__init__.py": "", "a/api.py": "import requests\n\n\ndef call(method, url):\n"
+                                                "    return requests.request(method, url)\n",
+             "a/use.py": "from a.api import call\n\n\ndef run():\n    return call('POST', '/jobs')\n"}
+    s = structure.build(make_repo(files))
+    assert clients(s, "a/use.py") == [("POST", "/jobs", "a.use#run/0")]
+
+
 def test_a_route_handler_beside_a_plain_module_import(make_repo):
     """`import x` records no names: finding where a pattern's handler name comes from must not trip over it."""
     files = {"app/__init__.py": "", "app/views.py": "def ping():\n    return 'ok'\n",
