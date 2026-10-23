@@ -35,7 +35,7 @@ splats        argument node types (or their child) that hide the count of a call
 interpolations string child node types read as {..}
 interpolation_marks  string child node types that only delimit an interpolation (dropped)
 types         node types writing a parameter's type, for grammars without a `type` field
-supers        keys under a class whose children name what it extends or implements
+supers        keys under a class whose children name what it extends or implements (`parent/child`: a child's)
 bindings      declarator node type -> (name key, value key, value node types): a name bound to a function value
               (`const f = () => ...`) is a function named after it; other values are not
 file_qualified  class ids start with the file stem (`<pkg>.<stem>.<Name>`): a folder package may hold two
@@ -377,7 +377,8 @@ PHP = LangSpec(
     interpolations=("variable_name", "member_access_expression", "subscript_expression", "dynamic_variable_name",
                     "member_call_expression"),
     interpolation_marks=("{", "}"),
-    supers=("base_clause", "class_interface_clause"),
+    supers=("base_clause", "class_interface_clause", "body/use_declaration"),
+    not_supers=("use_list",),   # `use T { a as b; }`: the renames name methods
     names=("name",),
     type_names=("name", "qualified_name"),
     bare_strings=("heredoc_body", "nowdoc_body"),

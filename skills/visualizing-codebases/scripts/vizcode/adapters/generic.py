@@ -331,10 +331,13 @@ def _without(src: bytes, node, skip: tuple[str, ...], start: int | None = None, 
 
 
 def _supers(src: bytes, cls, spec: LangSpec) -> list[str]:
-    """Type names a class extends or implements, as written, without type arguments."""
+    """Type names a class extends or implements, as written, without type arguments. A `parent/child` key names
+    children of a child (PHP `body/use_declaration`: the traits a class uses)."""
     out = []
     for key in spec.supers:
-        stack = list(reversed(_children(cls, key)))
+        outer, _, inner = key.rpartition("/")
+        found = [g for c in _children(cls, outer) for g in _children(c, inner)] if outer else _children(cls, key)
+        stack = list(reversed(found))
         while stack:
             n = stack.pop()
             if n.type in spec.not_supers or n.type in spec.type_args:

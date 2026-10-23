@@ -80,7 +80,7 @@ def test_php_nodes():
     assert n[f"{CTRL}#show/2"]["signature"] == {
         "params": [{"name": "id", "type": "string"}, {"name": "full", "type": None}], "returns": "?Order"}
     assert n[f"{P}.HasRoutes#routes/0"]["signature"]["returns"] == "array"
-    assert res["supers"] == [(CTRL, ["Controller", "HasRoutes", "\\Psr\\Log\\LoggerAware"])]
+    assert res["supers"] == [(CTRL, ["Controller", "HasRoutes", "\\Psr\\Log\\LoggerAware", "Traits\\Logs"])]
 
 
 def test_php_facts():
@@ -138,3 +138,9 @@ def test_php_end_to_end(make_repo):
     f = "web/src/Http/OrdersController.php"
     assert s["files"][f]["lang"] == "php"
     assert [e["key"] for e in s["facts"][f]["env_keys"]] == ["API_KEY", "DB_URL", "APP_KEY"]
+
+
+def test_php_traits_a_class_uses_are_supers():
+    res = parse("<?php\nnamespace App;\n\nclass A extends B {\n    use Logs, \\App\\Concerns\\Audits;\n"
+                "    use Caches { get as cached; }\n    function f() {}\n}\n")
+    assert res["supers"] == [("web::App.A", ["B", "Logs", "\\App\\Concerns\\Audits", "Caches"])]
