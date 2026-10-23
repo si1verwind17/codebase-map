@@ -125,11 +125,12 @@ def test_jpa_needs_its_import(make_repo):
 
 def test_ktor_routes_mounts_tables(ktor_repo):
     s = structure.build(ktor_repo, "docs/viz-code")
-    module = ".::io.demo.orders/Application.kt#module/0"
+    # each inline handler block is a node of its own, named after its route
+    module = ".::io.demo.orders/Application.kt#module"
     assert routes(s, APP) == [
-        ("GET", "/v1/orders/{id}", module, 12, "ktor", "pack"),
-        ("POST", "/v1/orders", module, 15, "ktor", "pack"),
-        ("GET", "/health", module, 19, "ktor", "pack")]
+        ("GET", "/v1/orders/{id}", f"{module}.get_v1_orders_id/0", 12, "ktor", "pack"),
+        ("POST", "/v1/orders", f"{module}.post_v1_orders/0", 15, "ktor", "pack"),
+        ("GET", "/health", f"{module}.get_health/0", 19, "ktor", "pack")]
     assert [(m["path"], m["line"], m["framework"]) for m in s["facts"][APP]["mounts"]] == [("/v1", 11, "ktor-route")]
     orders = "src/main/kotlin/io/demo/orders/Orders.kt"
     assert tables(s, orders) == [("orders", 7, ".::io.demo.orders.Orders", "defined", "exposed")]

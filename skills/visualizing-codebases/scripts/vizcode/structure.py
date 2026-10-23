@@ -473,6 +473,22 @@ def _qualified(r: dict, cls: str) -> str:
     return cls
 
 
+def _route_lambda(r: dict, route: dict) -> dict | None:
+    """The inline function a route registers inside its enclosing method (`r.Get("/x", func(..) {..})`, Ktor
+    `get("/x") { .. }`): the outermost lambda of that method starting on the route's line, as a
+    nested record named after the route (`get_ping`); None when there is none."""
+    here = [x for x in r.get("lambdas", []) if x["in"] == route["handler"]
+            and x["start"] == route["line"] and not x.get("node")]
+    if not here:
+        return None
+    lam = min(here, key=lambda x: (x["start"], -x["end"]))
+    words = [w for w in re.split(r"[^A-Za-z0-9]+", route["path"]) if w]
+    lam.update(name="_".join([route["method"].lower(), *words]) or route["method"].lower(), line=lam["start"],
+               params=[])
+    r.setdefault("nested", []).append(lam)
+    return lam
+
+
 def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
     """Make a nested function a method node of its enclosing function's owner, `<owner>#<outer>.<name>/<arity>`,
     and move the calls, strings, tables and queues inside it from the enclosing function to it."""
@@ -551,6 +567,8 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                 below = [x for x in nested if x["start"] <= route["line"] <= x["line"]]
                 if len(below) == 1:
                     route["handler"] = below[0].get("node") or _nested_node(r, below[0], reg)
+                elif lam := _route_lambda(r, route):
+                    route["handler"] = _nested_node(r, lam, reg)
                 continue
             parts = re.split(r"\.|::", name)
             cands = methods.get((file_mod[f], parts[-1]), [])

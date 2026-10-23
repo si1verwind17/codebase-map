@@ -37,6 +37,7 @@ interpolation_marks  string child node types that only delimit an interpolation 
 types         node types writing a parameter's type, for grammars without a `type` field
 supers        keys under a class whose children name what it extends or implements (`parent/child`: a child's)
 bindings      declarator node type -> (name key, value key, value node types): a name bound to a function value
+lambdas       anonymous function node types: an inline route handler inside a function gets a node of its own
               (`const f = () => ...`) is a function named after it; other values are not
 file_qualified  class ids start with the file stem (`<pkg>.<stem>.<Name>`): a folder package may hold two
               files defining one name
@@ -137,6 +138,7 @@ class LangSpec:
     class_when: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     class_params: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
+    lambdas: tuple[str, ...] = ()
     value_classes: tuple[str, ...] = ()
     class_inits: dict[str, str] = field(default_factory=dict)
     test_only: str = ""
@@ -165,6 +167,7 @@ JAVA = LangSpec(
            "boolean_type", "array_type"),
     supers=("superclass", "interfaces", "extends_interfaces"),
     value_classes=("record", "enum"),
+    lambdas=("lambda_expression",),
 )
 
 KOTLIN_TYPES = ("user_type", "nullable_type", "function_type")
@@ -193,6 +196,7 @@ KOTLIN = LangSpec(
     supers=("delegation_specifier",),
     class_params=(("primary_constructor",), ("class_parameter",)),
     value_classes=("data", "value", "enum", "annotation"),
+    lambdas=("lambda_literal",),
 )
 
 CSHARP = LangSpec(
@@ -222,6 +226,7 @@ CSHARP = LangSpec(
     class_inits={"constructor_declaration": "static"},
     public_in=("interface_declaration",),
     member_access=r"\b(public|internal|protected|private)\b",
+    lambdas=("lambda_expression", "anonymous_method_expression"),
 )
 
 JS_NAMES = ("identifier", "shorthand_property_identifier_pattern", "property_identifier")
@@ -257,6 +262,7 @@ TYPESCRIPT = LangSpec(
     names_extend=False,
     class_when={"type_alias_declaration": ("value", ("object_type",))},
     aliases={"type_alias_declaration": "name"},
+    lambdas=("arrow_function", "function_expression"),
 )
 TSX = replace(TYPESCRIPT, grammar="tsx", suffixes=(".tsx",))
 # single-file components: their `<script>` blocks, read as TypeScript (structure blanks the rest with
@@ -302,6 +308,7 @@ GO = LangSpec(
     declared_package=("package_clause",),
     upper_exported=True,
     self_name=("receiver", "parameter_declaration", "name"),
+    lambdas=("func_literal",),
 )
 
 RUST = LangSpec(
@@ -329,6 +336,7 @@ RUST = LangSpec(
     attach_unwrap=("reference_type",),
     attach_params="type_parameters",
     public_in=("trait_item", "impl_item/trait"),
+    lambdas=("closure_expression",),
 )
 
 RUBY = LangSpec(
@@ -355,6 +363,7 @@ RUBY = LangSpec(
     type_names=("constant", "scope_resolution"),
     bare_strings=("heredoc_body",),
     sections={"private": "private", "protected": "private", "public": "public"},
+    lambdas=("block", "do_block"),
 )
 
 PHP = LangSpec(
@@ -387,6 +396,7 @@ PHP = LangSpec(
     names=("name",),
     type_names=("name", "qualified_name"),
     bare_strings=("heredoc_body", "nowdoc_body"),
+    lambdas=("anonymous_function", "arrow_function", "anonymous_function_creation_expression"),
 )
 
 ALL: tuple[LangSpec, ...] = (JAVA, KOTLIN, CSHARP, TYPESCRIPT, TSX, JAVASCRIPT, GO, RUST, RUBY, PHP, SFC)

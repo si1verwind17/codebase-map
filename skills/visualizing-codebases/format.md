@@ -254,8 +254,8 @@ Examples).
 
 `files` maps each scanned path to `{lang, module, node, parse_error}` and,
 for a file with routes, `routes: [{method, path, handler, line}]`: the route
-facts of `structure.json` whose handler is a node id (a method, or the file
-for inline and Rails routes), paths as written in code with the prefixes of the mounts the scanner joins
+facts of `structure.json` whose handler is a node id (a method, an inline handler's own node named after
+its route, or the file for a top-level inline handler and Rails routes), paths as written in code with the prefixes of the mounts the scanner joins
 (`mounts` facts with `composed`), no other mount prefix.
 
 ## Layout

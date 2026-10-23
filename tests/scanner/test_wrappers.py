@@ -48,3 +48,22 @@ def test_a_direct_client_call_with_a_path(make_repo):
     s = structure.build(make_repo(files))
     assert clients(s, "src/main/kotlin/app/Api.kt") == [("GET", "/sessions", "app.Api#sessions/0"),
                                                          ("GET", "/{year}/votes", "app.Api#votes/1")]
+
+
+def test_an_inline_route_handler_is_a_node_of_its_own(make_repo):
+    """`r.Get("/x", func(w, r) {..})` and Ktor's `get("/x") { .. }` inside the function that registers them: each
+    route's lambda is its own handler node, its calls its own, so traces do not mix the routes."""
+    files = {
+        "go.mod": "module example.com/app\n",
+        "rest.go": "package rest\n\nimport \"github.com/go-chi/chi/v5\"\n\nfunc routes(r chi.Router) {\n"
+                   "\tr.Get(\"/ping\", func(w http.ResponseWriter, req *http.Request) {\n\t\tpong(w)\n\t})\n"
+                   "\tr.Post(\"/save\", func(w http.ResponseWriter, req *http.Request) {\n\t\tstore(req)\n\t})\n}\n\n"
+                   "func pong(w http.ResponseWriter) {}\n\nfunc store(r *http.Request) {}\n"}
+    s = structure.build(make_repo(files))
+    rs = s["facts"]["rest.go"]["routes"]
+    handlers = {r["path"]: r["handler"] for r in rs}
+    assert handlers["/ping"] != handlers["/save"] and not handlers["/ping"].endswith("#routes/1")
+    names = {n["id"]: n["name"] for n in s["nodes"]}
+    assert (names[handlers["/ping"]], names[handlers["/save"]]) == ("get_ping", "post_save")
+    calls = {c["callee"]: c["in"] for c in s["facts"]["rest.go"]["calls"]}
+    assert calls["pong"] == handlers["/ping"] and calls["store"] == handlers["/save"]

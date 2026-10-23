@@ -39,12 +39,12 @@ def found_tables(lang, src, imports):
 def test_go_routes(go_repo):
     s = structure.build(go_repo, "docs/viz-code")
     main = ".::cmd/server/main.go"
-    # `h.GetOrder` resolves by its last segment; an inline func keeps the function around the call; a handler
-    # wrapped in a call (`http.HandlerFunc(metrics)`) is the wrapped name
+    # `h.GetOrder` resolves by its last segment; an inline func is a node of its own, named after its route; a
+    # handler wrapped in a call (`http.HandlerFunc(metrics)`) is the wrapped name
     assert routes(s, "cmd/server/main.go") == [
         ("GET", "/orders/{id}", f"{GO_ORDERS}#GetOrder/2", 13, "net-http", "pack"),
         ("POST", "/orders", f"{GO_ORDERS}#CreateOrder/2", 14, "net-http", "pack"),
-        ("ANY", "/healthz", f"{main}#main/0", 15, "net-http", "pack"),
+        ("ANY", "/healthz", f"{main}#main.any_healthz/0", 15, "net-http", "pack"),
         ("ANY", "/metrics", f"{main}#metrics/2", 16, "net-http", "pack")]
     for f in ("internal/orders/handler.go", "internal/pricing/client.go"):
         assert routes(s, f) == [], f
