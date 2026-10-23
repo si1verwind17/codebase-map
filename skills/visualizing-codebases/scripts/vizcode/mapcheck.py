@@ -218,10 +218,13 @@ def stats(cmap: dict) -> dict:
 
 
 EXT_SUFFIXES = ("_URL", "_URI", "_HOST", "_ENDPOINT", "_TOKEN", "_API_KEY")
+CREDENTIAL_SUFFIXES = ("_TOKEN", "_API_KEY")
 # words of a config key that say what kind of address it is, not whose: `ORDER_SERVICE_URL` names `order`
 ROLE_WORDS = {"api", "service", "svc", "callback", "base", "endpoint", "server", "client", "ws", "wss", "http",
               "https", "grpc", "internal", "public", "rest", "webhook", "host", "url", "uri"}
 WORD = re.compile(r"[a-z0-9]+")
+# words of a credential key that say which credential it is, not whose: `DROPBOX_REFRESH_TOKEN` names `dropbox`
+CREDENTIAL_WORDS = {"access", "refresh", "secret", "client", "app", "private", "auth", "bearer", "id"}
 ENV_LINE = re.compile(r"^- \*\*env keys:\*\* (.*)$", re.M)   # as structure.summary_md writes it
 QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
 QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
@@ -331,9 +334,12 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
         named = " ".join([f"{n['id']} {n.get('name', '')}" for n in nodes.values()]
                          + [r.get("key", "") or "" for r in cmap.get("relations", [])]
                          + [p.get("text", "") for p in cmap.get("problems", [])]).lower()
-        owners = {n.get("name", "").lower() for n in nodes.values()
-                  if n["kind"] in ("service", "external") and n.get("name")}
+        outside = [n for n in nodes.values() if n["kind"] in ("service", "external")]
+        owners = {n.get("name", "").lower() for n in outside if n.get("name")}
         owner_words = [set(WORD.findall(o)) - ROLE_WORDS for o in owners]
+        # names run together, so `Last.fm` and `3p:lastfm` both read `lastfm`
+        compact = {"".join(WORD.findall(x)) for n in outside
+                   for x in (n.get("name", "").lower(), n["id"].split(":")[-1].lower())} - {""}
         seen: set[str] = set()
         for m in ENV_LINE.finditer(summary_md):
             for key in (k.strip() for k in m.group(1).split(";")):
@@ -343,8 +349,11 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
                 seen.add(key)
                 stem = key[:-len(suffix)].lower()
                 words = [w for w in WORD.findall(stem) if w not in ROLE_WORDS]
+                if suffix in CREDENTIAL_SUFFIXES:
+                    words = [w for w in words if w not in CREDENTIAL_WORDS]
                 if stem and key.lower() not in named and stem.replace("_", "-") not in owners \
-                        and stem not in owners and not (words and any(set(words) <= ow for ow in owner_words)):
+                        and stem not in owners and not (words and any(set(words) <= ow for ow in owner_words)) \
+                        and not (words and "".join(words) in compact):
                     out.append({"id": "ext.missing", "node": None,
                                 "detail": f"config key {key} looks like an outside endpoint but nothing in the map names {key}"})
         out += _queues_missing(cmap, summary_md)

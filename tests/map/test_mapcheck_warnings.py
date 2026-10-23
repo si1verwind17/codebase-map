@@ -78,6 +78,17 @@ def test_ext_missing_accounted_for():
     assert got == ["NOWHERE_TOKEN"]
 
 
+def test_ext_missing_a_credential_of_an_external_on_the_map():
+    """A vendor's credential key names the vendor however its name is spelled (`Last.fm`, `3p:lastfm`) and with
+    words that say which credential it is (`REFRESH`)."""
+    m = copy.deepcopy(DEMO)
+    m["nodes"] += [{"id": "3p:lastfm", "kind": "external", "name": "Last.fm"},
+                   {"id": "3p:dropbox", "kind": "external", "name": "Dropbox"}]
+    s = "- **env keys:** LASTFM_API_KEY; DROPBOX_REFRESH_TOKEN; DROPBOX_APP_SECRET_TOKEN; SPOTIFY_CLIENT_TOKEN\n"
+    got = [w["detail"].split()[2] for w in mapcheck.warnings(m, s) if w["id"] == "ext.missing"]
+    assert got == ["SPOTIFY_CLIENT_TOKEN"]
+
+
 from examples_fixture import CONSUME, CREATE, cmap as small_map  # noqa: E402
 
 
