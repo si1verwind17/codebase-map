@@ -261,3 +261,16 @@ def test_nest_library_module_is_not_a_server(make_repo):
     assert sinks(s, "libs/core/src/clock.service.ts") == []
     assert s["stack"]["servers_without_routes"] == [] and s["stack"]["unrecognised"] == []
     assert "Server libraries without routes" not in structure.summary_md(s)
+
+
+def test_a_constant_route_prefix_or_path_keeps_its_routes_with_a_named_segment(make_repo):
+    """`@Controller(RouteKey.Asset)`: the routes stay, the constant written as a named segment `{Asset}` for the
+    agent to resolve, never dropped."""
+    from vizcode import structure
+    files = {"package.json": '{"name": "srv"}\n',
+             "src/a.controller.ts": "import { Controller, Get } from '@nestjs/common';\n\n"
+                                    "@Controller(RouteKey.Asset)\nexport class AssetController {\n"
+                                    "  @Get(':id')\n  get() { return 1; }\n  @Get(Paths.Stats)\n  stats() { return 2; }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(r["method"], r["path"]) for r in s["facts"]["src/a.controller.ts"]["routes"]] == [
+        ("GET", "/{Asset}/{id}"), ("GET", "/{Asset}/{Stats}")]

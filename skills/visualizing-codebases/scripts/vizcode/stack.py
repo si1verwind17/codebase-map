@@ -1071,13 +1071,16 @@ def parse_annotation(text: str) -> tuple[str, list[list[str]], dict[str, list[st
 
 
 def _arg_paths(parsed: Parsed, path_args: tuple[str | int, ...]) -> list[str] | None:
-    """The paths of the first path argument present (an empty array: [""]); [""] when none is; None when that
-    argument is not made of string literals."""
+    """The paths of the first path argument present (an empty array: [""]); [""] when none is. A constant
+    (`RouteKey.Asset`) is a named segment `{Asset}` for the agent to resolve, so its routes stay; None when that
+    argument is any other expression."""
     _, positional, named = parsed
     for a in path_args:
         elems = named.get(a) if isinstance(a, str) else (positional[a] if a < len(positional) else None)
         if elems is not None:
-            return [v for _, v in elems] or [""] if all(k == "str" for k, _ in elems) else None
+            if not all(k in ("str", "name") for k, _ in elems):
+                return None
+            return [v if k == "str" else "{" + v + "}" for k, v in elems] or [""]
     return [""]
 
 
@@ -1091,7 +1094,8 @@ def _alternatives(items: list[tuple[Parsed, int]], path_args: tuple[str | int, .
 
 def annotated_routes(pat: AnnotatedPattern, annotations: list[dict], nodes: list[dict]) -> list[dict]:
     """Route facts of one annotated pattern over a file's recorded annotations and nodes: one per method verb
-    annotation x class prefix x verb path x method path; a non-literal prefix or path gives none. A verb or method
+    annotation x class prefix x verb path x method path; a prefix or path that is no literal or constant gives
+    none. A verb or method
     path starting with one of the pattern's `absolute` starts drops the class prefix (the start itself is dropped).
     A class carrying one of the pattern's `skip_class` annotations (an HTTP client interface) gives none."""
     by_id = {n["id"]: n for n in nodes}

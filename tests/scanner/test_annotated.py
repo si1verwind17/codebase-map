@@ -127,6 +127,7 @@ def test_spring_exact_routes(make_repo):
         ("PUT", "/orders/m", f"{CTRL}#viaArg/0", 14), ("PATCH", "/orders/m", f"{CTRL}#viaArg/0", 14),
         ("PUT", "/v1/orders/m", f"{CTRL}#viaArg/0", 14), ("PATCH", "/v1/orders/m", f"{CTRL}#viaArg/0", 14),
         ("ANY", "/orders/any", f"{CTRL}#any/0", 16), ("ANY", "/v1/orders/any", f"{CTRL}#any/0", 16),
+        ("GET", "/orders/{PATH}", f"{CTRL}#constant/0", 18), ("GET", "/v1/orders/{PATH}", f"{CTRL}#constant/0", 18),
         ("DELETE", "/orders/{id}", f"{CTRL}#remove/0", 20), ("DELETE", "/v1/orders/{id}", f"{CTRL}#remove/0", 20)]
     assert {(r["framework"], r["source"]) for r in s["facts"][f]["routes"]} == {("spring-mvc", "stack.yaml")}
     # a verb method without a class prefix gives the method path alone
@@ -137,27 +138,29 @@ def test_spring_exact_routes(make_repo):
     assert not s["facts"].get("src/main/java/io/demo/shop/NoImport.java", {}).get("routes")
 
 
-def test_annotated_non_literal_path_skipped(make_repo):
-    """`@GetMapping(PATH)` gives no route, no crash, and the report counts the other matches."""
+def test_annotated_constant_path_is_a_named_segment(make_repo):
+    """`@GetMapping(PATH)` keeps its route with the constant as `{PATH}` for the agent to resolve, never dropped."""
     repo = make_repo(SPRING_SRC)
     with_stack(repo, SPRING)
     s = structure.build(repo, "docs/viz-code")
     f = "src/main/java/io/demo/shop/OrderController.java"
-    assert not [r for r in s["facts"][f]["routes"] if r["handler"].endswith("#constant/0")]
+    assert [r["path"] for r in s["facts"][f]["routes"] if r["handler"].endswith("#constant/0")] == [
+        "/orders/{PATH}", "/v1/orders/{PATH}"]
     p = next(p for p in s["stack"]["patterns"] if p["name"] == "spring-mvc")
-    assert (p["matches"], p["files"], p["source"], p["group"], p["form"]) == (17, 2, "stack.yaml", "routes", "annotated")
+    assert (p["matches"], p["files"], p["source"], p["group"], p["form"]) == (19, 2, "stack.yaml", "routes", "annotated")
     md = structure.summary_md(s)
-    assert "Route patterns:\n- java spring-mvc (stack.yaml): 17 routes in 2 files\n" in md
+    assert "Route patterns:\n- java spring-mvc (stack.yaml): 19 routes in 2 files\n" in md
 
 
-def test_non_literal_prefix_gives_no_routes(make_repo):
+def test_a_constant_prefix_keeps_its_routes(make_repo):
     repo = make_repo({**SPRING_SRC, "src/main/java/io/demo/shop/OrderController.java":
                       "package io.demo.shop;\n\nimport org.springframework.web.bind.annotation.*;\n\n"
                       "@RequestMapping(BASE)\npublic class OrderController {\n"
                       "  @GetMapping(\"/{id}\")\n  public String get(String id) { return id; }\n}\n"})
     with_stack(repo, SPRING)
     s = structure.build(repo, "docs/viz-code")
-    assert not s["facts"]["src/main/java/io/demo/shop/OrderController.java"].get("routes")
+    assert [r["path"] for r in s["facts"]["src/main/java/io/demo/shop/OrderController.java"]["routes"]] == [
+        "/{BASE}/{id}"]
 
 
 def test_jaxrs_path_and_get(make_repo):

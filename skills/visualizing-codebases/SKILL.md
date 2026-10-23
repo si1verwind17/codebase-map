@@ -313,7 +313,9 @@ name. The structure pass already lists routes per module (the packs' frameworks,
 `format.md` → Stack, and `stack.yaml`; methods upper-cased, and without the
 prefixes of mounts it could not join, which you compose onto them yourself; a prefix only config
 sets, such as a servlet context path or a URI version, goes into `stack.yaml` `base_paths`
-once per deployable folder, citing the config line in the report), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
+once per deployable folder, citing the config line in the report; a segment written as a
+constant is kept as `{Name}`, `/{Asset}/{id}` from `@Controller(RouteKey.Asset)`: look the
+constant up and write its value in `request` and example keys), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
 lists tapir client endpoints as `http clients` (method + path: match them to
 routes like a URL), framework-implemented interfaces (a repository or a
 declarative HTTP client: every method bodyless, in a file importing a database or
