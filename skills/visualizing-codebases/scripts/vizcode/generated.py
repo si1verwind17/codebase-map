@@ -40,7 +40,7 @@ def bundle(path: str, file: Path) -> bool:
     if not path.endswith(BUNDLE_SUFFIXES):
         return False
     data = file.read_bytes()
-    return sum(len(line) for line in data.split(b"\n") if len(line) > LONG_LINE) * 2 > len(data)
+    return sum(len(line) for line in data.splitlines() if len(line) > LONG_LINE) * 2 > len(data)
 
 
 def _public_field(lang: str, field: dict) -> bool:

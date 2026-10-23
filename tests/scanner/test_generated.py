@@ -143,3 +143,10 @@ def test_a_generated_type_keeps_the_fields_its_modifiers_make_public(make_repo):
                       ("svc/Main.java", "Main"): [("id", "private")],
                       # a generated class with no public field is no data type: the .proto's message stands in
                       ("svc/order.proto", "Hidden"): [("x", None)]}
+
+
+def test_a_file_with_old_mac_line_endings_is_no_bundle(make_repo):
+    src = "\r".join(f"function step{i}() {{ return fetch('/api/step/{i}'); }}" for i in range(40)) + "\r"
+    s = structure.build(make_repo({"web/static/js/login.js": src}))
+    assert "web/static/js/login.js" in s["files"]
+    assert {n["name"]: n["line"] for n in s["nodes"] if n["kind"] == "method"}["step39"] == 40

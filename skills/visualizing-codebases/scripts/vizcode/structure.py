@@ -45,6 +45,7 @@ EF_MIGRATIONS = [p for g in ("Migrations/*.Designer.cs", "Migrations/*ModelSnaps
 GENERIC_EXCLUDES = {suf: BUILD_EXCLUDES + [p for t in spec.tests if "/" in t for p in (t, "*/" + t)]
                     + (EF_MIGRATIONS if suf == ".cs" else []) for suf, spec in BY_SUFFIX.items()}
 GENERIC_EXCLUDES |= {".py": VENDOR_EXCLUDES, ".scala": VENDOR_EXCLUDES}
+LONE_CR = re.compile(rb"\r(?!\n)")
 SBT_BUILD_DIR = "project/*"  # sbt build definitions, excluded only when build.sbt exists
 
 
@@ -710,7 +711,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         for f in files:
             if f not in file_mod:
                 continue
-            data = (root / f).read_bytes()
+            data = LONE_CR.sub(b"\n", (root / f).read_bytes())   # old Mac line ends: same length, so offsets hold
             if len(data) > MAX_BYTES:
                 skipped.append({"file": f, "reason": f"larger than {MAX_BYTES} bytes"})
                 continue
