@@ -161,7 +161,8 @@ def test_rules_two_to_five_follow_the_baseline():
     assert parsed[4][1].startswith("Route handlers (SKILL.md step 5)")
     assert parsed[4][2].startswith("Deployables (SKILL.md § Deployables, not folders)")
     assert parsed[4][3].startswith("Queues in a store or a job system")
-    assert len(parsed[5]) == 1 and parsed[5][0].startswith("Job triggers (SKILL.md")
+    assert len(parsed[5]) == 2 and parsed[5][0].startswith("Job triggers (SKILL.md")
+    assert parsed[5][1].startswith("Generic jobs (SKILL.md § Matching interactions)")
 
 
 def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):

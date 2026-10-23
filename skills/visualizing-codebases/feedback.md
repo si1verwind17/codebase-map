@@ -56,4 +56,5 @@ Nothing is posted by you: the last step opens GitHub's new-issue form, filled in
    to step 3. Tell the user the form is open, filled in, and that nothing is posted until they press Submit; they
    can still edit it there or close the tab. If no browser opened, give them the link it printed.
 
-`OUT/feedback.md` is a working file, already gitignored.
+`OUT/feedback.md` is a working file, never committed. The `.gitignore` that `assemble.py` writes keeps it out of git;
+before the first `assemble.py` there is none, so do not tell the user git ignores it.

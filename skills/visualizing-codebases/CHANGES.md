@@ -5,6 +5,7 @@ Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; pru
 
 ## Rules 5 — 2026-10-21
 - Job triggers (SKILL.md § Deployables, not folders): a job that triggers a job of its own service is a `batch` relation too, from the calling job's method to the target task method, keyed `task <name>`; turn a `problems` entry that records such a trigger into that relation.
+- Generic jobs (SKILL.md § Matching interactions): a job whose tables come from its inputs is one relation per direction with a wildcard key and the concrete tables in `tables`, also when every caller passes literal tables; merge relations written one per table into that one.
 
 ## Rules 4 — 2026-10-21
 - Route keys (SKILL.md § Stack): a path parameter is written `{name}` whatever the framework writes around it (`{id:int}`, `{id?}`, `{*id}`, `:id(\d+)` → `{id}`), and a route's path already holds the prefix of a mount in its own file that the scanner joined (`composed onto N routes` in `summary.md`): rewrite `request` keys and example keys that spell a route otherwise.

@@ -373,7 +373,10 @@ schedule and tasks, each Flyte workflow's launch plan schedule and every
 - A generic job whose tables come from inputs (one replication task, many
   tables) is one relation with a wildcard key (`table sales.*`); list in
   `tables` the concrete tables its callers pass in (literal arguments, or
-  variables set right before the call) or that configs name.
+  variables set right before the call) or that configs name. This holds when
+  every table is known: a caller passing three literal tables still gets one
+  read and one write, each with a wildcard key and those three in `tables`,
+  never a relation per table.
 - `data` says which way data moves: `forward` (from → to), `back` (to → from)
   or `both`. Kinds default (db-read `back`, the rest `forward`); a `stream`
   has no default and must be set: a subscription the service opens is `back`.
