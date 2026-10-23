@@ -153,16 +153,17 @@ public interface PaymentsClient {
    `stack.yaml` written (the packs know these stacks).
 2. **Routes found:** `structure.json` holds exactly these routes. library: `GET /books`, `GET /books/{id}`,
    `POST /books`, `GET /members`, `POST /members`, `GET /members/{member_no}`, `PATCH` and `PUT
-   /members/{member_no}`, `POST /session`, `DELETE /session` and `GET /health` (11; the handler is the routes file).
-   shop: `GET /products` (`index`), `PUT` and `PATCH /products/{id}` (`update`), `DELETE /products/{id}`
-   (`destroy`), with `/admin` listed as a mount. orders: `GET /orders/{id}` (`get`), `POST /orders` (`place`), and no
+   /members/{member_no}`, `POST /session`, `DELETE /session` and `GET /health` (11; each handled by its controller
+   action, or by the routes file where the pack names none). shop: `GET /products` (`index`), `PUT` and
+   `PATCH /products/{id}` (`update`), `DELETE /admin/products/{id}` (`destroy`; the scanner composes the `/admin`
+   mount into the path), with `/admin` listed as a mount. orders: `GET /orders/{id}` (`get`), `POST /orders` (`place`), and no
    `/payments` route (the Feign interface is a client).
 3. **Data attached:** library's `catalog_books` is defined on `Book`; shop's `products` reads and writes hang on
    the three controller methods; orders' `orders` read and write on `get` and `place`, and `place` has an outgoing
    HTTP relation (or a `problems` entry) for the payments service.
 4. **An example per key:** `scripts/examples.py <repo>` reports `(0 without an example)` with no `missing some keys`
-   for shop and orders; shop's `update` has two entries, `PUT` and `PATCH`. Where the agent wrote the admin route's
-   key with its mount, it reads `DELETE /admin/products/{id}`.
+   for shop and orders; shop's `update` has two entries, `PUT` and `PATCH`, and the admin route's key reads
+   `DELETE /admin/products/{id}`.
 5. **Reported:** the reply's counts line agrees with the map.
 
 A miss is a SKILL.md wording fix, not a test change.
