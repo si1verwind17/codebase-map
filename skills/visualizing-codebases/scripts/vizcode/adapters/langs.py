@@ -251,7 +251,8 @@ TYPESCRIPT = LangSpec(
     names=JS_NAMES,
     bindings={"variable_declarator": ("name", "value", JS_FUNCTION_VALUES),
               "public_field_definition": ("name", "value", JS_FUNCTION_VALUES),
-              "assignment_expression": ("left", "right", JS_FUNCTION_VALUES)},
+              "assignment_expression": ("left", "right", JS_FUNCTION_VALUES),
+              "pair": ("key", "value", JS_FUNCTION_VALUES)},   # `{ me: async () => .. }`: an object's method,
     file_qualified=True,
     names_extend=False,
     class_when={"type_alias_declaration": ("value", ("object_type",))},
@@ -272,7 +273,8 @@ JAVASCRIPT = replace(
     supers=("class_heritage",),
     bindings={"variable_declarator": ("name", "value", JS_FUNCTION_VALUES),
               "field_definition": ("property", "value", JS_FUNCTION_VALUES),
-              "assignment_expression": ("left", "right", JS_FUNCTION_VALUES)},
+              "assignment_expression": ("left", "right", JS_FUNCTION_VALUES),
+              "pair": ("key", "value", JS_FUNCTION_VALUES)},   # `{ me: async () => .. }`: an object's method,
 )
 
 GO = LangSpec(

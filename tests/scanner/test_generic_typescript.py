@@ -172,3 +172,16 @@ def test_typescript_destructured_default_parameter_names():
     res = parse("function f({a}: T = foo, {b: c}: U, d: number = bar) {}\n", "web/d.ts")
     sig = res["nodes"][-1]["signature"]
     assert sig["params"] == [{"name": "a", "type": "T"}, {"name": "b", "type": "U"}, {"name": "d", "type": "number"}]
+
+
+def test_a_function_valued_property_of_an_object_is_a_method():
+    """`export const authService = { me: async () => .., logout: function () {..} }`: each is a method of the
+    file, and the calls inside are its own."""
+    res = parse("export const authService = {\n  me: async () => http.get('me'),\n"
+                "  logout: function () { return http.post('logout') },\n  base: '/api',\n}\n", "web/authService.ts")
+    me, out = "web::_root_/authService.ts#me/0", "web::_root_/authService.ts#logout/0"
+    assert [n["id"] for n in res["nodes"] if n["kind"] == "method"] == [me, out]
+    assert [(c["callee"], c["in"]) for c in res["calls"]] == [("http.get", me), ("http.post", out)]
+    # an object passed to a call is no service: its function properties stay inside the call
+    res = parse("app.route({ url: '/x', handler: async () => 1 })\n", "web/r.ts")
+    assert [n for n in res["nodes"] if n["kind"] == "method"] == []

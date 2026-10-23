@@ -572,6 +572,9 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         value, name_node = child(n, value_key), child(n, name_key)
         if value is None or value.type not in kinds or name_node is None:
             return None
+        if n.type == "pair" and not (n.parent is not None and n.parent.parent is not None
+                                     and n.parent.parent.type in spec.bindings):
+            return None   # a property is a method only of an object bound to a name, not of a call's argument
         return _last_name(name_node), value
 
     def named_function(n):
