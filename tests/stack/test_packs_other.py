@@ -250,6 +250,31 @@ def test_axum_forms_and_actix():
     assert [r["handler"] for r in got] == ["f#get_order/0", "f#create/0"]
 
 
+def test_actix_builder_routes():
+    """`.route(path, get().to(h))`, a `resource(path)` whose chained `.route(get().to(h))` take its path, and an
+    empty path on a scope: each a route with its handler, composed onto the scopes around it."""
+    src = ('cfg.service(\n  scope("/api/v4")\n    .service(\n      scope("/site")\n'
+           '        .route("", get().to(get_site))\n        .route("/icon", web::post().to(site::upload_icon)),\n'
+           '    )\n    .service(\n      resource("/search")\n        .wrap(rate_limit.search())\n'
+           '        .route(get().to(search))\n        .route(post().to(search_post)),\n    ),\n);\n')
+    imports = ["actix_web::web", "actix_web::web::scope"]
+    st = stack.default()
+    mounts = stack.find_mounts(st, "rust", src, imports)
+    got = stack.find_routes(st, "rust", src, imports, [], "f", mounts)
+    assert [(r["method"], r["path"], r.get("handler_name")) for r in got] == [
+        ("GET", "/api/v4/site", "get_site"), ("POST", "/api/v4/site/icon", "site::upload_icon"),
+        ("GET", "/api/v4/search", "search"), ("POST", "/api/v4/search", "search_post")]
+
+
+def test_an_actix_resource_route_needs_a_resource_path(make_repo):
+    files = {"Cargo.toml": "[package]\nname = \"app\"\n",
+             "src/main.rs": "use actix_web::web;\n\nfn config(cfg: &mut web::ServiceConfig) {\n"
+                            "    cfg.service(web::resource([\"/a\", \"/b\"]).route(web::get().to(list)));\n}\n"
+                            "async fn list() {}\n"}
+    s = build(make_repo, files)
+    assert s["facts"]["src/main.rs"].get("routes", []) == []
+
+
 def test_rust_negatives():
     """Look-alikes give nothing."""
     src = ('.route("/a", get(h))\n.nest("/n", r)\n#[get("/x")]\nfn x() {}\nweb::scope("/v1")\n'

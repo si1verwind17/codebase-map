@@ -5,7 +5,8 @@
 # routes (regex, gated on the import): Axum `.route("/x", get(h))` (the handler group is the method router's
 # argument when it is a name; a chained router `get(a).put(b).delete(c)` gives one route per call, its 2nd to 4th
 # calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
-# actix-web attributes `#[get("/x")]` (the function below) and `web::scope` (a mount).
+# actix-web attributes `#[get("/x")]` (the function below), `.route("/x", get().to(h))`, and `scope` /
+# `resource` (mounts; a resource's `.route(get().to(h))` is on its path).
 # queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (SKILL.md § In-process queues).
 rust:
   ignore: [std, core, alloc]
@@ -55,11 +56,26 @@ rust:
       when: actix_web
       path: literal
       regex: '#\[(?:actix_web::)?(?P<method>get|post|put|delete|patch|head|options)\(\s*"(?P<path>[^"]*)"'
+    # `.route("/x", web::get().to(h))` on an App, a scope or a ServiceConfig
+    - name: actix-route
+      when: actix_web
+      path: literal
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to\(\s*(?P<handler>[\w:]+)'
+    # `resource("/x").route(web::get().to(h))`: the route takes the resource's path (a mount)
+    - name: actix-resource-route
+      when: actix_web
+      path: literal
+      regex: '\.route\(\s*(?P<path>)(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to\(\s*(?P<handler>[\w:]+)'
     - name: actix-scope
       when: actix_web
       path: literal
       mount: true
-      regex: '\bweb::scope\(\s*"(?P<path>[^"]*)"'
+      regex: '\b(?:web::)?scope\(\s*"(?P<path>[^"]*)"'
+    - name: actix-resource
+      when: actix_web
+      path: literal
+      mount: true
+      regex: '\b(?:web::)?resource\(\s*"(?P<path>[^"]*)"'
   queues:
     - {name: tokio-mpsc, when: tokio::sync, delivery: queue, regex: '\bmpsc::(?:unbounded_)?channel\b'}
     - {name: tokio-broadcast, when: tokio::sync, delivery: fan-out, regex: '\bbroadcast::channel\b'}

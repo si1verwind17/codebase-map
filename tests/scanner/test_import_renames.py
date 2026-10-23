@@ -71,11 +71,7 @@ def test_a_route_handler_in_another_module_its_file_imports(make_repo):
              "crates/routes/src/lib.rs":
                  "use actix_web::web;\nuse app_api::site::get_site;\n\n"
                  "pub fn config(cfg: &mut web::ServiceConfig) {\n"
-                 "    cfg.service(web::resource(\"/site\").route(web::get().to(get_site)));\n}\n",
-             "docs/viz-code/stack.yaml":
-                 "rust:\n  routes:\n    - name: actix-route\n      when: actix_web\n      path: literal\n"
-                 "      method: GET\n      regex: 'resource\\(\"(?P<path>[^\"]*)\"\\)\\.route\\(web::get\\(\\)\\.to\\("
-                 "(?P<handler>\\w+)\\)'\n"}
+                 "    cfg.service(web::resource(\"/site\").route(web::get().to(get_site)));\n}\n"}
     s = structure.build(make_repo(files), "docs/viz-code")
     assert [r["handler"] for r in s["facts"]["crates/routes/src/lib.rs"]["routes"]] == [
         "crates/api::src/site.rs#get_site/0"]

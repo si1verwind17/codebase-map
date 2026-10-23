@@ -659,8 +659,9 @@ def _when_line(when: str, imports: list[dict], lang: str) -> int | None:
 
 def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
     """(pattern, match, text) of every path match of the language's regex patterns (mounts or routes). A route
-    written with the empty string (`route("")`) is the path of the mount around it; an empty mount adds nothing,
-    and a match with no path written (`route()`) is no route."""
+    written with the empty string (`route("")`), or matched by a pattern whose path group is empty by design
+    (`(?P<path>)`: the route takes its mount's path), is the path of the mount around it; an empty mount adds
+    nothing, and a match with no path written (`route()`) is no route."""
     for pat in st.patterns:
         if not isinstance(pat, RoutePattern) or pat.lang != lang or pat.mount != mount \
                 or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
@@ -668,8 +669,9 @@ def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
         for m in pat.regex.finditer(src):
             if text := (m.group("path") or "").strip():
                 yield pat, m, text
-            elif not mount and m.group("path") == "" and 0 < m.start("path") < len(src) \
-                    and src[m.start("path") - 1] in "\"'`" and src[m.end("path")] == src[m.start("path") - 1]:
+            elif not mount and m.group("path") == "" and ("(?P<path>)" in pat.regex.pattern or (
+                    0 < m.start("path") < len(src) and src[m.start("path") - 1] in "\"'`"
+                    and src[m.end("path")] == src[m.start("path") - 1])):
                 yield pat, m, ""
 
 
@@ -704,13 +706,15 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
         line = src.count("\n", 0, m.start()) + 1
         handler = _handler(spans, line, file_id, "handler" not in groups)
         named = m.group("handler") if "handler" in groups else None
+        on_mount = {"on_mount": True} if "(?P<path>)" in pat.regex.pattern else {}
         for method in methods:
             out.append({"method": method, "path": read_path(text, pat.path), "handler": handler,
                         "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
                         **({"handler_name": named.strip()} if named and named.strip() else {}),
-                        **_named_handler(pat, m)})
+                        **_named_handler(pat, m), **on_mount})
     compose(src, out, mounts or [], lang)
-    return out
+    # a route on its mount's own path with no mount around it (`resource(PATHS)`): its path is unknown
+    return [r for r in out if not r.pop("on_mount", None) or r.pop("composed_on", None)]
 
 
 def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict]:
@@ -802,6 +806,8 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
             continue
         at = r.pop("at")
         chain = prefix(at, _head(src, at))
+        if chain and r.get("on_mount"):
+            r["composed_on"] = True
         if chain:
             r["path"] = normalise("/".join(x.strip("/") for x in [*(mounts[k]["path"] for k in chain), r["path"]]
                                            if x.strip("/")))
