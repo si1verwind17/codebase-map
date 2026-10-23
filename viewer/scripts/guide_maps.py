@@ -115,6 +115,18 @@ class Code:
                                "evidence": [{"file": f"{frm}/requirements.txt", "line": 1}]})
 
     def structure(self) -> dict:
+        # a bare call to one class's method is written as Python must write it, `Class.method`: a bare name reaches
+        # only free functions
+        kinds = {n["id"]: n["kind"] for n in self.nodes}
+        owners: dict[str, set[str]] = {}
+        for n in self.nodes:
+            if n["kind"] == "method":
+                owners.setdefault(n["name"], set()).add(n["parent"])
+        for facts in self.facts.values():
+            for c in facts["calls"]:
+                at = owners.get(c["callee"], set())
+                if "." not in c["callee"] and len(at) == 1 and kinds.get(next(iter(at))) == "class":
+                    c["callee"] = f"{next(iter(at)).rsplit('.', 1)[-1]}.{c['callee']}"
         return {"meta": {"schema_version": SCHEMA_VERSION, "scanner_version": "guide", "repo": self.repo, "root": None,
                          "commit": COMMIT},
                 "modules": self.modules, "nodes": self.nodes, "relations": self.relations, "files": self.files,
@@ -385,7 +397,7 @@ def shared() -> tuple[dict, dict]:
     c.module("common")
     retry = c.method(c.file(c.package("common", "common"), "retry"), "with_retry", (("fn", "Callable"),), "Any")
     c.uses("orders", "common")
-    c.call(place, "save", 1)
+    c.call(place, "OrderStore.save", 1)
     c.call(save, "with_retry", 1)
     meaning = {"nodes": [service("orders", 2),
                          {"id": "lib:common", "kind": "library", "name": "common", "modules": ["common"]}],

@@ -18,6 +18,12 @@ OBJECT_METHODS = {"equals", "hashCode", "toString", "compareTo", "clone", "getCl
 # (`self: Repo =>`)
 OPEN_LINEAGE = {"go", "ruby", "rust"}
 OPEN_SELF = OPEN_LINEAGE | {"scala"}
+# languages where a bare call (`helper()`) is never a method of a class: no implicit `this`
+NO_IMPLICIT_THIS = {"php", "python", "javascript", "typescript", "go"}   # Rust: a `mod`'s functions are class-like
+# value names too generic to name a class by their tail (`list.get` is no PagedList)
+GENERIC_VALUES = {"list", "map", "set", "data", "item", "items", "result", "results", "value", "values", "obj",
+                  "object", "entry", "entries", "response", "request", "config", "info", "node", "element", "array"}
+LITERAL_RECEIVER = re.compile(r"""\s*(?:["'`]|\d)""")   # `"\n".join`, `5.times`: a built-in type's method
 PART = re.compile(r"~\d+$")   # `Foo~2`: another part of class Foo (C# `partial`, a class reopened elsewhere)
 # words of a value's name that say its role, not which class it holds: `emailRepo` holds the email class
 ROLE_NAMES = {"repo", "repository", "model", "service", "svc", "dao", "store", "client", "manager", "impl",
@@ -328,7 +334,7 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             if not rt:
                 continue
             parts = callee_parts(c["callee"])
-            if not parts:
+            if not parts or LITERAL_RECEIVER.match(c["callee"]):
                 continue
             name, receiver = parts[-1], (parts[-2] if len(parts) > 1 else None)
             if receiver in SELF_RECEIVERS and len(parts) == 3 and parts[0][:1].isupper():
@@ -373,6 +379,22 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 continue
             caller_owner = by_id[caller].get("parent")
             owner = by_id.get(caller_owner or "", {})
+            lang = owner.get("lang") or by_id[caller].get("lang")
+            if receiver is None and lang in NO_IMPLICIT_THIS:
+                # `trim($s)`: a free function or a built-in, never another class's method
+                cands = [m for m in cands if by_id.get(by_id[m].get("parent") or "", {}).get("kind") != "class"]
+                if not cands:
+                    continue
+            if len(parts) == 3 and parts[0] in classes and parts[1][:1].islower() and typed is None \
+                    and re.match(rf"\s*{re.escape(parts[0])}\s*\.\s*{re.escape(parts[1])}\s*\.", c["callee"]):
+                # `Check.objects.get`: an attribute of a repo class; only its declared type's methods
+                field = next((t for cid in classes[parts[0]] if (t := _field_type(by_id[cid], parts[1]))), None)
+                if field is None or field[0] not in classes:
+                    continue
+                kin = {k for c2 in classes[field[0]] for k in lineage(c2)}
+                cands = [m for m in cands if by_id[m].get("parent") in kin]
+                if not cands:
+                    continue
             if receiver in SELF_RECEIVERS:
                 same = [m for m in cands if by_id[m].get("parent") == caller_owner]
                 if not same and owner.get("kind") == "class" and owner.get("lang") not in OPEN_SELF:
@@ -408,6 +430,10 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 cands = [m for m in cands if by_id[m].get("parent") in kin or not outside(m, held)]
                 if not cands:
                     continue
+            if receiver is None and len(cands) > 1 and owner.get("kind") == "class" \
+                    and (own := [m for m in cands if by_id[m].get("parent") in lineage(caller_owner)
+                                 and (c.get("args") is None or _accepts(by_id[m], c["args"]))]):
+                cands = own   # an implicit `this` (Java, Kotlin, C#): the caller's own lineage first
             if receiver is None and len(cands) > 1:
                 # a bare name that collides means the nearest definition: the caller's own file, then package
                 near = [m for m in cands if by_id[m].get("file") == file] or \
@@ -416,9 +442,15 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             elif receiver not in SELF_RECEIVERS and receiver not in ("super", "?") and len(cands) > 1:
                 # another object: the class its name points at, else anything but the caller's own class
                 subject = _subject(receiver)
+                def owner_subject(m: str) -> tuple[str, ...]:
+                    return _subject(by_id.get(by_id[m].get("parent") or "", {}).get("name", ""))
+                # the class the value is named after: by its name, its subject, else the one whose name ends
+                # with the value's subject when only one does (`resource` -> UmsResource)
+                tail = [m for m in cands if subject and subject[-1] not in GENERIC_VALUES
+                        and owner_subject(m)[-len(subject):] == subject]
                 named = [m for m in cands if receiver.lower() in _owner_names(by_id[m], by_id)] or \
-                    [m for m in cands if subject and _subject(by_id.get(by_id[m].get("parent") or "", {})
-                                                             .get("name", "")) == subject]
+                    [m for m in cands if subject and owner_subject(m) == subject] or \
+                    (tail if len({by_id[m].get("parent") for m in tail}) == 1 else [])
                 others = [m for m in cands if by_id[m].get("parent") != caller_owner]
                 cands = named or others or cands
             trusted = receiver is None or receiver in SELF_RECEIVERS or typed is not None

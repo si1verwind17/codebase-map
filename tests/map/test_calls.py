@@ -74,13 +74,13 @@ def test_super_receiver_looks_outside_the_callers_own_class():
     assert [r["to"] for r in rels] == ["a::p.Y#save/0"]
 
 
-def test_a_literal_or_bracketed_receiver_is_never_trusted():
+def test_a_literal_or_bracketed_receiver_is_never_trusted_and_a_literal_matches_nothing():
     for callee in ('", ".join(xs)', '"a b".split()', "{}.get(k)", "(a or b).save()"):
         assert calls.callee_parts(callee)[0] == "?", callee
     facts = {"p/x.py": {"calls": [{"callee": '"a b".save', "in": "a::p.X#m/0", "line": 3}]}}
     nodes = [n for n in _two_classes() if n["id"] != "a::p.X#save/0"]
     rels, _ = calls.resolve(nodes, [], facts)
-    assert [r["confidence"] for r in rels] == ["inferred"]
+    assert rels == []   # a string literal's method is the built-in type's, never a repo method
 
 
 def _sig(n):
@@ -110,17 +110,19 @@ def test_a_call_passing_fewer_than_the_required_arguments_skips_the_method():
                 "signature": {"params": params, "returns": None}}
     req = {"name": "a", "type": None}
     opt = {"name": "b", "type": None, "optional": True}
+    # the caller's own class has no `save`, so its lineage does not decide (it would: an implicit `this`)
     nodes = [n for n in _two_classes() if not n["id"].endswith("#save/0")] + [
-        m("a::p.X#save/1", "scala", [req]),
+        {"id": "a::p.W", "kind": "class", "name": "W", "parent": "a::p/"},
+        m("a::p.W#save/1", "scala", [req]),
         m("a::p.Y#save/3", "scala", [req, req, req]),
         m("a::p.Y#save/2", "scala", [req, opt])]
     facts = {"p/x.scala": {"calls": [{"callee": "save", "args": 1, "in": "a::p.X#m/0", "line": 3}]}}
-    assert sorted(r["to"] for r in calls.resolve(nodes, [], facts)[0]) == ["a::p.X#save/1", "a::p.Y#save/2"]
+    assert sorted(r["to"] for r in calls.resolve(nodes, [], facts)[0]) == ["a::p.W#save/1", "a::p.Y#save/2"]
     for n in nodes:
         if n.get("lang"):
             n["lang"] = "kotlin"   # defaults not recorded: every method of up to its parameter count fits
     assert sorted(r["to"] for r in calls.resolve(nodes, [], facts)[0]) == [
-        "a::p.X#save/1", "a::p.Y#save/2", "a::p.Y#save/3"]
+        "a::p.W#save/1", "a::p.Y#save/2", "a::p.Y#save/3"]
 
 
 def test_untrusted_receiver_with_no_fitting_arity_is_not_drawn():
@@ -1123,3 +1125,38 @@ def test_a_self_call_reaches_the_other_part_of_a_split_class_and_a_scala_self_ty
               {"id": "a::p.Foo~2#Helper/0", "kind": "method", "name": "Helper", "parent": "a::p.Foo~2"}]
     assert _targets(nodes, ("Foo#Go", "this.Helper"), ("Audit#log", "self.save")) == [
         ("Audit#log/0", "Repo#save/0"), ("Foo#Go/0", "Foo~2#Helper/0")]
+
+
+def test_a_bare_call_reaches_no_class_method_where_the_language_has_no_implicit_this():
+    """PHP `trim($s)`, Python `helper()`: a bare call is a free function (or a built-in), never another class's
+    method; Java's implicit `this` still reaches the caller's own method."""
+    nodes = _classes(("Twig", ["render"], [], "php"), ("Transformer", ["trim"], [], "php"),
+                     ("Svc", ["go", "helper"], [], "java"), ("Other", ["helper"], [], "java"))
+    nodes += [{"id": "a::p/util.php", "kind": "file", "name": "util.php", "parent": "a::p/"},
+              {"id": "a::p/util.php#slug/0", "kind": "method", "name": "slug", "parent": "a::p/util.php"}]
+    assert _targets(nodes, ("Twig#render", "trim"), ("Twig#render", "slug"), ("Svc#go", "helper")) == [
+        ("Svc#go/0", "Svc#helper/0"), ("Twig#render/0", "a::p/util.php#slug/0")]
+
+
+def test_a_literal_receiver_or_an_unknown_attribute_of_a_class_reaches_no_repo_method():
+    nodes = _classes(("Check", ["save"], [], "python"), ("Curl", ["get"], [], "python"), ("Matrix", ["join"], [], "python"),
+                     ("Views", ["index"], [], "python"))
+    assert _targets(nodes, ("Views#index", '"\\n".join'), ("Views#index", "Check.objects.get")) == []
+
+
+def test_a_value_named_like_the_tail_of_one_class_picks_it():
+    """`resource.getUrl` with `UmsResource#getUrl` and `SmsHomeAdvertise#getUrl`: the UmsResource one."""
+    nodes = _classes(("UmsResource", ["getUrl"], [], "java"), ("SmsHomeAdvertise", ["getUrl"], [], "java"),
+                     ("Config", ["load"], [], "java"))
+    assert _targets(nodes, ("Config#load", "resource.getUrl")) == [("Config#load/0", "UmsResource#getUrl/0")]
+
+
+def test_a_singleton_chain_a_rust_module_function_and_a_generic_value_name():
+    """`Database.getInstance().query()` is no attribute chain; a Rust `mod`'s function is bare-callable; a value
+    named `list` picks no class by its name's tail (`PagedList`)."""
+    nodes = _classes(("Database", ["getInstance", "query"], [], "java"), ("Other", ["query"], [], "java"),
+                     ("Svc", ["run"], [], "java"), ("util", ["helper", "work"], [], "rust"),
+                     ("PagedList", ["get"], [], "java"), ("Cache", ["get"], [], "java"))
+    assert ("Svc#run/0", "Database#query/0") in _targets(nodes, ("Svc#run", "Database.getInstance().query"))
+    assert _targets(nodes, ("util#work", "helper")) == [("util#work/0", "util#helper/0")]
+    assert sorted(t for _, t in _targets(nodes, ("Svc#run", "list.get"))) == ["Cache#get/0", "PagedList#get/0"]
