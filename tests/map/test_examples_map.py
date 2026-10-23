@@ -261,3 +261,15 @@ def test_assemble_refuses_while_a_full_rescan_waits_for_its_previous_meaning(sho
     assert assemble_cli.main([str(shop_repo)]) == 1
     assert "meaning.previous.json" in capsys.readouterr().err
     assert (out / "meaning.previous.json").exists() and not (out / "code-map.json").exists()
+
+
+def test_assemble_refuses_evidence_past_a_files_end_or_on_a_blank_line(typed_repo, capsys):
+    extract.main([str(typed_repo)])
+    out = typed_repo.joinpath(*OUT)
+    m = typed_meaning()
+    m["nodes"][0]["evidence"] = [{"file": m["nodes"][0]["evidence"][0]["file"], "line": 9999},
+                                 {"file": "no/such/file.py", "line": 1}]
+    (out / "meaning.json").write_text(json.dumps(m), encoding="utf-8")
+    assert assemble_cli.main([str(typed_repo)]) == 1
+    err = capsys.readouterr().err
+    assert ":9999 is past the end of the file" in err and "no/such/file.py:1: no such file at" in err

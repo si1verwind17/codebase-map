@@ -19,6 +19,41 @@ GITIGNORE = ["structure.json", "summary.md", "meaning.json", "meaning.previous.j
 GITATTRIBUTES = ["code-map.json linguist-generated=true -diff"]   # paths relative to the output folder
 
 
+def evidence_errors(meaning: dict, read) -> list[str]:
+    """Cited lines that cannot be right: a file not in the scanned commit, a line past its end, a blank line.
+    `read(path)` is the file's text at that commit, or None."""
+    texts: dict[str, list[str] | None] = {}
+    out: list[str] = []
+
+    def walk(x, where: str) -> None:
+        if isinstance(x, dict):
+            for e in x.get("evidence") or [] if isinstance(x.get("evidence"), list) else []:
+                if isinstance(e, dict) and isinstance(e.get("file"), str) and isinstance(e.get("line"), int):
+                    check(e["file"], e["line"], where)
+            for k, v in x.items():
+                if k != "evidence":
+                    walk(v, where)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v, where)
+
+    def check(f: str, line: int, where: str) -> None:
+        if f not in texts:
+            text = read(f)
+            texts[f] = None if text is None else text.removesuffix("\n").split("\n")   # lines as the scanner counts them
+        lines = texts[f]
+        if lines is None:
+            out.append(f"{where}: evidence {f}:{line}: no such file at the scanned commit")
+        elif line < 1 or line > len(lines):
+            out.append(f"{where}: evidence {f}:{line} is past the end of the file ({len(lines)} lines)")
+        elif not lines[line - 1].strip():
+            out.append(f"{where}: evidence {f}:{line} is a blank line: cite the line that shows the fact")
+
+    for group in ("nodes", "relations", "examples", "problems"):
+        walk(meaning.get(group), f"meaning.json {group}")
+    return out
+
+
 def meaning_errors(meaning: dict, structure: dict) -> list[str]:
     """Shape problems in the agent's meaning.json, as a fix list (checked before assembling)."""
     errors: list[str] = []

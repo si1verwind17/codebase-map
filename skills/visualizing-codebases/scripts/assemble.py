@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit  # noqa: E402
 import view  # noqa: E402
 from vizcode import gitsrc, mapcheck  # noqa: E402
-from vizcode.assemble import assemble, ensure_repo_files, meaning_errors  # noqa: E402
+from vizcode.assemble import assemble, ensure_repo_files, evidence_errors, meaning_errors  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,6 +54,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if shape := meaning_errors(meaning, structure):
         print("\n".join(shape), file=sys.stderr)
+        return 1
+    commit = structure["meta"]["commit"]
+    if cited := evidence_errors(meaning, lambda f: gitsrc.show(a.repo, commit, f)):
+        print("\n".join(cited), file=sys.stderr)
         return 1
     prev_path = out / "code-map.json"
     previous = None if a.relayout or not prev_path.exists() else json.loads(prev_path.read_text(encoding="utf-8"))
