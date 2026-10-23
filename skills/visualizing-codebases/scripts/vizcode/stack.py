@@ -1170,6 +1170,33 @@ def route_like(src: str, lang: str) -> list[dict]:
     return [{"line": n, "text": t} for n, t in seen.items()]
 
 
+DB_KINDS = ("sql-db", "doc-db")
+# a class that looks like a database entity: annotated as one, or extending an ORM's model base
+ENTITY_ANNOTATION = re.compile(r"^@?(?:[\w.]+\.)?(?:Entity|Table|Document|SqlName|Collection|Schema|Model)\b")
+ENTITY_BASES = {"Model", "Entity", "Document", "Base", "DeclarativeBase", "SQLModel", "ApplicationRecord",
+                "ActiveRecord::Base", "BaseEntity", "Eloquent"}
+
+
+def entities_without_table(r: dict, imports_db: bool) -> list[dict]:
+    """The classes of a file that look like database entities (ENTITY_ANNOTATION, ENTITY_BASES) where no table
+    pattern gave a table: their table comes from a naming default or a style no pattern reads."""
+    if not imports_db:
+        return []
+    tabled = {t.get("in") for t in r.get("tables", [])}
+    marked = {a["node"] for a in r.get("annotations", []) if ENTITY_ANNOTATION.match(a["text"])}
+    for cid, supers in r.get("supers", []) + r.get("bases", []):
+        if any(re.split(r"[.\\]", x)[-1] in ENTITY_BASES or x in ENTITY_BASES for x in supers):
+            marked.add(cid)
+    return [{"class": n["name"], "line": n["line"]} for n in r["nodes"]
+            if n["kind"] == "class" and n["id"] in marked and n["id"] not in tabled]
+
+
+def _untabled(files: dict[str, dict]) -> list[dict]:
+    return [{"lang": f["lang"], "file": path, "classes": [x["class"] for x in f["untabled"]],
+             "lines": [x["line"] for x in f["untabled"]]}
+            for path, f in sorted(files.items()) if f.get("untabled")]
+
+
 def _unmatched_routes(files: dict[str, dict]) -> list[dict]:
     """Per server file, the route-looking lines (route_like) no route or mount came from: a route style the
     patterns miss."""
@@ -1322,6 +1349,7 @@ def report(st: Stack, files: dict[str, dict], internal: dict[str, set[str]], lan
     """The Stack block of structure.json: what no pack or stack.yaml covers, and how each route pattern did."""
     return {"digest": st.digest, "unrecognised": _unrecognised(st, files, internal),
             "servers_without_routes": _servers(st, files), "routes_unmatched": _unmatched_routes(files),
+            "entities_without_table": _untabled(files),
             "patterns": _patterns(st, files, langs),
             "overrides": list(st.overrides)}
 

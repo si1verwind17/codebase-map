@@ -415,7 +415,9 @@ covers, total first: unrecognised imports (two `file:line` examples each),
 server libraries without routes (an `http-in` or `http` import with no route
 in its importers' modules), route-looking lines with no route (in a file importing a
 server library, a verb, `route` or resource call or annotation with a path that no
-pattern read: `Route::apiResource('songs', ..)`), and `stack.yaml` route or table
+pattern read: `Route::apiResource('songs', ..)`), entity-looking classes with no table
+(in a file importing a database library, a class annotated as an entity or extending an
+ORM model base that no table pattern named), and `stack.yaml` route or table
 patterns with 0 matches.
 It never lists the standard library (the packs' `ignore` lists, Go paths
 without a host, Python's own list) or the repo's own code: relative imports,
@@ -478,6 +480,11 @@ Sort each line into one group of its language:
   endpoints) goes into `ignore`; that clears the line. So does a framework
   whose routes the scanner cannot read (Django `urls.py`): say so in the
   report.
+- Entity-looking classes with no table usually take their table from the ORM's
+  naming default (JPA the entity name, snake_case under Spring Boot's default
+  naming; Eloquent the snake-case plural; Spring Data Mongo the class name, first
+  letter lower-cased): write those tables into `meaning.json` by that rule, citing the
+  class line, or add a table pattern when the name is written in another style.
 - Route-looking lines with no route are a route style no pattern reads: add a
   `stack.yaml` route pattern for that style, rescan, and check the lines are gone;
   lines that are no routes (an outbound call with a path) go into `problems`.

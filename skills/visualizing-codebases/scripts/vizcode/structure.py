@@ -795,6 +795,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
                     r["route_like"] = stack.route_like(decode(data), lang)
                 r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                r["untabled"] = stack.entities_without_table(r, any(
+                    h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
                 r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
                 r["grpc_text"] = _grpc_text(decode(data), r, lang)
                 if lang in SPECS:
@@ -912,6 +914,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                                        "mounts": file_facts[f].get("mounts", []), "module": file_mod[f],
                                        "deduped": results[f].get("deduped", []),
                                        "route_like": results[f].get("route_like", []),
+                                       "untabled": results[f].get("untabled", []),
                                        "src": texts.get(f, ""), "package": results[f]["package"]} for f in results},
                               internal,
                               {LANGS[Path(f).suffix][0] for f in results}),
@@ -956,7 +959,7 @@ def _stack_lines(rep: dict) -> list[str]:
     if "unrecognised" not in rep:
         return []
     unrec, servers, pats = rep["unrecognised"], rep["servers_without_routes"], rep["patterns"]
-    missed = rep.get("routes_unmatched", [])
+    missed, untabled = rep.get("routes_unmatched", []), rep.get("entities_without_table", [])
     dead = [p for p in pats if stack.flagged(p)]
     if unrec or servers or dead or missed:
         lines = [f"## Stack — {_plural(len(unrec), 'unrecognised import', 'unrecognised imports')}, "
@@ -984,6 +987,15 @@ def _stack_lines(rep: dict) -> list[str]:
                      "style no pattern reads; add a stack.yaml route pattern, or say in problems why they are none:")
         lines += [f"- {x['lang']} {x['file']}: {'line' if len(x['lines']) == 1 else 'lines'} "
                   f"{', '.join(map(str, x['lines']))} — `{x['example']}`" for x in missed]
+        lines.append("")
+    if untabled:
+        n = sum(len(x["classes"]) for x in untabled)
+        lines.append(f"Entity-looking classes with no table ({n} in {_plural(len(untabled), 'file', 'files')}; not "
+                     "counted above): the table name comes from a naming default (the class name, its snake-case "
+                     "plural) or a style no pattern reads; write their tables into meaning.json by the ORM's rule, "
+                     "or add a table pattern:")
+        lines += [f"- {x['lang']} {x['file']}: " + ", ".join(f"{c} (line {ln})" for c, ln in zip(x["classes"], x["lines"]))
+                  for x in untabled]
         lines.append("")
     for group, label, one0, many0 in (("routes", "Route patterns:", "route", "routes"),
                                     ("tables", "Table patterns:", "table", "tables"),

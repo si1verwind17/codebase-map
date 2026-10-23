@@ -481,6 +481,21 @@ def test_route_looking_lines_no_pattern_matched_are_listed(make_repo):
     assert "- php routes/api.php: lines 12, 13 — `Route::apiResource('songs', SongController::class);`" in text
 
 
+def test_entity_looking_classes_with_no_table_are_listed(make_repo):
+    """A model whose table comes from a naming default (no `$table`, no `@Table`) gives no table fact: the Stack
+    section lists it, so a map never silently lacks its tables; a model that names its table is not listed."""
+    files = {**LARAVEL_SERVICE,
+             "app/Models/Song.php": "<?php\n\nnamespace App\\Models;\n\nuse Illuminate\\Database\\Eloquent\\Model;\n\n"
+                                    "class Song extends Model\n{\n}\n"}
+    s = build(make_repo, files)
+    assert s["stack"]["entities_without_table"] == [
+        {"lang": "php", "file": "app/Models/Song.php", "classes": ["Song"], "lines": [7]}]
+    from vizcode import structure as st_mod
+    text = "\n".join(st_mod._stack_lines(s["stack"]))
+    assert "Entity-looking classes with no table (1 in 1 file; not counted above)" in text
+    assert "- php app/Models/Song.php: Song (line 7)" in text
+
+
 def test_laravel_routes_file_without_a_use_line(make_repo):
     files = {**LARAVEL_SERVICE,
              "routes/api.php": LARAVEL_SERVICE["routes/api.php"].replace("use Illuminate\\Support\\Facades\\Route;\n", "")}
