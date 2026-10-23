@@ -292,6 +292,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None)
                 if sup is not None:
                     res["bases"].append((cid, [text(b) for b in sup.named_children
                                                 if b.type in ("identifier", "attribute")]))
+                    if kws := [text(b) for b in sup.named_children if b.type == "keyword_argument"]:
+                        res.setdefault("class_keywords", {})[cid] = kws   # `class User(Base, table=True)`
                 visit(target.child_by_field_name("body"), cid, qual, n)
             elif target.type == "function_definition":
                 fid = add_function(target, decos, owner_id, owner_node,

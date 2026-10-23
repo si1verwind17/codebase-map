@@ -72,7 +72,8 @@ def test_packs_hold_every_old_sink():
     st = stack.load(None)
     got = [(lang, p, k) for lang, es in st.imports.items() for p, k, src in es
            if src == "pack" and lang in ("python", "scala")]   # the other languages' packs: test_packs_jvm and later
-    new = [("python", "google.cloud.pubsub", "event"), ("python", "google.cloud.pubsub_v1", "event")]
+    new = [("python", "google.cloud.pubsub", "event"), ("python", "google.cloud.pubsub_v1", "event"),
+           ("python", "sqlmodel", "sql-db")]
     assert sorted(got) == sorted(OLD_SINKS + new) and len(OLD_SINKS) == 50
 
 
@@ -629,3 +630,10 @@ def test_a_decorator_route_recorded_on_its_function_is_no_route_looking_line(mak
     s = structure.build(make_repo({"app/__init__.py": "", "app/items.py": src}))
     assert len(s["facts"]["app/items.py"]["routes"]) == 2
     assert s["stack"]["routes_unmatched"] == []
+
+
+def test_a_sqlmodel_table_class_with_no_tablename_is_entity_looking(make_repo):
+    src = ("from sqlmodel import SQLModel, Field\n\n\nclass UserBase(SQLModel):\n    email: str\n\n\n"
+           "class User(UserBase, table=True):\n    id: int\n\n\nclass UserCreate(UserBase):\n    password: str\n")
+    s = structure.build(make_repo({"app/__init__.py": "", "app/models.py": src}))
+    assert [(x["file"], x["classes"]) for x in s["stack"]["entities_without_table"]] == [("app/models.py", ["User"])]

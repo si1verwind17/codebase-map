@@ -15,6 +15,7 @@ python:
   - {prefix: psycopg2, kind: sql-db}
   - {prefix: asyncpg, kind: sql-db}
   - {prefix: sqlalchemy, kind: sql-db}
+  - {prefix: sqlmodel, kind: sql-db}
   - {prefix: sqlite3, kind: sql-db}
   - {prefix: pymssql, kind: sql-db}
   - {prefix: pymysql, kind: sql-db}

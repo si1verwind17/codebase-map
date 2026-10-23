@@ -1198,7 +1198,8 @@ def _open_brackets(lines: list[str]) -> int:
 DB_KINDS = ("sql-db", "doc-db")
 # a class that looks like a database entity: annotated as one, or extending an ORM's model base
 ENTITY_ANNOTATION = re.compile(r"^@?(?:[\w.]+\.)?(?:Entity|Table|Document|SqlName|Collection|Schema|Model)\b")
-ENTITY_BASES = {"Model", "Entity", "Document", "Base", "DeclarativeBase", "SQLModel", "ApplicationRecord",
+ENTITY_KEYWORD = re.compile(r"^table\s*=\s*True$")   # SQLModel's `class User(UserBase, table=True)`
+ENTITY_BASES = {"Model", "Entity", "Document", "Base", "DeclarativeBase", "ApplicationRecord",
                 "ActiveRecord::Base", "BaseEntity", "Eloquent"}
 
 
@@ -1209,6 +1210,7 @@ def entities_without_table(r: dict, imports_db: bool) -> list[dict]:
         return []
     tabled = {t.get("in") for t in r.get("tables", [])}
     marked = {a["node"] for a in r.get("annotations", []) if ENTITY_ANNOTATION.match(a["text"])}
+    marked |= {cid for cid, kws in r.get("class_keywords", {}).items() if any(ENTITY_KEYWORD.match(k) for k in kws)}
     for cid, supers in r.get("supers", []) + r.get("bases", []):
         if any(re.split(r"[.\\]", x)[-1] in ENTITY_BASES or x in ENTITY_BASES for x in supers):
             marked.add(cid)
