@@ -43,6 +43,10 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
     meaning_path = out / "meaning.json"
+    if not meaning_path.exists() and (out / "meaning.previous.json").exists():
+        print("a full rescan waits: copy meaning.previous.json to meaning.json, resolve its `stale` flags, then "
+              "assemble (SKILL.md § Run step 2)", file=sys.stderr)
+        return 1
     try:
         meaning = json.loads(meaning_path.read_text(encoding="utf-8")) if meaning_path.exists() else {}
     except json.JSONDecodeError as e:

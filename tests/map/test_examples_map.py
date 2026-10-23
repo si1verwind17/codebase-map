@@ -250,3 +250,14 @@ def test_a_full_rescan_flags_examples_in_the_previous_meaning(typed_repo, capsys
     assert prev["examples"]["types"][ORDER]["stale"] is True
     summary = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert summary["previous_stale"] >= 2
+
+
+def test_assemble_refuses_while_a_full_rescan_waits_for_its_previous_meaning(shop_repo, capsys):
+    """After a full rescan diff.py leaves meaning.previous.json and no meaning.json: assembling then would write a
+    map with no services over the last one and delete the only copy of its meaning."""
+    extract.main([str(shop_repo)])
+    out = shop_repo / "docs/viz-code"
+    (out / "meaning.previous.json").write_text('{"nodes": [], "relations": []}', encoding="utf-8")
+    assert assemble_cli.main([str(shop_repo)]) == 1
+    assert "meaning.previous.json" in capsys.readouterr().err
+    assert (out / "meaning.previous.json").exists() and not (out / "code-map.json").exists()
