@@ -37,13 +37,23 @@ function consumersOf(model: Model): Map<string, Set<string>> {
   return index;
 }
 
-/** The classes that take `id` in their constructor, or an interface `id` implements (`through`); in code order. */
+/** The classes that take `id` in their constructor, or an interface `id` implements, directly or through the interfaces
+ *  those implement (`through`: the nearest such interface the class is taken as); in code order. */
 export function neededBy(model: Model, id: string): { id: string; through: string | null }[] {
   const index = consumersOf(model);
   const found = new Map<string, string | null>();
   for (const c of index.get(id) ?? []) found.set(c, null);
-  for (const iface of model.implementedBy(id))
-    for (const c of index.get(iface) ?? []) if (!found.has(c)) found.set(c, iface);
+  const seen = new Set([id]);
+  for (let level = model.implementedBy(id); level.length; ) {
+    const next: string[] = [];
+    for (const iface of level) {
+      if (seen.has(iface)) continue;
+      seen.add(iface);
+      for (const c of index.get(iface) ?? []) if (!found.has(c)) found.set(c, iface);
+      next.push(...model.implementedBy(iface));
+    }
+    level = next;
+  }
   found.delete(id);
   return [...found]
     .map(([cid, through]) => ({ id: cid, through }))

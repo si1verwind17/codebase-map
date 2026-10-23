@@ -65,6 +65,32 @@ describe("neededBy", () => {
     expect(neededBy(m, "shop.Repo")).toEqual([{ id: "shop.B", through: null }]);
   });
 
+  it("follows interfaces up their own implements, naming the nearest one the class is taken as", () => {
+    const m = modelWith(
+      cls("shop.Gateway", API),
+      cls("shop.PaymentGateway", API, { implements: ["shop.Gateway"] }),
+      cls("shop.Stripe", API, { implements: ["shop.PaymentGateway"] }),
+      takes("shop.Checkout", API, "shop.Gateway"),
+      takes("shop.Refunds", API, "shop.PaymentGateway"),
+      takes("shop.Both", API, "shop.Gateway", "shop.PaymentGateway"),
+    );
+    expect(neededBy(m, "shop.Stripe")).toEqual([
+      { id: "shop.Both", through: "shop.PaymentGateway" },
+      { id: "shop.Checkout", through: "shop.Gateway" },
+      { id: "shop.Refunds", through: "shop.PaymentGateway" },
+    ]);
+  });
+
+  it("ends on a loop of implements", () => {
+    const m = modelWith(
+      cls("shop.P", API, { implements: ["shop.Q"] }),
+      cls("shop.Q", API, { implements: ["shop.P"] }),
+      cls("shop.Impl", API, { implements: ["shop.P"] }),
+      takes("shop.A", API, "shop.Q"),
+    );
+    expect(neededBy(m, "shop.Impl")).toEqual([{ id: "shop.A", through: "shop.Q" }]);
+  });
+
   it("lists a class once, the direct need winning over the interface", () => {
     const m = modelWith(
       cls("shop.Repo", API),
