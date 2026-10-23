@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Turn a repository into a code map you can walk through: services, calls, events, data stores and traces, drawn as a factory floor of buildings and belts in a zoomable viewer.",
-    "version": "1.3.0"
+    "version": "1.3.1"
   },
   "plugins": [
     {
@@ -13,7 +13,7 @@
       "source": "./",
       "strict": false,
       "description": "Maps a repository's services, shared libraries, calls between services, events, streams and database reads and writes into code-map.json, with pinned traces and example data, and opens it in a zoomable factory-style viewer.",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "author": {
         "name": "si1verwind17"
       },
