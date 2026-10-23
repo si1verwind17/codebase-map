@@ -95,7 +95,7 @@ def test_rust_facts():
         # `mod db;` names a file of this crate
         {"target": "db", "line": 1, "relative": True, "names": []},
         {"target": "crate::db::Pool", "line": 2, "relative": True, "names": []},
-        {"target": "crate::db::Conn", "line": 2, "relative": True, "names": []},
+        {"target": "crate::db::Conn", "line": 2, "relative": True, "names": [], "renames": {"C": "Conn"}},
         {"target": "std::env", "line": 3, "relative": False, "names": []},
         {"target": "super::model", "line": 4, "relative": True, "names": []},
     ]

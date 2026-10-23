@@ -41,12 +41,16 @@ php:
     - name: laravel
       path: literal
       method: ANY
-      regex: '\bRoute::(?:(?P<method>get|post|put|patch|delete|options)|any)\(\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?[\w\\]+::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
+      handler_class: '{cls}'
+      handler_method: '{handler}'
+      regex: '\bRoute::(?:(?P<method>get|post|put|patch|delete|options)|any)\(\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?(?P<cls>[\w\\]+)::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
     # `Route::match(['get', 'post'], '/x', ...)`
     - name: laravel-match
       path: literal
       method: ANY
-      regex: '\bRoute::match\(\s*(?P<methods>\[[^\]]*\])\s*,\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?[\w\\]+::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
+      handler_class: '{cls}'
+      handler_method: '{handler}'
+      regex: '\bRoute::match\(\s*(?P<methods>\[[^\]]*\])\s*,\s*["''](?P<path>[^"'']*)["'']\s*,(?:\s*\[\s*\\?(?P<cls>[\w\\]+)::class\s*,\s*["''](?P<handler>\w+)["'']\s*\])?'
     - name: laravel-prefix
       path: literal
       mount: true

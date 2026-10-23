@@ -363,6 +363,10 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None)
                      for x in n.children_by_field_name("name")]
             res["imports"].append({"target": target, "line": n.start_point[0] + 1,
                                    "relative": target.startswith("."), "names": names})
+            renamed = {text(a): text(x.child_by_field_name("name")) for x in n.children_by_field_name("name")
+                       if x.type == "aliased_import" and (a := x.child_by_field_name("alias")) is not None}
+            if renamed:
+                res["imports"][-1]["renames"] = renamed
         elif n.type == "call":
             fn = n.child_by_field_name("function")
             res["calls"].append({"callee": callee_text(text(fn)), "in": enclosing_id(n, scope_ids),

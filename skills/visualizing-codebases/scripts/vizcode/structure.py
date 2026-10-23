@@ -403,6 +403,47 @@ def _dedupe(pats: list, lang: str, found: list[dict], group: str, name: str, key
     return kept
 
 
+ALIASED_HEAD = re.compile(r"(\$?)([A-Za-z_]\w*)")
+
+
+def _in_repo(f: str, imp: dict, results: dict[str, dict], names: dict[str, dict[str, str]]) -> str | None:
+    """The module an import of file f names, when it is the repo's own (a relative file, or a module name)."""
+    if imp["relative"]:
+        hit = _relative_file(f, imp["target"], results)
+        return None if hit is None else hit
+    return _resolve_import(imp["target"], names.get(_scope(_lang(f)), {}), stack.sep(_lang(f)))
+
+
+def _unalias(f: str, r: dict, results: dict[str, dict], names: dict[str, dict[str, str]]) -> None:
+    """Write a repo name the file imports under another name (`import a.Article as ArticleIO`, `use X as Y`) as
+    the name it imports: at the head of each call, in each class's bases and each route's named handler, so they
+    resolve like the plain name. A handler class takes its import's namespace, which tells it from a same-named
+    class imported plainly. A library's name renamed away from a local one (`join as joinPath`) is left alone."""
+    renamed = {local: (member, imp["target"]) for imp in r["imports"] if _in_repo(f, imp, results, names)
+               for local, member in (imp.get("renames") or {}).items()}
+    if not renamed:
+        return
+
+    def plain(text: str, qualify: bool = False) -> str:
+        m = ALIASED_HEAD.match(text)
+        if not m or m.group(2) not in renamed:
+            return text
+        member, target = renamed[m.group(2)]
+        if qualify and not text[m.end():]:
+            segs = _segments(target)
+            return "/".join(segs + ([member] if segs[-1:] != [member] else []))
+        return m.group(1) + member + text[m.end():]
+    for c in r["calls"]:
+        c["callee"] = plain(c["callee"])
+    for route in r["routes"]:
+        for key in ("handler_name", "handler_class"):
+            if route.get(key):
+                route[key] = plain(route[key], key == "handler_class")
+    for key in ("supers", "bases"):
+        if key in r:
+            r[key] = [(cid, [plain(x) for x in supers]) for cid, supers in r[key]]
+
+
 def _import_hints(r: dict, f: str, name: str, qualifier: str | None, results: dict[str, dict]) -> list[str | tuple]:
     """Where the file's imports say a handler name comes from: a file (a relative import naming it), or the last
     package segment of an import that names it or its qualifier (`use crate::routes::h`, `from app.views import h`,
@@ -418,6 +459,17 @@ def _import_hints(r: dict, f: str, name: str, qualifier: str | None, results: di
         elif qualifier and parts and qualifier in (imp.get("as"), parts[-1]):
             out.append(tuple(parts[-1:]))
     return out
+
+
+def _qualified(r: dict, cls: str) -> str:
+    """A bare class name the file imports, written with the namespace it is imported from (`ScrobbleController`
+    -> `App/Http/Controllers/API/ScrobbleController`), so two same-named classes are told apart."""
+    if len(_segments(cls)) > 1:
+        return cls
+    for imp in r["imports"]:
+        if cls in (imp.get("names") or []) and not imp["relative"]:
+            return "/".join(_segments(imp["target"]) + [cls])
+    return cls
 
 
 def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
@@ -444,7 +496,8 @@ def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
     return nid
 
 
-def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry) -> None:
+def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry,
+                      names: dict[str, dict[str, str]]) -> None:
     """Replace the span-rule handler of a route that names one (`handler_name`) with the method or function of
     that name (its last `.` or `::` segment: `h.GetOrder`, `handlers::get_order`): among those the file's imports
     point at (_import_hints) when any, and for a bare name the free functions when any, the one in the same file,
@@ -462,21 +515,31 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
             owner_kind[n["id"]] = n["kind"]
             if n["kind"] == "method":
                 methods.setdefault((file_mod[f], n["name"]), []).append((f, r["package"], n["id"]))
+    anywhere: dict[str, list[tuple[str, str, str]]] = {}   # name -> methods of that name in every module
+    for (_, name), found in methods.items():
+        anywhere.setdefault(name, []).extend(found)
     parent = {n["id"]: n.get("parent") for r in results.values() for n in r["nodes"]}
     classes: dict[tuple[str, str], list[str]] = {}       # (module, class name) -> class ids
+    any_classes: dict[str, list[str]] = {}               # class name -> class ids in every module
     members: dict[tuple[str, str], list[str]] = {}       # (class id, method name) -> method ids
     for f, r in results.items():
         for n in r["nodes"]:
             if n["kind"] == "class":
                 # by the name's last segment: Ruby `class Admin::OrdersController` is named `Admin.OrdersController`
                 classes.setdefault((file_mod[f], _segments(n["name"])[-1]), []).append(n["id"])
+                any_classes.setdefault(_segments(n["name"])[-1], []).append(n["id"])
             elif n["kind"] == "method" and owner_kind.get(n.get("parent") or "") == "class":
                 members.setdefault((n["parent"], n["name"]), []).append(n["id"])
     for f, r in results.items():
         for route in r["routes"]:
             cls, meth = route.pop("handler_class", None), route.pop("handler_method", None)
-            if cls and (found := _conventional_handler(cls, meth, classes.get((file_mod[f], _segments(cls)[-1]), []),
-                                                       members)):
+            if cls:
+                cls = _qualified(r, cls)
+                # a class the file names with its namespace may sit in another module
+                mine = classes.get((file_mod[f], _segments(cls)[-1]), [])
+                pool = mine if len(_segments(cls)) == 1 else (mine + [c for c in any_classes.get(_segments(cls)[-1], [])
+                                                                     if c not in mine])
+            if cls and (found := _conventional_handler(cls, meth, pool, members)):
                 route.pop("handler_name", None)
                 route.pop("nested_handler", None)
                 route["handler"] = found
@@ -491,10 +554,18 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
             parts = re.split(r"\.|::", name)
             cands = methods.get((file_mod[f], parts[-1]), [])
             hints = _import_hints(r, f, parts[-1], parts[-2] if len(parts) > 1 else None, results)
-            hinted = [c for c in cands if any(h == c[0] if isinstance(h, str)
-                                              else set(h) <= {*Path(c[0]).parent.parts, Path(c[0]).stem}
-                                              for h in hints)]
-            cands = hinted or cands
+
+            def hinted(found: list) -> list:
+                return [c for c in found if any(h == c[0] if isinstance(h, str)
+                                                else set(h) <= {*Path(c[0]).parent.parts, Path(c[0]).stem}
+                                                for h in hints)]
+            # the module's own, as the imports point; else another repo module's an import naming it points at
+            into = {m for imp in r["imports"] if (parts[-1] in (imp.get("names") or [])
+                                                   or _segments(imp["target"])[-1:] in ([parts[-1]], parts[-2:-1]))
+                    and (m := _in_repo(f, imp, results, names)) is not None}
+            into = {file_mod.get(m, m) for m in into}   # a relative import names a file: its module
+            far = [c for c in anywhere.get(parts[-1], []) if c not in cands and file_mod[c[0]] in into]
+            cands = hinted(cands) or hinted(far) or cands
             if len(parts) == 1:
                 cands = [c for c in cands if owner_kind.get(parent.get(c[2]) or "") == "file"] or cands
             found = None
@@ -743,7 +814,10 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         not_scanned = unscanned.report(tree, set(results), lambda f: excluded(f, patterns + BUILD_EXCLUDES),
                                        lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
 
-    _resolve_handlers(results, file_mod, reg)
+    names = _module_names(modules, results, file_mod, build_names)
+    for f, r in results.items():
+        _unalias(f, r, results, names)
+    _resolve_handlers(results, file_mod, reg, names)
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)

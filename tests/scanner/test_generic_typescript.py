@@ -87,7 +87,7 @@ def test_typescript_nodes():
 def test_typescript_facts():
     res = parse(GOLDEN)
     assert res["imports"] == [
-        {"target": "x", "line": 1, "relative": False, "names": ["a", "b"]},
+        {"target": "x", "line": 1, "relative": False, "names": ["a", "b"], "renames": {"c": "b"}},
         {"target": "./rel", "line": 2, "relative": True, "names": [], "as": "y"},
         {"target": "@scope/pkg", "line": 3, "relative": False, "names": []},
         {"target": "side-effect", "line": 4, "relative": False, "names": []},

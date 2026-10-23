@@ -3,7 +3,8 @@
 nodes     code-map nodes for this file (file/class/method; package node built by the caller)
 package   dotted package name the file belongs to
 imports   [{target, line, relative, names?}]   names: imported member names (Python from-imports, generic)
-          renames?: {local name: member name} (Scala `{A => B}`); as?: the local name of a whole-module import
+          renames?: {local name: member name} (Scala `{A => B}`, every `as` alias of a member); as?: the local
+          name of a whole-module import
           (TS `import * as m`, Python `import a.b as m`, Go `m "path"`)
 aliases   [name]  type names the file declares that are no class (type aliases, Python module-level type
           assignments and TypeVars): a type link never resolves them

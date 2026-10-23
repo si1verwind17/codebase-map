@@ -14,7 +14,8 @@ from .langs import LangSpec
 
 QUOTED = re.compile(r'^([@$A-Za-z]{0,3}#*)("""|"|\'|`)(.*)\2(#*)$', re.S)     # Rust r#"..."#
 TURBOFISH = re.compile(r"::(?=\(|$)")      # `parse::<u32>()` once its type arguments are cut
-Import = tuple       # target, names, relative, the node giving the line[, the local name of the whole import]
+Import = tuple       # target, names, relative, the node giving the line[, the local name of the whole import
+                     # [, {local name: imported name} of the names it renames]]
 _PARSERS: dict[str, object] = {}
 
 
@@ -56,13 +57,20 @@ def _qualified_name(node, spec: LangSpec) -> list[Import]:
     name = re.sub(r"\s+", "", text(parts[0]))
     if any(c.type in spec.wildcards for c in parts):
         return [(name, [], False, node)]
-    return [_split_last(name, ".", node)]
+    head, names, relative, at = _split_last(name, ".", node)
+    alias = next((text(a) for c in parts if c.type == "import_alias" for a in c.named_children), None)
+    return [(head, names, relative, at, None, {alias: names[-1] if names else head} if alias else None)]
 
 
 def _whole_name(node, spec: LangSpec) -> list[Import]:
-    """C# `using A.B;`, `using X = A.B;`, `using static A.B;` -> (A.B, []): the last name in the directive."""
+    """C# `using A.B;`, `using X = A.B;`, `using static A.B;` -> (A.B, []): the last name in the directive; an
+    alias renames its last segment (`X` -> `B`)."""
     parts = [c for c in node.named_children if c.type not in spec.comments]
-    return [(re.sub(r"\s+", "", text(parts[-1])), [], False, node)] if parts else []
+    if not parts:
+        return []
+    target = re.sub(r"\s+", "", text(parts[-1]))
+    alias, last = node.child_by_field_name("name"), target.rsplit(".", 1)[-1]
+    return [(target, [], False, node, None, {text(alias): last} if alias is not None and text(alias) != last else None)]
 
 
 def _unquote(node) -> str | None:
@@ -78,11 +86,14 @@ def _es_module(node, spec: LangSpec) -> list[Import]:
     target = _unquote(source) if source is not None else None
     if target is None:
         return []
-    names = [text(n) for s in walk(node) if s.type in ("import_specifier", "export_specifier")
-             and (n := s.child_by_field_name("name")) is not None]
+    specs = [s for s in walk(node) if s.type in ("import_specifier", "export_specifier")
+             and s.child_by_field_name("name") is not None]
+    names = [text(s.child_by_field_name("name")) for s in specs]
+    renamed = {text(a): text(s.child_by_field_name("name")) for s in specs
+               if s.type == "import_specifier" and (a := s.child_by_field_name("alias")) is not None}
     local = next((text(i) for s in walk(node) if s.type == "namespace_import"
                   for i in s.named_children if i.type == "identifier"), None)
-    return [(target, names, target.startswith("."), node, local)]
+    return [(target, names, target.startswith("."), node, local, renamed or None)]
 
 
 def _one_string(args, spec: LangSpec, types: tuple[str, ...]) -> str | None:
@@ -131,7 +142,7 @@ RUST_RELATIVE = ("crate", "self", "super")
 
 
 def _rust_paths(n, prefix: str):
-    """(path, node) for each name a `use` tree imports: `a::b::{c, d as e}` -> a::b::c, a::b::d."""
+    """(path, node, alias) for each name a `use` tree imports: `a::b::{c, d as e}` -> a::b::c, a::b::d (as e)."""
     def join(p: str) -> str:
         return f"{prefix}::{p}" if prefix and p else prefix or p
     if n.type == "scoped_use_list":
@@ -145,13 +156,15 @@ def _rust_paths(n, prefix: str):
             yield from _rust_paths(c, prefix)
     elif n.type == "use_as_clause":
         if (path := n.child_by_field_name("path")) is not None:
-            yield from _rust_paths(path, prefix)
+            alias = n.child_by_field_name("alias")
+            for p, at, _ in _rust_paths(path, prefix):
+                yield p, at, text(alias) if alias is not None else None
     elif n.type == "use_wildcard":
-        yield join(re.sub(r"\s+", "", text(n)).removesuffix("::*").removesuffix("*")), n
+        yield join(re.sub(r"\s+", "", text(n)).removesuffix("::*").removesuffix("*")), n, None
     elif n.type == "self":
-        yield prefix, n
+        yield prefix, n, None
     elif n.is_named:
-        yield join(re.sub(r"\s+", "", text(n))), n
+        yield join(re.sub(r"\s+", "", text(n))), n, None
 
 
 def _rust_use(node, spec: LangSpec) -> list[Import]:
@@ -159,7 +172,8 @@ def _rust_use(node, spec: LangSpec) -> list[Import]:
     arg = node.child_by_field_name("argument")
     if arg is None:
         return []
-    return [(p, [], p.split("::", 1)[0] in RUST_RELATIVE, line) for p, line in _rust_paths(arg, "") if p]
+    return [(p, [], p.split("::", 1)[0] in RUST_RELATIVE, line, None, {alias: p.rsplit("::", 1)[-1]} if alias else None)
+            for p, line, alias in _rust_paths(arg, "") if p]
 
 
 def _rust_mod(node, spec: LangSpec) -> list[Import]:
@@ -171,18 +185,24 @@ def _rust_mod(node, spec: LangSpec) -> list[Import]:
 
 
 def _php_use(node, spec: LangSpec) -> list[Import]:
-    """`use A\\B\\C;` -> (A\\B, [C]); `use D\\{E, F as G};` -> (D, [E, F]); a leading `\\` is dropped."""
+    """`use A\\B\\C;` -> (A\\B, [C]); `use D\\{E, F as G};` -> (D, [E, F], renaming G to F); a leading `\\` is
+    dropped."""
     def name_of(clause) -> str:
         n = next((c for c in clause.named_children if c.type in ("qualified_name", "name", "namespace_name")
                   and clause.field_name_for_child(clause.children.index(c)) != "alias"), None)
         return re.sub(r"\s+", "", text(n)).lstrip("\\") if n is not None else ""
+    def renamed(clauses) -> dict | None:
+        out = {text(a): name_of(c).rsplit("\\", 1)[-1] for c in clauses
+               if (a := c.child_by_field_name("alias")) is not None and name_of(c)}
+        return out or None
     group = node.child_by_field_name("body")
     if group is not None:
         prefix = next((c for c in node.named_children if c.type == "namespace_name"), None)
-        names = [name_of(c) for c in group.named_children if c.type == "namespace_use_clause"]
+        clauses = [c for c in group.named_children if c.type == "namespace_use_clause"]
+        names = [name_of(c) for c in clauses]
         head = text(prefix).lstrip("\\") if prefix is not None else ""
-        return [(head, [n for n in names if n], False, node)] if head else []
-    return [_split_last(n, "\\", node) for c in node.named_children
+        return [(head, [n for n in names if n], False, node, None, renamed(clauses))] if head else []
+    return [(*_split_last(n, "\\", node), None, renamed([c])) for c in node.named_children
             if c.type == "namespace_use_clause" and (n := name_of(c))]
 
 
@@ -592,11 +612,13 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         if t in spec.aliases and not _is_class(n, spec) and (alias := child(n, spec.aliases[t])) is not None:
             res["aliases"].append(_name(alias))
         if t in spec.imports and (found := IMPORT_READERS[spec.imports[t]](n, spec)):
-            for target, names, relative, at, *local in found:
+            for target, names, relative, at, *rest in found:
                 res["imports"].append({"target": target, "line": at.start_point[0] + 1,
                                        "relative": relative, "names": names})
-                if local and local[0]:
-                    res["imports"][-1]["as"] = local[0]
+                if rest and rest[0]:
+                    res["imports"][-1]["as"] = rest[0]
+                if len(rest) > 1 and rest[1]:
+                    res["imports"][-1]["renames"] = rest[1]
             continue
         if pkg_node is not None and n == pkg_node:
             pass                  # Ruby's outermost module names the package: walked, not a class

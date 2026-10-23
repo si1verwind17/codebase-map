@@ -87,7 +87,7 @@ def test_kotlin_facts():
     res = parse(GOLDEN)
     assert res["imports"] == [
         {"target": "io.ktor.server.routing", "line": 3, "relative": False, "names": []},
-        {"target": "io.ktor.server.routing", "line": 4, "relative": False, "names": ["get"]},
+        {"target": "io.ktor.server.routing", "line": 4, "relative": False, "names": ["get"], "renames": {"g": "get"}},
         {"target": "java.util", "line": 5, "relative": False, "names": ["UUID"]},
     ]
     url, place, make, orders = (f"{P}.Registry#url/2", f"{SVC}#place order/1", f"{SVC}#make/0",

@@ -87,7 +87,8 @@ def test_php_facts():
     res = parse(GOLDEN)
     assert res["imports"] == [
         {"target": "App\\Models", "line": 4, "relative": False, "names": ["Order"]},
-        {"target": "Illuminate\\Support", "line": 5, "relative": False, "names": ["Str", "Arr"]},
+        {"target": "Illuminate\\Support", "line": 5, "relative": False, "names": ["Str", "Arr"],
+         "renames": {"A": "Arr"}},
     ]
     show = f"{CTRL}#show/2"
     assert res["calls"] == [
