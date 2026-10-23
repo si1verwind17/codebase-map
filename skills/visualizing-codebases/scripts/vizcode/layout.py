@@ -297,6 +297,8 @@ def city_grid(cmap, prev, rels, services, externals, libraries, stores, utilitie
 # ---------------------------------------------------------------- inner floors
 def inner(container: str, children: list[str], cmap: dict, roles: dict[str, str], by_id: dict[str, dict],
           call_edges: list[tuple[str, str]], method_count: dict[str, int], prev: dict | None) -> dict:
+    """`call_edges`: the calls between two different children of the floor's base container (layout: each call
+    is lifted once, to the children of its two ends' lowest common container), as those children."""
     kind = by_id[container]["kind"]
     if kind == "datastore":  # warehouse shelves: tables in rows of four
         items = {t: {"region": "shelf", "col": i % 4, "row": i // 4} for i, t in enumerate(sorted(children))}
@@ -311,10 +313,7 @@ def inner(container: str, children: list[str], cmap: dict, roles: dict[str, str]
     child_set = set(children)
 
     def lift(x: str) -> str | None:
-        n = by_id.get(x)
-        while n is not None and n["id"] not in child_set:
-            n = by_id.get(n.get("parent") or "")
-        return member_of.get(n["id"], n["id"]) if n is not None else None
+        return member_of.get(x, x) if x in child_set else None
 
     edges = [(a2, b2) for a, b in call_edges if (a2 := lift(a)) and (b2 := lift(b)) and a2 != b2]
     fan_in: dict[str, set[str]] = {}
@@ -399,18 +398,40 @@ def layout(cmap: dict, roles: dict[str, str], previous: dict | None = None) -> d
             by_id[tid] = {**by_id[t], "id": tid, "parent": n["id"]}
         if n["kind"] == "method" and n.get("parent"):
             method_count[n["parent"]] = method_count.get(n["parent"], 0) + 1
-    call_edges = sorted((r["from"], r["to"]) for r in cmap["relations"] if r["kind"] == "calls")
+    paths: dict[str, list[str]] = {}
+
+    def path(x: str) -> list[str]:
+        """x's ancestors from the top down, x last."""
+        if x not in paths:
+            out, n, seen = [], by_id.get(x), set()
+            while n is not None and n["id"] not in seen:
+                seen.add(n["id"])
+                out.append(n["id"])
+                n = by_id.get(n.get("parent") or "")
+            paths[x] = out[::-1]
+        return paths[x]
+
+    # a call shows on one floor only: its two ends' lowest common container, between the children they sit under
+    lifted: dict[str, list[tuple[str, str]]] = {}
+    for a, b in sorted((r["from"], r["to"]) for r in cmap["relations"] if r["kind"] == "calls"):
+        pa, pb = path(a), path(b)
+        i = 0
+        while i < len(pa) and i < len(pb) and pa[i] == pb[i]:
+            i += 1
+        if 0 < i < len(pa) and i < len(pb):
+            lifted.setdefault(pa[i - 1], []).append((pa[i], pb[i]))
     containers = {SITE: site(cmap, prev_c.get(SITE))}
     for cid in sorted(children):
         if by_id[cid]["kind"] == "method":
             continue
-        floor = inner(cid, children[cid], cmap, roles, by_id, call_edges, method_count, prev_c.get(cid))
+        floor = inner(cid, children[cid], cmap, roles, by_id, lifted.get(cid, []), method_count, prev_c.get(cid))
         containers[cid] = floor
         queue = list(floor["groups"])
         while queue:  # a group opens as its own sub-assembly floor, condensed again when crowded
             g = queue.pop(0)
             by_id[g["id"]] = {"id": g["id"], "kind": "group", "name": g["label"], "parent": cid}
-            sub = inner(g["id"], g["members"], cmap, roles, by_id, call_edges, method_count, prev_c.get(g["id"]))
+            sub = inner(g["id"], g["members"], cmap, roles, by_id, lifted.get(cid, []), method_count,
+                        prev_c.get(g["id"]))
             containers[g["id"]] = sub
             queue += sub["groups"]
     return {"version": 1, "containers": containers}
