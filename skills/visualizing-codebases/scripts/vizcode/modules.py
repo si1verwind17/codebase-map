@@ -282,13 +282,15 @@ def _jsonc(text: str):
 
 
 def path_aliases(root: Path, modules: list[dict]) -> set[str]:
-    """Import prefixes tsconfig.json / jsconfig.json `compilerOptions.paths` maps into the repo (`@/*` -> `@`)."""
+    """Import prefixes tsconfig.json / jsconfig.json `compilerOptions.paths` maps into the repo (`@/*` -> `@`), from
+    every such file in a JS/TS module (a frontend's own `resources/assets/tsconfig.json` too)."""
     out: set[str] = set()
     for m in modules:
         if m["lang"] not in ("typescript", "javascript"):
             continue
-        for name in ("tsconfig.json", "jsconfig.json"):
-            p = root / m["path"] / name
+        found = [p for pat in ("tsconfig*.json", "jsconfig.json") for p in (root / m["path"]).rglob(pat)
+                 if "node_modules" not in p.parts and not any(x.startswith(".") for x in p.relative_to(root).parts)]
+        for p in sorted(found):
             try:
                 doc = _jsonc(_read(p)) if p.is_file() else None
             except ValueError:

@@ -1023,7 +1023,7 @@ def _stack_lines(rep: dict) -> list[str]:
     if unrec:
         lines.append(f"Unrecognised imports ({len(unrec)}):")
         lines += [f"- {u['lang']} `{u['prefix']}` — {_plural(u['files'], 'file', 'files')}: {', '.join(u['examples'])}"
-                  for u in unrec]
+                  + (f" (looks like a {u['looks_like']} library)" if u.get("looks_like") else "") for u in unrec]
         lines.append("")
     if servers:
         lines.append(f"Server libraries without routes ({len(servers)}):")

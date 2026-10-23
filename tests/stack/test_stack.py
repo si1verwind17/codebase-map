@@ -589,3 +589,25 @@ def test_when_matches_from_import_names(make_repo):
     assert (pat["matches"], pat["files"], pat["first_file"]) == (1, 1, "site/views.py:1")
     assert stack.import_names([{"target": "flask", "relative": False, "names": ["views"]},
                                {"target": ".x", "relative": True, "names": ["y"]}]) == ["flask.views"]
+
+
+def test_unrecognised_imports_leave_out_language_items_and_keep_the_repos_own_package(make_repo):
+    """PHP global classes (`use Exception;`), a Rust `use` of a local enum's variants, a path alias from a tsconfig
+    below the module root, and a library prefix that would also cover the repo's own package (`com.acme` when the
+    repo is `com.acme.shop`): none is noise in the list, and a server-looking library is flagged first."""
+    files = {"composer.json": "{\"name\": \"demo/app\"}\n",
+             "app/Job.php": "<?php\n\nnamespace App;\n\nuse Exception;\nuse Closure;\nuse Monolog\\Logger;\n\n"
+                            "class Job {}\n",
+             "Cargo.toml": "[package]\nname = \"app\"\n",
+             "src/main.rs": "use SortType::*;\nuse Self::Kind;\nuse dashmap::DashMap;\n\nenum SortType { A }\n",
+             "package.json": "{\"name\": \"web\"}\n",
+             "web/assets/tsconfig.json": "{\"compilerOptions\": {\"paths\": {\"@/*\": [\"./js/*\"]}}}\n",
+             "web/assets/js/app.ts": "import { x } from '@/stores/x'\nimport { Hono } from 'hono'\nexport const y = x\n",
+             "pom.xml": "<project/>\n",
+             "src/main/java/com/acme/shop/App.java": "package com.acme.shop;\n\nimport com.acme.tools.Retry;\n\n"
+                                                     "public class App {}\n"}
+    s = structure.build(make_repo(files))
+    got = [(u["lang"], u["prefix"], u.get("looks_like")) for u in s["stack"]["unrecognised"]]
+    assert got == [("typescript", "hono", "server"), ("java", "com.acme.tools", None),
+                   ("php", "Monolog", None), ("rust", "dashmap", None)]
+    assert "- typescript `hono` — 1 file: web/assets/js/app.ts:2 (looks like a server library)" in structure.summary_md(s)

@@ -404,7 +404,9 @@ What the scanner knows about libraries and route styles is data: the
 built-in packs (`scripts/vizcode/packs/<lang>.yaml`) and `OUT/stack.yaml`,
 which you create and write for this repo without asking; it is committed
 and reused on later runs. The Stack section at the top of `summary.md` lists what neither
-covers, total first: unrecognised imports (two `file:line` examples each),
+covers, total first: unrecognised imports (two `file:line` examples each; names
+that look like a server, datastore, queue or client library first, marked so:
+sort those before the rest),
 server libraries without routes (an `http-in` or `http` import with no route
 in its importers' modules), route-looking lines with no route (in a file importing a
 server library, a verb, `route` or resource call or annotation with a path that no

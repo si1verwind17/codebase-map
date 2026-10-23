@@ -1268,8 +1268,26 @@ def _local_scala(target: str, src: str, package: str, index: tuple[set[str], set
     return any((c := ".".join(parts[:i] + [first])) in names or c in above for i in range(1, len(parts) + 1))
 
 
+# what an unrecognised library looks like by its name, so the ones that change the map are sorted first
+LOOKS_LIKE = (("server", re.compile(r"server|http|router|express|hono|fastify|koa|flask|fastapi|gin|"
+                                    r"echo|fiber|actix|axum|rocket|ktor|sinatra|graphql|"
+                                    r"grpc|socket(io)?|ws|websockets?|starlette|sanic|tornado|aiohttp|hapi|elysia")),
+              ("datastore", re.compile(r"sql\w*|\w*sql|mongo\w*|redis|db|database|orm|prisma|typeorm|sequelize|"
+                                       r"diesel|jdbc|jpa|hibernate|cassandra|dynamo\w*|elastic\w*|knex|drizzle")),
+              ("queue", re.compile(r"kafka\w*|amqp\w*|rabbit\w*|queue|bull\w*|sqs|pubsub|nats|celery|sidekiq")),
+              ("client", re.compile(r"client|sdk|axios|okhttp|feign|reqwest|requests|httpx|got|ky")))
+
+
+def _looks_like(prefix: str) -> str | None:
+    words = [w for w in re.split(r"[^a-z0-9]+", prefix.lower()) if w]
+    return next((kind for kind, rx in LOOKS_LIKE if any(rx.fullmatch(w) for w in words)), None)
+
+
 def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str]]) -> list[dict]:
-    """internal: language -> the import names of the repo's own code in that language."""
+    """internal: language -> the import names of the repo's own code in that language. Language items are no
+    library: a PHP name with no namespace (`use Exception;`), a Rust path from a type (`use SortType::*`). A
+    prefix that would cover the repo's own package too (`com.acme` beside `com.acme.shop`) takes one more
+    segment. Libraries whose name looks like a server, datastore, queue or client come first."""
     seen: dict[tuple[str, str], dict[str, int]] = {}
     indexes: dict[str, tuple[set[str], set[str]]] = {}
     for path in sorted(files):
@@ -1288,15 +1306,23 @@ def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str
                 continue      # the standard library: no host in the path
             if lang in ("typescript", "javascript") and t.startswith("/"):
                 continue      # rooted at the project (Vite `/src/main`): the repo's own
+            if lang == "php" and "\\" not in t.lstrip("\\") and not imp.get("names"):
+                continue      # a global class: `use Exception;`
+            if lang == "rust" and t.split("::")[0][:1].isupper():
+                continue      # `use SortType::*`, `use Self::Kind`: an item in scope, not a crate
             if _is_internal(t, index, s):
                 continue
             if lang == "scala" and _local_scala(t, f.get("src", ""), f.get("package", ""), index):
                 continue
             if not all(covered(st, lang, x) for x in targets(imp, lang)):
-                seen.setdefault((lang, _prefix(lang, t)), {}).setdefault(path, imp["line"])
-    return [{"lang": lang, "prefix": prefix, "files": len(at),
-             "examples": [f"{p}:{n}" for p, n in list(at.items())[:2]]}
-            for (lang, prefix), at in sorted(seen.items())]
+                prefix, parts = _prefix(lang, t), t.removeprefix(s).split(s)
+                while prefix in index[1] and prefix != t:   # it would ignore the repo's own package too
+                    prefix = s.join(parts[:len(prefix.split(s)) + 1])
+                seen.setdefault((lang, prefix), {}).setdefault(path, imp["line"])
+    out = [{"lang": lang, "prefix": prefix, "files": len(at), "examples": [f"{p}:{n}" for p, n in list(at.items())[:2]],
+            **({"looks_like": kind} if (kind := _looks_like(prefix)) else {})}
+           for (lang, prefix), at in sorted(seen.items())]
+    return sorted(out, key=lambda u: "looks_like" not in u)
 
 
 def _servers(st: Stack, files: dict[str, dict]) -> list[dict]:
