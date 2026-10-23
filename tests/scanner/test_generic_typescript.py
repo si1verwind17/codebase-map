@@ -185,3 +185,16 @@ def test_a_function_valued_property_of_an_object_is_a_method():
     # an object passed to a call is no service: its function properties stay inside the call
     res = parse("app.route({ url: '/x', handler: async () => 1 })\n", "web/r.ts")
     assert [n for n in res["nodes"] if n["kind"] == "method"] == []
+
+
+def test_vue_and_svelte_script_blocks_are_scanned_with_their_lines(make_repo):
+    from vizcode import structure
+    vue = ("<template>\n  <button @click=\"save\">{{ label }}</button>\n</template>\n\n<script setup lang=\"ts\">\n"
+           "import { http } from '@/services/http'\n\nfunction save() {\n  return http.post('songs', {})\n}\n"
+           "</script>\n\n<style scoped>\n.x { color: red }\n</style>\n")
+    svelte = "<script>\n  export function load() { return fetch('/api/me') }\n</script>\n\n<h1>{title}</h1>\n"
+    s = structure.build(make_repo({"package.json": "{\"name\": \"web\"}\n", "src/Song.vue": vue, "src/Me.svelte": svelte}))
+    methods = {(n["file"], n["name"], n["line"]) for n in s["nodes"] if n["kind"] == "method"}
+    assert {("src/Song.vue", "save", 8), ("src/Me.svelte", "load", 2)} <= methods
+    assert [(c["callee"], c["line"]) for c in s["facts"]["src/Song.vue"]["calls"]] == [("http.post", 9)]
+    assert "src/Song.vue" not in str(s.get("unscanned"))

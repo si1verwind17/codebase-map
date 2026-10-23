@@ -704,6 +704,19 @@ def _nested(decl, fn, name: str, scope: str, params: list[dict]) -> dict:
             "end": decl.end_point[0] + 1, "in": scope, "params": params}
 
 
+SCRIPT_BLOCK = re.compile(rb"(<script\b[^>]*>)(.*?)(</script\s*>)", re.S | re.I)
+SFC_SUFFIXES = (".vue", ".svelte")
+
+
+def script_blocks(src: bytes) -> bytes:
+    """A single-file component with everything outside its `<script>` blocks blanked (each byte a space, line
+    ends kept), so the code parses alone and every line and offset stays the file's own."""
+    keep = bytearray(re.sub(rb"[^\n]", b" ", src))
+    for m in SCRIPT_BLOCK.finditer(src):
+        keep[m.start(2):m.end(2)] = m.group(2)
+    return bytes(keep)
+
+
 class Adapter:
     """`parse` with the language table bound, the shape structure.LANGS expects of an adapter module."""
 

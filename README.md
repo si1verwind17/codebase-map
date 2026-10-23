@@ -70,7 +70,8 @@ an issue for this repository with your code's names left out, shows you the exac
 read it and submit it yourself. Or [open an issue](https://github.com/si1verwind17/codebase-map/issues/new/choose)
 directly.
 
-**Languages:** Scala, Python, Java, Kotlin, TypeScript, JavaScript, Go, C#, Rust, Ruby and PHP. A generic reader
+**Languages:** Scala, Python, Java, Kotlin, TypeScript, JavaScript (Vue and Svelte script blocks too), Go, C#, Rust,
+Ruby and PHP. A generic reader
 maps classes, methods, calls and imports in any of them, whatever the framework. Common frameworks' routes and
 libraries are known out of the box (Spring, NestJS, Express, FastAPI, Rails, Laravel, ASP.NET, Axum and more); for
 any other, the agent works them out from your code and records them in a `stack.yaml` next to the map.

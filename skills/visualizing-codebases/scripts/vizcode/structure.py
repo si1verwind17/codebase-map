@@ -829,6 +829,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             if f not in file_mod:
                 continue
             data = LONE_CR.sub(b"\n", (root / f).read_bytes())   # old Mac line ends: same length, so offsets hold
+            if f.endswith(generic.SFC_SUFFIXES):
+                data = generic.script_blocks(data)   # a single-file component: its script blocks alone
             if len(data) > MAX_BYTES:
                 skipped.append({"file": f, "reason": f"larger than {MAX_BYTES} bytes"})
                 continue

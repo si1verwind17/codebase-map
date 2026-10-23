@@ -259,6 +259,9 @@ TYPESCRIPT = LangSpec(
     aliases={"type_alias_declaration": "name"},
 )
 TSX = replace(TYPESCRIPT, grammar="tsx", suffixes=(".tsx",))
+# single-file components: their `<script>` blocks, read as TypeScript (structure blanks the rest with
+# generic.script_blocks)
+SFC = replace(TYPESCRIPT, suffixes=(".vue", ".svelte"), tests=())
 
 JAVASCRIPT = replace(
     TYPESCRIPT, lang="javascript", grammar="javascript", suffixes=(".js", ".jsx", ".mjs", ".cjs"),
@@ -386,6 +389,6 @@ PHP = LangSpec(
     bare_strings=("heredoc_body", "nowdoc_body"),
 )
 
-ALL: tuple[LangSpec, ...] = (JAVA, KOTLIN, CSHARP, TYPESCRIPT, TSX, JAVASCRIPT, GO, RUST, RUBY, PHP)
+ALL: tuple[LangSpec, ...] = (JAVA, KOTLIN, CSHARP, TYPESCRIPT, TSX, JAVASCRIPT, GO, RUST, RUBY, PHP, SFC)
 SPECS: dict[str, LangSpec] = {s.lang: s for s in reversed(ALL)}      # by language: `.ts`'s table, not `.tsx`'s
 BY_SUFFIX: dict[str, LangSpec] = {suf: s for s in ALL for suf in s.suffixes}

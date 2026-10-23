@@ -22,7 +22,8 @@ structure pass; you do the meaning pass, which needs judgment.
 
 Baseline: Python ≥ 3.10.12, `tree-sitter` 0.26.0,
 `tree-sitter-language-pack` 1.20.0; source languages Scala, Python, Java,
-Kotlin, TypeScript, JavaScript, Go, C#, Rust, Ruby and PHP.
+Kotlin, TypeScript, JavaScript (with the `<script>` blocks of `.vue` and
+`.svelte` files), Go, C#, Rust, Ruby and PHP.
 Framework knowledge is data: built-in packs plus the `OUT/stack.yaml` you
 write for each repo (§ Stack).
 Field-by-field format, ids and a complete example: `format.md`.

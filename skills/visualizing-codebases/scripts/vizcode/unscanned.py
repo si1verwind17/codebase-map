@@ -17,7 +17,7 @@ SOURCE = {
     ".hs": "Haskell", **dict.fromkeys((".ml", ".mli"), "OCaml"), **dict.fromkeys((".fs", ".fsx"), "F#"),
     ".vb": "Visual Basic", **dict.fromkeys((".clj", ".cljs", ".cljc"), "Clojure"), ".groovy": "Groovy",
     **dict.fromkeys((".pl", ".pm"), "Perl"), ".lua": "Lua", ".r": "R", ".jl": "Julia", ".zig": "Zig",
-    ".nim": "Nim", ".cr": "Crystal", ".elm": "Elm", ".sol": "Solidity", ".vue": "Vue", ".svelte": "Svelte",
+    ".nim": "Nim", ".cr": "Crystal", ".elm": "Elm", ".sol": "Solidity",
     **dict.fromkeys((".sh", ".bash", ".zsh"), "shell"), ".ps1": "PowerShell",
     **dict.fromkeys((".conf", ".vcl"), "server config"),
 }
