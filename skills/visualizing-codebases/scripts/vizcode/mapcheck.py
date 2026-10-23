@@ -372,8 +372,12 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
     def has_code(nid: str) -> bool:
         return any(nodes[c]["kind"] in ("file", "package") or has_code(c) for c in kids.get(nid, []))
 
+    # a service the scanner cannot read has no code but relations of its own, read from its config (SKILL.md)
+    runtime_ends = {e for r in cmap.get("relations", []) if r["kind"] not in ("uses-code", "calls")
+                    for e in (r.get("from"), r.get("to"))}
     for n in nodes.values():
-        if n["kind"] in ("service", "library") and not has_code(n["id"]) and not n.get("twins"):
+        if n["kind"] in ("service", "library") and not has_code(n["id"]) and not n.get("twins") \
+                and not (n["kind"] == "service" and n["id"] in runtime_ends):
             out.append({"id": "module.empty", "node": n["id"],
                         "detail": f"{n['kind']} {n['id']} has no file or package under it"})
     ends = {e for r in cmap.get("relations", []) for e in (r.get("from"), r.get("to"))}

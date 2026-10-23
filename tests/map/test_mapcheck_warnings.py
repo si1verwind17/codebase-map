@@ -139,6 +139,20 @@ def test_module_empty_skips_a_service_that_deploys_a_twin():
     assert [w for w in mapcheck.warnings(m) if w["id"] == "module.empty"] == []
 
 
+def test_module_empty_skips_an_unscanned_deployable_with_relations():
+    """SKILL.md: a deployable the scanner does not read is a service with no modules whose relations are read from
+    its config; a library, or a service with nothing of its own, still warns."""
+    m = copy.deepcopy(DEMO)
+    target = next(n["id"] for n in m["nodes"] if n["kind"] == "service")
+    m["nodes"] += [{"id": "svc:proxy", "kind": "service", "name": "proxy", "modules": []},
+                   {"id": "lib:none", "kind": "library", "name": "none", "modules": []}]
+    m["relations"].append({"id": "request:svc:proxy->x", "kind": "request", "from": "svc:proxy", "to": target,
+                           "key": "GET /", "confidence": "inferred"})
+    m["relations"].append({"id": "uses-code:lib:none->x", "kind": "uses-code", "from": "lib:none", "to": target,
+                           "key": None, "confidence": "confirmed"})
+    assert [w["node"] for w in mapcheck.warnings(m) if w["id"] == "module.empty"] == ["lib:none"]
+
+
 def test_name_container_skips_a_constructor():
     m = {"nodes": [{"id": "svc:a", "kind": "service", "name": "a"},
                    {"id": "a::p", "kind": "package", "name": "p", "parent": "svc:a"},

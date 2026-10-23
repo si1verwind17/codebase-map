@@ -741,7 +741,8 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
   `in-process queues` creation site in `summary.md` that no in-process-queue
   cites in `evidence` and no `problems` entry names as `file:line`), `data.two-way-call` (a `request` or `ext-call`
   with `data: both`: a call's reply is not data moving back), `module.empty` (a service or
-  library with no file or package under it) and `example.missing` (an entry
+  library with no file or package under it; a service with runtime relations of its own is one the scanner
+  cannot read and does not warn) and `example.missing` (an entry
   point with no example, or with a key that has none; one line each; a
   root route `GET /` under a mount stays a key of its own beside the
   relation's `GET /v1`), `route.file-handler` (routes of a file whose handler is the file: no entry point, so
