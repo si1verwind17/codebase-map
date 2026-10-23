@@ -3,6 +3,11 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 7 — 2026-10-24
+- Outbound requests (SKILL.md § Matching interactions): `http clients` now lists calls through the code's own HTTP helpers and client calls with a path; match each to its route as a `request`, and drop hand-written requests the list now gives as facts.
+- SQL kept outside the code (SKILL.md § Matching interactions): a mapper XML's statements are SQL facts of the interface methods they name, and § Tables defined in SQL files lists the tables `.sql` files create; attach their reads and writes.
+- Inline handlers (`references/stack.md`): a route's lambda inside a function is its own handler node named after the route; move the route's examples and relations onto it.
+
 ## Rules 6 — 2026-10-23
 - Tables by naming default (SKILL.md § Stack): each class the Stack section lists as entity-looking with no table takes its table from the ORM's naming default; write those tables and their reads and writes.
 - Framework-implemented interfaces (SKILL.md § Run, the structure pass's lists): a repository's or declarative HTTP client's methods start the `db-read`/`db-write` or `request` relations; a call to a method only the library base supplies starts at the calling method. Move relations written elsewhere onto them.
