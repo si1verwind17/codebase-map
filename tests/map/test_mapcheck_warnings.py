@@ -204,3 +204,16 @@ def test_route_handlers_that_are_a_file_or_a_setup_function():
          "them. Point each at its real handler in stack.yaml (a handler group), or say in problems why it is right")]
     quiet = _routes_map(["the inline handlers at src/routes.js:3 and f#setup/1 are what the code has"])
     assert [w for w in mapcheck.warnings(quiet) if w["id"].startswith("route.")] == []
+
+
+def test_a_handler_in_another_file_is_no_setup_function():
+    # a routes file whose routes point at methods of another file (Rails routes.rb to controller actions): the
+    # method's lines are another file's, so routes on the same line numbers are not inside it
+    nodes = [{"id": "r", "kind": "file", "name": "routes.rb", "file": "config/routes.rb", "line": 1},
+             {"id": "c", "kind": "file", "name": "books_controller.rb", "file": "app/books_controller.rb", "line": 1},
+             {"id": "c#index/0", "kind": "method", "name": "index", "parent": "c", "file": "app/books_controller.rb",
+              "line": 2, "metrics": {"loc": 10}}]
+    routes = [{"method": "GET", "path": f"/b{i}", "handler": "c#index/0", "line": 2 + i} for i in range(4)]
+    cmap = {"nodes": nodes, "relations": [], "files": {"config/routes.rb": {"node": "r", "routes": routes}},
+            "problems": []}
+    assert [w for w in mapcheck.warnings(cmap) if w["id"].startswith("route.")] == []

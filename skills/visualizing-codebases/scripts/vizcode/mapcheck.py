@@ -290,7 +290,9 @@ def _route_handlers(cmap: dict, nodes: dict[str, dict]) -> list[dict]:
         for h, rs in mine.items():
             n = nodes[h]
             if n["kind"] == "method":
-                end = n.get("line", 0) + (n.get("metrics") or {}).get("loc", 1) - 1
+                if n.get("file") != f:   # a handler in another file: its lines are not this file's
+                    continue
+                end =n.get("line", 0) + (n.get("metrics") or {}).get("loc", 1) - 1
                 inside = [r for r in routes if n.get("line", 0) <= r["line"] <= end]
                 rs = [r for r in rs if r in inside]
                 if len(inside) < SETUP_ROUTES or not rs:
