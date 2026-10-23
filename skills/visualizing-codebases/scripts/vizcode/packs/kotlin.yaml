@@ -1,6 +1,7 @@
 # Built-in pack: what the scanner knows about Kotlin libraries. Same format as stack.yaml; stack.yaml adds to it.
 # imports are matched on `.` boundaries; imports win over ignore; the longest matching prefix names the kind.
-# ignore: the standard library (kotlinx.* are libraries, not ignored), and the wiring of the frameworks this
+# ignore: the standard library and the Android platform (`android`, `androidx`; kotlinx.* are libraries, not
+# ignored), and the wiring of the frameworks this
 # pack covers (Spring, Micronaut, Quarkus, Ktor, Jakarta EE and MicroProfile, as in the Java pack: their IO parts
 # are imports entries, which win: Ktor's `client` is http-out, its `server.routing` http-in).
 # routes: Spring MVC/WebFlux, JAX-RS, Micronaut (`form: annotated`, the Java pack's entries: Kotlin annotations
@@ -9,7 +10,7 @@
 # pack) and Exposed `object X : Table("x")` (no argument: the object's name), defined on the object.
 # queues: in-process queue creation sites (coroutine `Channel`, `MutableSharedFlow`, `java.util.concurrent` blocking queues): candidates the agent confirms (SKILL.md § In-process queues).
 kotlin:
-  ignore: [kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,
+  ignore: [android, androidx, kotlin, java, javax, org.springframework, io.micronaut, io.quarkus, io.ktor, jakarta.inject,
            jakarta.enterprise, jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json,
            jakarta.xml.bind, org.eclipse.microprofile]
   imports:

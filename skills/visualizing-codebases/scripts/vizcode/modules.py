@@ -299,5 +299,9 @@ def path_aliases(root: Path, modules: list[dict]) -> set[str]:
             paths = opts.get("paths") if isinstance(opts, dict) else None
             if isinstance(paths, dict):
                 out.update(k.removesuffix("*").rstrip("/") for k in paths if isinstance(k, str))
+            base = opts.get("baseUrl") if isinstance(opts, dict) else None
+            if isinstance(base, str) and (at := (p.parent / base)).is_dir():   # bare imports resolve from there
+                out.update(x.stem if x.is_file() else x.name for x in at.iterdir()
+                           if not x.name.startswith(".") and x.name != "node_modules")
     out.discard("")
     return out

@@ -1289,8 +1289,12 @@ def _local_scala(target: str, src: str, package: str, index: tuple[set[str], set
     return any((c := ".".join(parts[:i] + [first])) in names or c in above for i in range(1, len(parts) + 1))
 
 
+# a build tool's own config file (`webpack.config.js`, `vite.config.ts`, `.eslintrc.cjs`, `gulpfile.js`)
+BUILD_CONFIG = re.compile(r"(?:^|/)(?:(?:webpack|vite|vitest|rollup|babel|jest|eslint|prettier|postcss|tailwind|svelte"
+                          r"|next|nuxt|astro|playwright|cypress|karma|stylelint|commitlint|lint-staged)\.config"
+                          r"(?:\.\w+)?\.[cm]?[jt]s|\.eslintrc\.[cm]?js|gulpfile\.[jt]s|Gruntfile\.js)$")
 # what an unrecognised library looks like by its name, so the ones that change the map are sorted first
-LOOKS_LIKE = (("server", re.compile(r"server|http|router|express|hono|fastify|koa|flask|fastapi|gin|"
+LOOKS_LIKE = (("server", re.compile(r"server|http|express|hono|fastify|koa|flask|fastapi|gin|"
                                     r"echo|fiber|actix|axum|rocket|ktor|sinatra|graphql|"
                                     r"grpc|socket(io)?|ws|websockets?|starlette|sanic|tornado|aiohttp|hapi|elysia")),
               ("datastore", re.compile(r"sql\w*|\w*sql|mongo\w*|redis|db|database|orm|prisma|typeorm|sequelize|"
@@ -1325,8 +1329,10 @@ def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str
                 continue
             if lang == "go" and "." not in t.split("/")[0]:
                 continue      # the standard library: no host in the path
-            if lang in ("typescript", "javascript") and t.startswith("/"):
-                continue      # rooted at the project (Vite `/src/main`): the repo's own
+            if lang in ("typescript", "javascript") and t.startswith(("/", "$")):
+                continue      # rooted at the project (Vite `/src/main`) or a bundler alias (`$lib`): the repo's own
+            if BUILD_CONFIG.search(path):
+                continue      # a build tool's config file imports its plugins, not the app's libraries
             if lang == "php" and "\\" not in t.lstrip("\\") and not imp.get("names"):
                 continue      # a global class: `use Exception;`
             if lang == "rust" and t.split("::")[0][:1].isupper():

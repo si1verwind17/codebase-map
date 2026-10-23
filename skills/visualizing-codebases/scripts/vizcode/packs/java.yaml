@@ -1,7 +1,8 @@
 # Built-in pack: what the scanner knows about Java libraries. Same format as stack.yaml; stack.yaml adds to it.
 # imports are matched on `.` boundaries; imports win over ignore (`java.sql` and `java.net.http` are kinds
 # although `java` is ignored). The longest matching prefix names the kind (`jakarta.ws.rs.client` is a
-# client although `jakarta.ws.rs` is a server). ignore: the standard library, and the wiring of the frameworks
+# client although `jakarta.ws.rs` is a server). ignore: the standard library, the Android platform (`android`,
+# `androidx`), and the wiring of the frameworks
 # this pack covers (Spring, Micronaut, Quarkus, Jakarta EE and MicroProfile wiring such as `jakarta.inject` or
 # `jakarta.validation`: their IO parts are imports entries, which win: `jakarta.persistence`, `jakarta.ws.rs` and its
 # `client`, `jakarta.jms`, MicroProfile's rest client and reactive messaging).
@@ -11,7 +12,7 @@
 # tables: JPA `@Table(name = ...)` and `@Entity(name = ...)`: a mapping, defined on the class.
 # queues: in-process queue creation sites (`java.util.concurrent` blocking queues, Guava `EventBus`): candidates the agent confirms (SKILL.md § In-process queues).
 java:
-  ignore: [java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
+  ignore: [android, androidx, java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
            jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json, jakarta.xml.bind,
            org.eclipse.microprofile]
   imports:

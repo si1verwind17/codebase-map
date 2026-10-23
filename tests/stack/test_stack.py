@@ -637,3 +637,16 @@ def test_a_sqlmodel_table_class_with_no_tablename_is_entity_looking(make_repo):
            "class User(UserBase, table=True):\n    id: int\n\n\nclass UserCreate(UserBase):\n    password: str\n")
     s = structure.build(make_repo({"app/__init__.py": "", "app/models.py": src}))
     assert [(x["file"], x["classes"]) for x in s["stack"]["entities_without_table"]] == [("app/models.py", ["User"])]
+
+
+def test_build_tool_configs_bundler_aliases_and_baseurl_imports_are_no_libraries(make_repo):
+    """A build tool's config file imports its plugins, `$lib/x` is a bundler alias, and a bare import a tsconfig
+    `baseUrl` resolves into the repo is the repo's own: none is an unrecognised library."""
+    files = {"package.json": '{"name": "web"}\n',
+             "webpack.config.js": "const Html = require('html-webpack-plugin')\nmodule.exports = { plugins: [new Html()] }\n",
+             "tsconfig.json": '{"compilerOptions": {"baseUrl": "src"}}\n',
+             "src/components/Button.ts": "export const Button = 1\n",
+             "src/app.ts": "import { Button } from 'components/Button'\nimport { page } from '$app/stores'\n"
+                           "import { x } from '$lib/x'\nimport dayjs from 'dayjs'\nexport const y = [Button, page, x, dayjs]\n"}
+    s = structure.build(make_repo(files))
+    assert [u["prefix"] for u in s["stack"]["unrecognised"]] == ["dayjs"]
