@@ -179,9 +179,11 @@ inside the repo).
 
 Read `summary.md`, not `structure.json` (it can be megabytes). Look up ids with
 `$PY SKILL_DIR/scripts/find.py OUT/structure.json TEXT [--kind method]`.
-Read source, config and compose files **at the scanned commit**
+Read source files **at the scanned commit**
 (`git -C REPO show <commit>:./<path>`; commit and scanned folder in the
-`summary.md` header), not from the working directory, which may hold someone
+`summary.md` header), and config and compose files at it through
+`$PY SKILL_DIR/scripts/config.py --repo REPO --commit <commit> <path> ...`
+(§ Never read secrets), not from the working directory, which may hold someone
 else's uncommitted edits. Keep the `./`: without it git resolves the path from
 the repository's top level, and in a subfolder scan reads the wrong file
 without an error.
@@ -213,38 +215,21 @@ problems. Which files you may read, and how:
   and any `*.example.*`, `*.sample.*` or `*.template.*` config file.
 - **Never opened:** `secrets*` files, key stores, certificates and private keys.
 - **Key names only:** real env files (`.env`, `.env.*`, `*.env`), committed or
-  not, and every config file whose keys hold credentials. List the keys with
-  their line numbers, never the values:
-  - env and `.properties`: `grep -noE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.-]*[=:]' FILE`
-  - YAML: `grep -noE '^[[:space:]-]*[A-Za-z_][A-Za-z0-9_.-]*:' FILE`
-  - TOML and INI: `grep -noE '^[[:space:]]*(\[[^]]*\]|[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*=)' FILE`
-  - JSON: `jq -r 'paths(scalars) | map(tostring) | join(".")' FILE`
+  not. List the keys with their line numbers, never the values:
+  `grep -noE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.-]*[=:]' FILE`.
+- **Every other config file** (YAML, `.properties`, TOML, INI, JSON, HOCON `.conf`,
+  hjson, compose files): read it only through
+  `$PY SKILL_DIR/scripts/config.py FILE [FILE ...]`, which prints each line with
+  every value that may be a credential hidden (a key naming a password, secret,
+  token, API key or private key; a token-shaped value; a PEM block; the user and
+  password inside a URL or a connection string). Hosts, paths, ports, crons,
+  service names and a DSN's host and database stay readable; add
+  `--repo REPO --commit <commit>` to read the files at the scanned commit.
 
-  `grep KEY .env`, `cat`, `head` or a read of the file print the values: not
-  allowed on these files. A command that reads many files at once (a loop or
-  glob over `git ls-files`, `cat */*`, `grep -r`) reaches them too: leave these
-  files out of its list first.
-- **Other config files** (YAML, TOML, JSON, INI, `.properties`): list the keys
-  first, with the commands above. When no key names a credential (`password`,
-  `secret`, `token`, `api_key`, `private_key`, `credentials`, or a DSN,
-  connection string or database URL, which carries the password inside it),
-  read the file. When one does, the whole file is key names only.
-- **Compose files** follow the same rule, with one difference: when the
-  credential keys (`POSTGRES_PASSWORD`) sit only in `environment:` blocks,
-  those blocks are key names only and the rest stays readable (services,
-  `image`, `ports`, `depends_on`, `command`, `build`). Read such a file with
-  every `environment:` value hidden:
-
-  ```
-  awk '/^[[:space:]-]*environment:/ { h = $0; sub(/:.*/, ":", h); print h; e = match($0, /[^ -]/); k = 0; next }
-    e && NF && match($0, /[^ ]/) <= e && !/^[[:space:]]*-/ { e = 0 }
-    e && NF { i = match($0, /[^ ]/); if (!k) k = i
-              print (i == k && match($0, /^[[:space:]-]*"?[A-Za-z_][A-Za-z0-9_.]*/) ? substr($0, 1, RLENGTH) : "") " <value hidden>"; next }
-    { print }' compose.yaml
-  ```
-
-  A credential key anywhere else (`command`, build `args`, an `x-` block)
-  makes the whole file key names only.
+Any other read of these files (`cat`, `head`, a `grep` or `awk` that prints
+lines, a file read) prints the values: not allowed. A command that reads many files at once (a loop or glob over
+`git ls-files`, `cat */*`, `grep -r`) reaches them too: leave config and env files
+out of its list first, and search code with `git grep` over source paths.
 
 A relation whose target is only in a value you may not read stays `inferred`:
 cite the key's line as evidence and name the key in `why`.
