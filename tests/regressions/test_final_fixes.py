@@ -122,14 +122,14 @@ def test_scala_relative_package_import_is_local(make_repo):
 # the `unscanned` report; then for the demo's features/ and forecast/ moving from Flyte to Airflow DAGs; then for
 # interpolated table names (`{table('x')}`) no longer read as tables; then for SCANNER_VERSION 0.11.0: the version
 # string and `ctor` on classes; then for SCANNER_VERSION 0.12.0: the version string
-DEMO_STRUCTURE_SHA256 = "76312ebcdf5c66b62920f47f488c3eab926dda8f6b49e2bbf2c8431b9f31bea1"
+DEMO_STRUCTURE_SHA256 = "b6a14efda717b05d00cd2a853943945f49ecfc5d96ae1f3b71e17aa48e1d8d5f"
 # the hash with the trace keys (`fields` and `ctor` on classes, `refs` and `returns_refs` in signatures) taken
 # out: the value from before those keys existed, with the `queues` fact of 0.6.0, and the version strings, callees,
 # lines and `optional` of 0.7.0, the version string, `generated` list and proto `messages` of 0.8.0, the version
 # strings of 0.9.0 and 0.10.0, the `unscanned` report, the demo's features/ and forecast/ as Airflow DAGs, no
 # interpolated table names, and the version strings of 0.11.0 and 0.12.0. If it moves, the scanner changed something besides the
 # trace keys
-DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "7b76a4a7affe07750172e3f485dfe36687669c4726c789cd3c6bfff4954982d0"
+DEMO_STRUCTURE_SHA256_WITHOUT_TRACE_KEYS = "79f6054071c1e62c8f9fea2584321ff3c5819ebbf34743b72e51bdc213849cd2"
 
 
 def _without_trace_keys(s: dict) -> dict:

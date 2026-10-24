@@ -432,17 +432,19 @@ def _go_implements(nodes: list[dict]) -> None:
             classes[cid]["implements"] = sorted(set(classes[cid].get("implements", [])) | set(hits))
 
 
-def _grpc_text(text: str, r: dict, lang: str) -> list[dict]:
+def _grpc_text(text: str, r: dict, lang: str, file_id: str | None = None) -> list[dict]:
     """The gRPC ends of proto.text_ends in one file's source, each with its line and the method (else class) it
-    sits in; JavaScript and TypeScript `new <pkg>.<S>(` only in a file that imports a gRPC library."""
+    sits in, else (an end at the file's top: `server.addService(..)`) `file_id`; JavaScript and TypeScript
+    `new <pkg>.<S>(` only in a file that imports a gRPC library."""
     js = lang in ("javascript", "typescript") and any("grpc" in i["target"] for i in r["imports"])
     spans = _spans(r, "method") + _spans(r, "class")
     out = []
     for side, name, pos in proto.text_ends(text, js):
         line = text.count("\n", 0, pos) + 1
         inside = [s for s in spans if s[0] <= line <= s[1]]
-        if inside:
-            out.append({"side": side, "name": name, "line": line, "in": min(inside, key=lambda s: s[1] - s[0])[2]})
+        if inside or file_id:
+            out.append({"side": side, "name": name, "line": line,
+                        "in": min(inside, key=lambda s: s[1] - s[0])[2] if inside else file_id})
     return out
 
 
@@ -473,6 +475,152 @@ def _grpc_impls(results: dict[str, dict], keys: dict[str, list[str]]) -> dict[st
                 if (svc := proto.base_end(b)) and (svc in keys or proto.generated(b)):
                     out.setdefault(by_id[cid]["name"], svc)
     return out
+
+
+def _rpc_spellings(rpc: str) -> set[str]:
+    """How code calls an rpc on its stub: `GetProduct`, `getProduct`, `get_product`, `GetProductAsync`."""
+    lower = rpc[:1].lower() + rpc[1:]
+    snake = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", rpc).lower()
+    return {rpc, lower, snake, rpc + "Async", lower + "Async"}
+
+
+SELF_NAMES = {"self", "this", "cls", "base", "super"}
+# a name bound to a stub a constructor makes: `c := pb.NewCartClient(conn)`, `self.stub = cart_pb2_grpc.CartStub(ch)`,
+# `var client = new Cart.CartClient(channel)`, a struct field `cartClient: pb.NewCartClient(conn)`
+STUB_BOUND = re.compile(r"(?:(?:self|this)\s*\.\s*)?([A-Za-z_]\w*)\s*(?::=|=|:)\s*(?:await\s+)?(?:new\s+)?"
+                        r"((?:[\w$]+\.)*\w*(?:Client|Stub)|(?:[\w$]+\.)*\w+Grpc\.new(?:Blocking|Future)?Stub)\s*[(<]")
+# `new proto.cart.v1.CartService(addr, creds)` (grpc-js): a client made by the service's own name
+STUB_NEW = re.compile(r"(?:(?:self|this)\s*\.\s*)?([A-Za-z_]\w*)\s*(?::=|=)\s*new\s+(?:[\w$]+\.)+(\w+)\s*\(")
+# a field or parameter declared with a stub type: `private readonly CartService.CartServiceClient _client;`,
+# `CartServiceBlockingStub stub)`
+STUB_DECLARED = re.compile(r"((?:[\w$]+\.)*\w*(?:Client|Stub))\s+(_?[A-Za-z]\w*)\s*[;=),]")
+
+
+# a language's file that stands for its folder's module
+BARRELS = {".py": ("__init__",), ".rs": ("mod",),
+           **{s: ("index", "mod") for s in (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")}}
+
+
+def _grpc_call_sites(file_facts: dict[str, dict], file_mod: dict[str, str], nodes: list[dict],
+                     results: dict[str, dict], generated_files: set[str]) -> None:
+    """A client end where a stub is made names every rpc of its service; the calls of an rpc on that stub are the
+    requests, each a client end with that rpc's key alone in the method making it. A call is on the stub when its
+    value is bound in its file to the service's stub constructor (`c := pb.NewCartClient(conn)`), typed with the
+    service's client or stub (an injected `CartClient client`), is that constructor's own result
+    (`pb.NewCartClient(conn).GetCart(..)`), or is named after the service and as a stub (`cartSvcClient`); a call on a
+    value bound to none of these (`conf.get(..)`, `redis_client.get(..)`, the repo's own `basketService`) is none, and
+    so is a constructor or type naming a class the repo writes itself (its own `SparkConnectClient` wrapper).
+    A service with such calls keeps no end at the stub; with none, the stub's end stays, every rpc listed."""
+    by_module: dict[tuple[str, str], list[tuple[str, dict]]] = {}
+    for f, ff in file_facts.items():
+        for g in ff.get("grpc", []):
+            if g["side"] == "client" and g["keys"]:
+                by_module.setdefault((file_mod[f], g["service"]), []).append((f, g))
+    by_id = {n["id"]: n for n in nodes}
+    camel = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
+    written = {n["name"] for n in nodes if n["kind"] == "class" and n.get("file") not in generated_files}
+
+    def types_of(mid: str, value: str) -> list[str]:
+        """The declared types of the caller's parameter, or its class's field or constructor parameter, `value`."""
+        m = by_id.get(mid, {})
+        owner = by_id.get(m.get("parent") or "", {})
+        held = ((m.get("signature") or {}).get("params") or []) + (owner.get("fields") or []) \
+            + ((owner.get("ctor") or {}).get("params") or [])
+        return [p.get("type") or "" for p in held if p.get("name") == value.lstrip("_") or p.get("name") == value]
+
+    by_service: dict[str, list[tuple[str, dict]]] = {}
+    for (mod, svc), ends in by_module.items():
+        by_service.setdefault(svc, []).extend(ends)
+
+    def stub_pattern(svc: str) -> re.Pattern:
+        stem = re.sub(r"Service$", "", svc)
+        return re.compile(rf"(?:New)?(?:{re.escape(svc)}|{re.escape(stem)}(?:Service)?)(?:Blocking|Future)?(?:Client|Stub)"
+                          rf"|{re.escape(svc)}Grpc\.new(?:Blocking|Future)?Stub")
+    patterns = {svc: stub_pattern(svc) for svc in by_service}
+    defined = {n["name"] for n in nodes if n["kind"] == "method"}
+
+    # where each class the repo writes lives, as a qualifier would name it: a Go package (`httpc`, by its folder or
+    # its declared name), a Python module (`wrappers`), a JVM or C# package or outer class (`com.acme`, `Outer`)
+    written_at: dict[str, set[str]] = {}
+    for n in nodes:
+        if n["kind"] == "class" and n["name"] in written and n.get("file") not in generated_files and n.get("file"):
+            p = Path(n["file"])
+            if p.suffix == ".go":
+                at = {p.parent.name, results.get(n["file"], {}).get("go_package") or ""}
+            else:
+                pkg = n["id"].split("::", 1)[-1].rsplit(n["name"], 1)[0].rstrip("./#")
+                stem = p.stem
+                if p.stem in BARRELS.get(p.suffix, ()):   # `wrappers/index.ts`, `fakes/__init__.py`: named by the folder
+                    # the file's own segment, the last one so named (`app.fakes.__init__.Outer`, `src/index.index`)
+                    if own_seg := list(re.finditer(rf"(?:^|[./]){re.escape(p.stem)}(?=[./]|$)", pkg)):
+                        pkg = pkg[:own_seg[-1].start()] + pkg[own_seg[-1].end():]
+                    stem = p.parent.name
+                at = {stem if p.suffix == ".py" else "", re.split(r"[./]", pkg)[-1]}
+            written_at.setdefault(n["name"], set()).update(at - {""})
+
+    def own(x: str) -> bool:
+        """A constructor or type naming a class the repo writes: bare (`RetryingStub(..)`, Go `NewCartClient(..)` of
+        its own package) or qualified by where it lives (`*httpc.CartClient`, `com.acme.CartClient`); one qualified by
+        another module (`pb.NewCartClient`, `legacy_pb2_grpc.LegacyStub`) is that module's."""
+        q, _, name = x.rpartition(".")
+        name = re.sub(r"^New(?=[A-Z])", "", name)
+        return name in written and (not q or re.split(r"[./]", q)[-1] in written_at.get(name, ()))
+
+    def generated_stub(ctor: str) -> bool:
+        """A constructor shaped like a generated stub's (`legacy_pb2_grpc.LegacyStub`, `pb.NewStoreClient`,
+        `StoreGrpc.newBlockingStub`), not a function the repo defines (`self.opStub(op)`)."""
+        last = ctor.rsplit(".", 1)[-1]
+        return last not in defined and not own(ctor) and (bool(re.search(r"\w+Grpc\.new\w*Stub$", ctor))
+                                        or (last[:1].isupper() and bool(re.search(r"(?:Client|Stub)$", last))))
+    for svc, ends in by_service.items():
+        spell = {s: k for k in ends[0][1]["keys"] for s in _rpc_spellings(k.rsplit("/", 1)[-1])}
+        stem = re.sub(r"Service$", "", svc)
+        stub_name = patterns[svc]
+
+        def made(x: str) -> bool:
+            """The service's generated stub constructor or type (`NewCartServiceClient`, `CartStub`,
+            `CartServiceGrpc.newBlockingStub`, `CartServiceBlockingStub`), never a class the repo writes itself."""
+            last = x.rsplit(".", 1)[-1]
+            return bool(stub_name.fullmatch(x) or stub_name.fullmatch(last)) and not own(x)
+        words = {w.lower() for w in camel.findall(stem)}
+        sites = []
+        for f, ff in file_facts.items():
+            held = results.get(f, {}).get("stub_bound", [])
+            bound = {name for name, ctor in held if made(ctor) or ctor == svc}
+            # a name bound to another generated stub (`self.store_stub = StoreStub(ch)`, a service the repo has no
+            # proto of too); a helper of the repo's returning this one (`stub_with_op = self.opStub(op)`) is none
+            others = {name for name, ctor in held if name not in bound and generated_stub(ctor)}
+            for c in ff["calls"]:
+                parts = re.split(r"\.|::|->", re.sub(r"\([^()]*\)", "", c["callee"]))
+                if len(parts) < 2 or parts[-1] not in spell or not c.get("in"):
+                    continue
+                value = parts[-2]
+                said = {w.lower() for w in camel.findall(value)}
+                stubby = bool(said & {"client", "grpc", "stub"})
+                if not (value in bound or made(value)
+                        or any(made(w) for t in types_of(c["in"], value) for w in re.findall(r"[\w.]+", t))
+                        or (stubby and words and words <= said)
+                        or (said & {"grpc", "stub"} and bound and value not in others)):   # `self._stub` with
+                    # `self._internal_stub = CartStub(..)` in the file, never `self.store_stub` bound to another
+                    continue
+                sites.append((f, {"side": "client", "service": svc, "keys": [spell[parts[-1]]], "in": c["in"],
+                                  "line": c["line"]}))
+        # a module's stub end gives way to its own calls; a factory's (`NewTrainerClient`, a function returning the
+        # stub) to calls anywhere; a module whose calls the scan cannot see keeps its end
+        reached = {file_mod[f] for f, _ in sites}
+
+        def factory(mid: str) -> bool:
+            """A function returning the service's stub (`func NewTrainerClient(..) trainer.TrainerServiceClient`)."""
+            returns = (by_id.get(mid, {}).get("signature") or {}).get("returns") or ""
+            return any(made(w) for w in re.findall(r"[\w.]+", returns))
+        stubs = {id(g) for f, g in ends if file_mod[f] in reached or (sites and factory(g["in"]))}
+        for f in {f for f, _ in ends}:
+            file_facts[f]["grpc"] = [g for g in file_facts[f]["grpc"] if id(g) not in stubs]
+        for f, g in sites:
+            if g not in file_facts[f]["grpc"]:
+                file_facts[f]["grpc"].append(g)
+        for f in {f for f, _ in sites}:
+            file_facts[f]["grpc"].sort(key=lambda e: e["line"])
 
 
 def _grpc_ends(r: dict, keys: dict[str, list[str]], impls: dict[str, str]) -> list[dict]:
@@ -558,7 +706,8 @@ def _file_node(r: dict, f: str, module_id: str, lang: str, loc: int, reg: ids.Id
     itself (an inline function, a file of no functions), as the walker creates it on a top-level function; a file
     node already made is reused. Runs after _resolve_handlers (a route whose handler name resolves needs none) and
     again after wrappers.find, for requests."""
-    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []), *r.get("clients", []), *r.get("jobs", []))
+    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []), *r.get("clients", []), *r.get("jobs", []),
+                         *r.get("grpc_text", []))   # (a gRPC end at the file's top: `server.addService(..)`)
              if NEW_FILE_NODE in (x.get("handler"), x.get("in"))]
     if not facts:
         return
@@ -1465,7 +1614,15 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r = adapter.parse(data, f, mod_by_id[file_mod[f]], reg, st)
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
                 sources[f] = decode(data)
-                r["grpc_text"] = _grpc_text(decode(data), r, lang)
+                r["grpc_text"] = _grpc_text(decode(data), r, lang, _file_id(r, mod_by_id[file_mod[f]], lang))
+                src_lines = decode(data).split("\n")
+                hit = [i for i, x in enumerate(src_lines) if "Client" in x or "Stub" in x or "new " in x]
+                # the lines that can bind a stub, and the one before each (`c =\n\tpb.NewCartClient(conn)`)
+                text_ = "\n".join(src_lines[i] for i in sorted({j for i in hit for j in (i - 1, i) if j >= 0}))
+                grpc_lib = any("grpc" in i["target"].lower() for i in r["imports"])
+                if bound := sorted(set(STUB_BOUND.findall(text_)) | (set(STUB_NEW.findall(text_)) if grpc_lib else set())
+                                   | {(n, t) for t, n in STUB_DECLARED.findall(text_)}):
+                    r["stub_bound"] = [list(b) for b in bound]   # (name, constructor or type) for gRPC call sites
                 if lang == "go" and (clause := GO_PACKAGE.search(decode(data))):
                     r["go_package"] = clause.group(1)   # the name its importers call it by, whatever its folder
                 if lang in SPECS:
@@ -1630,6 +1787,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         if r.get("jobs"):   # and for job system sites
             file_facts[f]["jobs"] = r["jobs"]
 
+    _grpc_call_sites(file_facts, file_mod, nodes, results, set(gen_files))
     sqlfiles.attach(mapper_sql, nodes, file_facts)
     sqlfiles.orm_access(file_facts, nodes, sql_files)
     file_node = {n["file"]: n["id"] for n in nodes if n["kind"] == "file"}
