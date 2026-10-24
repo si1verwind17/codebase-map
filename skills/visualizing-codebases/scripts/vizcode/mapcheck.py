@@ -404,7 +404,7 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
         out.append({"id": "pin.few", "node": None,
                     "detail": f"{pinned} pins ({retired} unpinned) for {len(entries)} entry points: pin at least "
                               f"{want}"})
-    for m, keys in entries.items():
+    for m, keys in examples.required(cmap)[0].items():
         if m not in covered:
             out.append({"id": "example.missing", "node": m,
                         "detail": f"entry point {m} ({'; '.join(keys) or 'no key'}) has no example"})

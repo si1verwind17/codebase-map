@@ -2,6 +2,8 @@
 examples for, the checks assemble.py makes on them, the fingerprints it stamps, and the staleness diff.py flags."""
 from __future__ import annotations
 
+import re
+
 from .calls import _abstractions
 from .fingerprint import entry_fingerprint, type_fingerprint
 
@@ -9,6 +11,11 @@ LABEL = "example values, not computed"
 ENTRY_KINDS = ("request", "event", "stream", "batch")          # a relation of these kinds ending at a method
 TRACE_KINDS = ("calls", "request", "event", "stream", "batch", "db-read", "db-write", "ext-call", "hand-off")
 HOPS = 2
+ALL_ENTRIES = 100   # up to this many entry points every one needs an example; above it, those on a pin's trace
+# a field typed like one of these holds a collaborator, not data: a class whose fields all are is wiring
+WIRING_TYPE = re.compile(r"(?:Service|Repository|Repo|Dao|DAO|Client|Gateway|Mapper|Factory|Provider|Manager|Handler|"
+                         r"Controller|Executor|Registry|Template|Session|Engine|Logger|Publisher|Producer|Consumer|"
+                         r"Scheduler|Pool|Context|Config|Configuration|Properties|Settings|Bus|Dispatcher)\b")
 CONTAINER_KINDS = ("service", "library", "package", "file", "class")
 STALE_HINT = "stale — rewrite its value against the code, or delete it when its {gone} is gone; then delete the flag"
 
@@ -130,12 +137,31 @@ def downstream(cmap: dict, start: str, hops: int = HOPS) -> list[str]:
     return order
 
 
+def required(cmap: dict, pins: list[dict] | None = None) -> tuple[dict[str, list[str]], int | None]:
+    """(the entry points that need an example, the total when that is not all of them). Up to ALL_ENTRIES entry
+    points, all; above, those within HOPS steps downstream of a pin's start (`pins`; default the map's own)."""
+    entries = entry_points(cmap)
+    if len(entries) <= ALL_ENTRIES:
+        return entries, None
+    nodes = {n["id"] for n in cmap.get("nodes", [])}
+    on = {x for p in (cmap.get("pins", []) if pins is None else pins) if p.get("start") in nodes
+          for x in downstream(cmap, p["start"])}
+    return {m: k for m, k in entries.items() if m in on}, len(entries)
+
+
+def wiring(cid: str, nodes: dict[str, dict]) -> bool:
+    """Every field of the class is typed as a collaborator (`OrderService`, `UserRepository`): wiring, not data."""
+    fields = nodes.get(cid, {}).get("fields") or []
+    return bool(fields) and all(WIRING_TYPE.search(f.get("type") or "") for f in fields)
+
+
 def wanted(cmap: dict, pins: list[dict] | None = None) -> dict:
     """What a map should have examples for: {"entries": {method id: [keys]}, "types": {class id: [why, ...]}}.
-    Types are classes with fields in the refs of an entry point's handler, or of a method within HOPS steps
-    downstream of a pin's start (`pins`; default the map's own). Not every type in the codebase."""
+    Entries are `required`'s. Types are classes with fields in the refs of such an entry point's handler, or of a
+    method within HOPS steps downstream of a pin's start (`pins`; default the map's own). Not every type in the
+    codebase."""
     nodes = {n["id"]: n for n in cmap.get("nodes", [])}
-    entries = entry_points(cmap)
+    entries, _ = required(cmap, pins)
     types: dict[str, list[str]] = {}
 
     def add(method_id: str, why: str) -> None:

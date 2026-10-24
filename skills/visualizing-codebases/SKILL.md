@@ -529,7 +529,8 @@ what the code would output. Values need not agree across a chain.
 
 - **Entry points:** the handler method of a route, and the method a
   `request`, `event`, `stream` or `batch` relation ends at. Give each an
-  `examples.entries` item: `node` (the handler), `key` (the key as on the
+  `examples.entries` item (on a map of more than 100, each one within two
+  hops downstream of a pin's start; `examples.py` lists the rest as `optional`): `node` (the handler), `key` (the key as on the
   relation, or `METHOD path` for a route, as `scripts/examples.py` prints
   it: `POST /v1/reservations`, a topic or stream name, `task nightly_settlement`
   for a batch), `request` (the payload that comes in; `{}` for a job that takes
@@ -549,7 +550,8 @@ what the code would output. Values need not agree across a chain.
 - Write type examples only for data types: payloads, records, entities. A
   class that holds services or dependencies (a repository, a client, a
   handler with injected collaborators) gets none, even when
-  `scripts/examples.py` lists it. Why: its fields are wiring, not data; an
+  `scripts/examples.py` lists it (it marks one whose fields are all typed as
+  collaborators `wiring, skip it`). Why: its fields are wiring, not data; an
   example of it shows nothing a reader needs.
 - Leave `fingerprint` out: `assemble.py` stamps it. On a rescan `diff.py`
   flags an example `stale` when its class's fields or its handler's

@@ -747,7 +747,8 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
   with `data: both`: a call's reply is not data moving back), `module.empty` (a service or
   library with no file or package under it; a service with runtime relations of its own is one the scanner
   cannot read and does not warn) and `example.missing` (an entry
-  point with no example, or with a key that has none; one line each; a
+  point with no example, or with a key that has none; above 100 entry points only those within two hops
+  downstream of a pin's start; one line each; a
   root route `GET /` under a mount stays a key of its own beside the
   relation's `GET /v1`), `route.file-handler` (routes of a file whose handler is the file: no entry point, so
   no example) and `route.setup-handler` (a method that registers 3 or more routes itself and is the handler of

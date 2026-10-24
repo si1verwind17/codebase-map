@@ -67,3 +67,23 @@ def test_an_example_whose_key_is_no_longer_the_methods_is_flagged():
                                                                   "request": {}}]}}
     out = examples_cli.report(cmap(), meaning)
     assert "- ok, key gone: POST /old  m::m.api#create/1  POST /orders" in out
+
+
+def test_over_the_entry_threshold_only_entry_points_on_a_pin_need_one(monkeypatch):
+    """Above ALL_ENTRIES entry points, those a pin's trace reaches need an example; the rest are listed, optional,
+    and the audit asks for none of them."""
+    from vizcode import examples, mapcheck
+    monkeypatch.setattr(examples, "ALL_ENTRIES", 1)
+    out = examples_cli.report(cmap(), None)
+    assert out.splitlines()[:3] == [
+        "Entry points: 1 (1 without an example); the map has 2, over 1: only those on a pin's trace need one, "
+        "the other 1 are listed last as optional",
+        "- missing  m::m.api#create/1  POST /orders", "- optional  m::m.api#consume/1  orders"]
+    assert [w["node"] for w in mapcheck.warnings(cmap()) if w["id"] == "example.missing"] == [CREATE]
+
+
+def test_a_class_whose_fields_are_all_collaborators_is_marked_wiring():
+    from vizcode import examples
+    nodes = {"a.Svc": {"fields": [{"name": "repo", "type": "OrderRepository"}, {"name": "log", "type": "Logger"}]},
+             "a.Order": {"fields": [{"name": "id", "type": "UUID"}, {"name": "client", "type": "HttpClient"}]}}
+    assert examples.wiring("a.Svc", nodes) and not examples.wiring("a.Order", nodes)
