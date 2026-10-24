@@ -6,8 +6,7 @@ description: >-
   moves between methods, or to refresh a code map after new commits.
   Covers code-map.json, incremental rescans, deployables vs shared
   libraries, call matching between services, side effects, pinned traces and
-  examples; Scala, Python, Java, Kotlin, TS/JS, Go, C#, Rust, Ruby, PHP.
-  Keywords: code map, architecture map, service graph, lineage, viz-code.
+  examples. Keywords: code map, architecture map, service graph, lineage, viz-code.
 ---
 
 # Visualizing codebases
