@@ -387,6 +387,21 @@ def _pattern_routes(st: stack.Stack, lang: str, data: bytes, r: dict, module: di
     return _dedupe(st.patterns, lang, found, "routes", "framework", ("method", "path", "handler"), r)
 
 
+def _beside_code_rules(r: dict, found: list[dict]) -> list[dict]:
+    """The pattern routes a code rule (FastAPI, tapir) has not already read: same method and handler, and the code
+    rule's path the pattern's or ending in it (the rule joined the router's prefix, the pattern did not); each
+    dropped one is noted in r["deduped"] as a duplicate of that rule."""
+    seen = [(x["method"], x["path"], x["handler"], x.get("framework")) for x in r["routes"]]
+    kept = []
+    for x in found:
+        if (by := next((fw for m, p, h, fw in seen if (m, h) == (x["method"], x["handler"])
+                        and (p == x["path"] or p.endswith("/" + x["path"].strip("/")))), None)) is not None:
+            r.setdefault("deduped", []).append(("routes", x["framework"], by))
+        else:
+            kept.append(x)
+    return kept
+
+
 def _dedupe(pats: list, lang: str, found: list[dict], group: str, name: str, key: tuple[str, ...],
             r: dict) -> list[dict]:
     """Two patterns of one group giving the same fact (key fields; Spring and JAX-RS annotations on one method)
@@ -950,7 +965,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r = adapter.parse(data, f, mod_by_id[file_mod[f]], reg, st)
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
-                r["routes"] += _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                r["routes"] += _beside_code_rules(r, _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names))
                 sources[f] = decode(data)
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
                     r["route_like"] = [x for x in stack.route_like(decode(data), lang)

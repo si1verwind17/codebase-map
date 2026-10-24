@@ -37,3 +37,30 @@ def test_an_include_naming_no_known_router_is_left_to_the_agent(make_repo):
     s = structure.build(make_repo(files))
     assert paths(s, "app/main.py") == [("GET", "/ping")]
     assert "not composed: compose it yourself" in structure.summary_md(s)
+
+
+def test_a_stack_pattern_reading_a_fastapi_route_again_is_a_duplicate(make_repo):
+    from conftest import with_stack
+    files = {"pyproject.toml": "[project]\nname = 'app'\n", "app/__init__.py": "",
+             "app/main.py": "from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get('/ping')\ndef ping():\n"
+                            "    return 1\n"}
+    repo = make_repo(files)
+    with_stack(repo, "python:\n  routes:\n    - name: mine\n      when: fastapi\n      path: literal\n"
+                     "      method: GET\n      regex: '@app\\.get\\(\\s*[\"''](?P<path>[^\"'']*)'\n")
+    s = structure.build(repo, "docs/viz-code")
+    assert [(r["path"], r["framework"]) for r in s["facts"]["app/main.py"]["routes"]] == [("/ping", "fastapi")]
+    assert next(p for p in s["stack"]["patterns"] if p["name"] == "mine")["duplicates"] == "fastapi"
+
+
+def test_a_fastapi_router_in_a_file_importing_flask_gives_one_route(make_repo):
+    files = {"pyproject.toml": "[project]\nname = 'app'\n", "app/__init__.py": "",
+             "app/api.py": "from flask import json\nfrom fastapi import APIRouter\n\nrouter = APIRouter(prefix='/x')\n\n\n"
+                           "@router.get('/y')\ndef y():\n    return 1\n"}
+    s = structure.build(make_repo(files))
+    assert [(r["path"], r["framework"]) for r in s["facts"]["app/api.py"]["routes"]] == [("/x/y", "fastapi")]
+
+
+def test_a_bracket_in_a_string_argument_does_not_hide_the_prefix():
+    from vizcode import routes
+    src = "router = APIRouter(tags=['a(b'], prefix='/v1')\nother = APIRouter(prefix='/v2')\n"
+    assert routes.fastapi_prefixes(src) == {"router": "/v1", "other": "/v2"}
