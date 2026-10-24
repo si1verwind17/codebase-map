@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+LABEL = re.compile(r"^\s*(?:[A-Z][a-z]+\s*)+$")   # only Title Case words: a UI label (`Truncate Cells`), no SQL
 SQL_START = re.compile(r"^\s*(select|insert|update|delete|with|merge|create|alter|drop|truncate)\b", re.I)
 _IDENT = r'([A-Za-z_"{][\w.{}"]*)'
 _OBJECT = r"(?:table|index|view|trigger|function|procedure|sequence|schema|type|extension|database)\b"
@@ -63,7 +64,7 @@ def sql_facts(text: str) -> dict | None:
     clause that word needs, no sentence end) and names a table or fills one in at run time (then with no tables). A
     CTE's name is no table."""
     m = SQL_START.match(text)
-    if not m or not SQL_SHAPE[m.group(1).lower()].match(text.lstrip()) or PROSE.search(text):
+    if not m or not SQL_SHAPE[m.group(1).lower()].match(text.lstrip()) or PROSE.search(text) or LABEL.match(text):
         return None
     ctes = {c.lower() for c in CTE.findall(text)}
     writes, spans = set(), []

@@ -232,6 +232,9 @@ CSHARP = LangSpec(
 JS_NAMES = ("identifier", "shorthand_property_identifier_pattern", "property_identifier")
 JS_FUNCTION_VALUES = ("arrow_function", "function_expression", "generator_function")
 JS_ENV = r'process\.env(?:\.([A-Za-z_]\w*)|\[\s*["\'`]([A-Za-z0-9_]+)["\'`]\s*\])'
+# the folders JS/TS test, story and browser-test tooling lives in (each matched at any depth)
+TEST_FOLDERS = ("__tests__/*", "__mocks__/*", "__fixtures__/*", "fixtures/*", "e2e/*", "spec/*", "playwright/*",
+                "cypress/*")
 TYPESCRIPT = LangSpec(
     lang="typescript", grammar="typescript", suffixes=(".ts",), sep="/",
     package="dir",
@@ -247,7 +250,9 @@ TYPESCRIPT = LangSpec(
     annotations=("decorator",),
     env=JS_ENV,
     private=r"\b(private|protected)\b|(?:^|\s)#",
-    tests=("*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.e2e.ts", "*.e2e-*.ts", "__tests__/*", "e2e/*"),
+    tests=("*.test.ts", "*.testHelpers.ts", "*.test-utils.ts", "*.spec.ts", "*.test.tsx", "*.testHelpers.tsx",
+           "*.test-utils.tsx", "*.spec.tsx", "*.e2e.ts", "*.e2e-*.ts", "*.stories.ts",
+           "*.stories.tsx", "*.story.tsx", "*.mock.ts", "*.mocks.ts", "*.mock.tsx", *TEST_FOLDERS),
     group_depth=1,
     variadic=("rest_pattern",),
     splats=("spread_element",),
@@ -278,7 +283,9 @@ JAVASCRIPT = replace(
                                           "array_pattern")),
     returns=(),
     private=r"(?:^|\s)#",
-    tests=("*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx", "*.e2e.js", "*.e2e-*.js", "__tests__/*", "e2e/*"),
+    tests=("*.test.js", "*.testHelpers.js", "*.test-utils.js", "*.spec.js", "*.test.jsx", "*.testHelpers.jsx",
+           "*.test-utils.jsx", "*.spec.jsx", "*.e2e.js", "*.e2e-*.js", "*.stories.js",
+           "*.stories.jsx", "*.story.jsx", "*.mock.js", "*.mocks.js", *TEST_FOLDERS),
     supers=("class_heritage",),
     bindings={"variable_declarator": ("name", "value", JS_FUNCTION_VALUES),
               "field_definition": ("property", "value", JS_FUNCTION_VALUES),

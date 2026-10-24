@@ -30,6 +30,8 @@ def test_prose_is_not_sql():
     assert facts.sql_facts("the job is selected from the queue") is None
     assert facts.sql_facts("Updates the cache") is None
     assert facts.sql_facts("select 1") is None
+    assert facts.sql_facts("Truncate Cells") is None   # a UI label: only Title Case words
+    assert facts.sql_facts("TRUNCATE cells")["writes"] == ["cells"]
 
 
 def test_prose_that_starts_like_sql_names_no_table():
