@@ -2,11 +2,11 @@
 
 Can the agent work out a stack the packs do not know, from the code alone?
 
-**Fixture:** two temp repos built from `tests/conftest.py` (at the repo root): `FLASK`
-(as `shopfront`) and `HTTP4S` (as `users-service`), each `git init` + one
+**Fixture:** two temp repos built from `tests/conftest.py` (at the repo root): `QUART`
+(as `shopfront`, a Quart app: Flask's API on a server library with no built-in routes) and `HTTP4S` (as `users-service`), each `git init` + one
 commit, **without** a `stack.yaml` (a one-off script under the scratch
 directory imports the constants and writes them, as the `make_repo` fixture
-does). Do not give the agent `FLASK_STACK` or `HTTP4S_STACK`.
+does). Do not give the agent `QUART_STACK` or `HTTP4S_STACK`.
 
 **Prompt:** the shared one in [`eval/README.md`](../README.md), once per repo, with the repo's path.
 
@@ -15,7 +15,7 @@ does). Do not give the agent `FLASK_STACK` or `HTTP4S_STACK`.
 1. **Stack resolved:** after the run, `summary.md` reads
    `## Stack — nothing unrecognised`.
 2. **Routes found:** every route of the fixture test is in `structure.json`
-   (method, path, handler): Flask, the 6 of `test_flask_routes_with_stack`
+   (method, path, handler): Quart, the 6 of `test_quart_routes_with_stack`
    (`GET`/`DELETE /users/{id}`, `POST /users`, `GET /users`, `GET /health`,
    `GET /ping`; its handler may be the file, or the view a `view_func` names);
    http4s, the 2 of `test_http4s_with_stack` (`GET /users/{id}`, `POST /users`).

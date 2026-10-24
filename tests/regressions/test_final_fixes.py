@@ -74,13 +74,13 @@ def test_header_takes_the_files_line_ending(tmp_path):
     assert q.read_bytes() == stack.HEADER.encode() + b"python: {}\n"
 
 
-def test_extract_read_only_stack_yaml_is_an_error_not_a_traceback(flask_repo):
-    path = with_stack(flask_repo, "python:\n  ignore: [marshmallow]\n")
+def test_extract_read_only_stack_yaml_is_an_error_not_a_traceback(quart_repo):
+    path = with_stack(quart_repo, "python:\n  ignore: [marshmallow]\n")
     path.chmod(0o444)
     try:
         if os.access(path, os.W_OK):
             pytest.skip("file permissions are not enforced here")
-        p = subprocess.run([sys.executable, str(EXTRACT), str(flask_repo)], capture_output=True, text=True)
+        p = subprocess.run([sys.executable, str(EXTRACT), str(quart_repo)], capture_output=True, text=True)
     finally:
         path.chmod(0o644)
     assert p.returncode == 2

@@ -82,12 +82,12 @@ TYPED = {
 }
 
 
-FLASK = {
+QUART = {
     "pyproject.toml": '[project]\nname = "shopfront"\nversion = "0.1"\n',
     "shopfront/__init__.py":
-        "from flask import Flask\n\napp = Flask(__name__)\n\n\n@app.get(\"/health\")\ndef health():\n    return \"ok\"\n",
+        "from quart import Quart\n\napp = Quart(__name__)\n\n\n@app.get(\"/health\")\ndef health():\n    return \"ok\"\n",
     "shopfront/users.py":
-        "from flask import Blueprint, jsonify\n\nbp = Blueprint(\"users\", __name__)\n\n\n"
+        "from quart import Blueprint, jsonify\n\nbp = Blueprint(\"users\", __name__)\n\n\n"
         "@bp.route(\"/users/<int:id>\", methods=[\"GET\", \"DELETE\"])\ndef user(id):\n    return jsonify(id)\n\n\n"
         "@bp.route(\"/users\", methods=[\"POST\"])\ndef create_user():\n    return jsonify({})\n\n\n"
         "@bp.route(\"/users\")\ndef list_users():\n    return jsonify([])\n\n\ndef ping():\n    return \"pong\"\n",
@@ -97,29 +97,29 @@ FLASK = {
     "shopfront/schemas.py":
         "from marshmallow import Schema, fields\n\n\nclass UserSchema(Schema):\n    name = fields.Str()\n",
     "shopfront/wsgi.py":
-        "from flask import current_app as app\nfrom shopfront.users import ping\n\napp.add_url_rule(\"/ping\", view_func=ping)\n",
+        "from quart import current_app as app\nfrom shopfront.users import ping\n\napp.add_url_rule(\"/ping\", view_func=ping)\n",
 }
 
-FLASK_STACK = (
+QUART_STACK = (
     "# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.\n"
     "# Libraries and route styles the scanner does not know built in. Commit it; edit it by hand if a fact is wrong.\n"
     "python:\n"
     "  imports:\n"
     "    - {prefix: celery, kind: event}\n"
-    "    - {prefix: flask, kind: http-in}\n"
+    "    - {prefix: quart, kind: http-in}\n"
     "  ignore: [marshmallow]\n"
     "  routes:\n"
-    "    - name: flask\n"
-    "      when: flask\n"
+    "    - name: quart\n"
+    "      when: quart\n"
     "      path: literal\n"
     "      method: GET\n"
     "      regex: '@\\w+\\.route\\(\\s*[\"''](?P<path>[^\"'']*)[\"''](?:[^)]*methods\\s*=\\s*\\[(?P<methods>[^\\]]*)\\])?'\n"
-    "    - name: flask-shortcut\n"
-    "      when: flask\n"
+    "    - name: quart-shortcut\n"
+    "      when: quart\n"
     "      path: literal\n"
     "      regex: '@\\w+\\.(?P<method>get|post|put|delete|patch)\\(\\s*[\"''](?P<path>[^\"'']*)'\n"
-    "    - name: flask-rule\n"
-    "      when: flask\n"
+    "    - name: quart-rule\n"
+    "      when: quart\n"
     "      path: literal\n"
     "      method: GET\n"
     "      regex: 'add_url_rule\\(\\s*[\"''](?P<path>[^\"'']*)'\n"
@@ -214,8 +214,8 @@ def with_stack(repo: Path, text: str, out_dir: str = "docs/viz-code") -> Path:
 
 
 @pytest.fixture
-def flask_repo(make_repo):
-    return make_repo(FLASK, name="shopfront")
+def quart_repo(make_repo):
+    return make_repo(QUART, name="shopfront")
 
 
 @pytest.fixture

@@ -73,7 +73,7 @@ def test_packs_hold_every_old_sink():
     got = [(lang, p, k) for lang, es in st.imports.items() for p, k, src in es
            if src == "pack" and lang in ("python", "scala")]   # the other languages' packs: test_packs_jvm and later
     new = [("python", "google.cloud.pubsub", "event"), ("python", "google.cloud.pubsub_v1", "event"),
-           ("python", "sqlmodel", "sql-db")]
+           ("python", "sqlmodel", "sql-db"), ("python", "quart", "http-in")]
     assert sorted(got) == sorted(OLD_SINKS + new) and len(OLD_SINKS) == 50
 
 
@@ -277,14 +277,14 @@ def test_invalid_utf8_is_stack_error(tmp_path):
         stack.load(write(tmp_path, "", raw=b"python:\n  ignore: [\xff]\n"))
 
 
-# --- the scanner reads the Stack (fixtures: flask_repo, http4s_repo) -------------------------------------------
+# --- the scanner reads the Stack (fixtures: quart_repo, http4s_repo) -------------------------------------------
 
 import subprocess
 import sys
 from pathlib import Path
 
 from helpers import write
-from conftest import FLASK_STACK, HTTP4S_STACK, with_stack
+from conftest import QUART_STACK, HTTP4S_STACK, with_stack
 
 from vizcode import roles, structure
 
@@ -296,9 +296,9 @@ def route_set(s, lang_ext):
             for r in ff["routes"]}
 
 
-def test_flask_routes_with_stack(flask_repo):
-    with_stack(flask_repo, FLASK_STACK)
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_quart_routes_with_stack(quart_repo):
+    with_stack(quart_repo, QUART_STACK)
+    s = structure.build(quart_repo, "docs/viz-code")
     users = "shopfront::shopfront.users"
     assert route_set(s, ".py") == {
         ("GET", "/users/{id}", f"{users}#user/1"), ("DELETE", "/users/{id}", f"{users}#user/1"),
@@ -309,18 +309,18 @@ def test_flask_routes_with_stack(flask_repo):
     r = roles.package_roles(s["nodes"], s["files"], s["facts"])
     assert r["shopfront::shopfront/"] == "entry"
     assert {x["source"] for f in s["facts"].values() for x in f["routes"]} == {"stack.yaml"}
-    assert s["stack"]["digest"] == content_digest(flask_repo / "docs/viz-code/stack.yaml")
+    assert s["stack"]["digest"] == content_digest(quart_repo / "docs/viz-code/stack.yaml")
 
 
-def test_handler_falls_back_to_file(flask_repo):
-    with_stack(flask_repo, FLASK_STACK)
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_handler_falls_back_to_file(quart_repo):
+    with_stack(quart_repo, QUART_STACK)
+    s = structure.build(quart_repo, "docs/viz-code")
     ping = next(r for r in s["facts"]["shopfront/wsgi.py"]["routes"] if r["path"] == "/ping")
     assert ping["handler"] == s["files"]["shopfront/wsgi.py"]["node"]
 
 
-def test_flask_without_stack_has_no_routes(flask_repo):
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_quart_without_stack_has_no_routes(quart_repo):
+    s = structure.build(quart_repo, "docs/viz-code")
     assert route_set(s, ".py") == set()
     assert s["stack"]["digest"] is None
 
@@ -351,19 +351,19 @@ def run_extract(repo):
     return subprocess.run([sys.executable, str(EXTRACT), str(repo)], capture_output=True, text=True)
 
 
-def test_stack_error_exit(flask_repo):
-    with_stack(flask_repo, "python:\n  imports:\n    - {prefix: celery, kind: nonsense}\n")
-    p = run_extract(flask_repo)
+def test_stack_error_exit(quart_repo):
+    with_stack(quart_repo, "python:\n  imports:\n    - {prefix: celery, kind: nonsense}\n")
+    p = run_extract(quart_repo)
     assert p.returncode == 2
     assert "celery" in p.stderr and "Traceback" not in p.stderr
 
 
-def test_extract_adds_header(flask_repo):
-    path = with_stack(flask_repo, "python:\n  ignore: [marshmallow]\n")
-    p = run_extract(flask_repo)
+def test_extract_adds_header(quart_repo):
+    path = with_stack(quart_repo, "python:\n  ignore: [marshmallow]\n")
+    p = run_extract(quart_repo)
     assert p.returncode == 0, p.stderr
     assert path.read_text().startswith(stack.HEADER)
-    s = json.loads((flask_repo / "docs/viz-code/structure.json").read_text())
+    s = json.loads((quart_repo / "docs/viz-code/structure.json").read_text())
     assert s["stack"]["digest"] == content_digest(path)
 
 
@@ -375,12 +375,12 @@ def unrecognised(s):
     return {u["prefix"] for u in s["stack"]["unrecognised"]}
 
 
-def test_report_flask_without_stack(flask_repo):
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_report_quart_without_stack(quart_repo):
+    s = structure.build(quart_repo, "docs/viz-code")
     rep = s["stack"]
     assert unrecognised(s) == {"celery", "marshmallow"}
     assert [(x["lang"], x["prefix"], x["kind"], x["files"]) for x in rep["servers_without_routes"]] == \
-        [("python", "flask", "http-in", 3)]
+        [("python", "quart", "http-in", 3)]
     # the server files' decorator lines are listed too: what the missing route pattern has to read
     assert [(x["file"], x["lines"]) for x in rep["routes_unmatched"]] == [
         ("shopfront/__init__.py", [6]), ("shopfront/users.py", [6, 11, 16])]
@@ -389,21 +389,21 @@ def test_report_flask_without_stack(flask_repo):
     assert "## Stack — 2 unrecognised imports, 1 server library without routes, 0 patterns with no match, " \
            "4 route-looking lines with no route\n" in md
     assert "- python `celery` — 1 file: shopfront/tasks.py:1" in md
-    assert "- python `flask` (http-in) — 3 files import it; no route pattern matched in them" in md
+    assert "- python `quart` (http-in) — 3 files import it; no route pattern matched in them" in md
 
 
-def test_report_flask_with_stack(flask_repo):
-    with_stack(flask_repo, FLASK_STACK)
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_report_quart_with_stack(quart_repo):
+    with_stack(quart_repo, QUART_STACK)
+    s = structure.build(quart_repo, "docs/viz-code")
     rep = s["stack"]
     assert rep["unrecognised"] == [] and rep["servers_without_routes"] == []
     assert [(p["name"], p["source"], p["matches"]) for p in rep["patterns"]] == \
-        [("flask", "stack.yaml", 4), ("flask-shortcut", "stack.yaml", 1), ("flask-rule", "stack.yaml", 1)]
+        [("quart", "stack.yaml", 4), ("quart-shortcut", "stack.yaml", 1), ("quart-rule", "stack.yaml", 1)]
     md = structure.summary_md(s)
     assert "## Stack — nothing unrecognised\n" in md
-    assert "Route patterns:\n- python flask (stack.yaml): 4 routes in 1 file\n" in md
-    assert "- python flask-shortcut (stack.yaml): 1 route in 1 file\n" in md
-    assert "- python flask-rule (stack.yaml): 1 route in 1 file\n" in md
+    assert "Route patterns:\n- python quart (stack.yaml): 4 routes in 1 file\n" in md
+    assert "- python quart-shortcut (stack.yaml): 1 route in 1 file\n" in md
+    assert "- python quart-rule (stack.yaml): 1 route in 1 file\n" in md
     assert stack.count(rep) == 0
 
 
@@ -412,10 +412,10 @@ def test_report_http4s_without_stack(http4s_repo):
     assert unrecognised(s) == {"cats.effect", "io.circe", "org.http4s"}
 
 
-def test_zero_match_flagged(flask_repo):
-    with_stack(flask_repo, FLASK_STACK + "    - name: dead\n      when: flask\n      path: literal\n"
+def test_zero_match_flagged(quart_repo):
+    with_stack(quart_repo, QUART_STACK + "    - name: dead\n      when: quart\n      path: literal\n"
                "      method: GET\n      regex: 'nomatch_(?P<path>x)'\n")
-    s = structure.build(flask_repo, "docs/viz-code")
+    s = structure.build(quart_repo, "docs/viz-code")
     dead = next(p for p in s["stack"]["patterns"] if p["name"] == "dead")
     assert dead["matches"] == 0 and dead["first_file"] == "shopfront/__init__.py:1"
     md = structure.summary_md(s)
@@ -425,8 +425,8 @@ def test_zero_match_flagged(flask_repo):
     assert stack.count(s["stack"]) == 1
 
 
-def test_own_package_not_unrecognised(flask_repo):
-    assert "shopfront" not in unrecognised(structure.build(flask_repo, "docs/viz-code"))
+def test_own_package_not_unrecognised(quart_repo):
+    assert "shopfront" not in unrecognised(structure.build(quart_repo, "docs/viz-code"))
 
 
 def test_stdlib_not_unrecognised(make_repo):
@@ -439,8 +439,8 @@ def test_stdlib_not_unrecognised(make_repo):
     assert unrecognised(structure.build(repo, "docs/viz-code")) == set()
 
 
-def test_extract_prints_stack_count(flask_repo):
-    p = run_extract(flask_repo)
+def test_extract_prints_stack_count(quart_repo):
+    p = run_extract(quart_repo)
     assert json.loads(p.stdout)["stack"] == 5
 
 
@@ -452,9 +452,9 @@ def test_summary_stack_section_position(shop_repo):
     assert "SHOP_URL" in "; ".join(mapcheck.ENV_LINE.findall(md)).split("; ")
 
 
-def test_overrides_in_summary(flask_repo):
-    with_stack(flask_repo, "python:\n  imports:\n    - {prefix: requests, kind: http}\n")
-    s = structure.build(flask_repo, "docs/viz-code")
+def test_overrides_in_summary(quart_repo):
+    with_stack(quart_repo, "python:\n  imports:\n    - {prefix: requests, kind: http}\n")
+    s = structure.build(quart_repo, "docs/viz-code")
     assert s["stack"]["overrides"] == [{"lang": "python", "prefix": "requests", "pack_kind": "http-out", "kind": "http"}]
     assert "Kinds changed by stack.yaml (1):\n- python `requests`: http-out → http\n" in structure.summary_md(s)
 
@@ -575,21 +575,21 @@ def test_from_import_matched_by_name(make_repo):
 
 WHEN_FROM = {
     "pyproject.toml": '[project]\nname = "site"\nversion = "0.1"\n',
-    "site/views.py": "from flask import views\n\n\n@app.route(\"/x\")\ndef x():\n    return 1\n",
-    "site/other.py": "from flask import Flask\n\n\n@app.route(\"/y\")\ndef y():\n    return 1\n",
+    "site/views.py": "from quart import views\n\n\n@app.route(\"/x\")\ndef x():\n    return 1\n",
+    "site/other.py": "from quart import Quart\n\n\n@app.route(\"/y\")\ndef y():\n    return 1\n",
 }
 
 
 def test_when_matches_from_import_names(make_repo):
     repo = make_repo(WHEN_FROM, name="site")
-    with_stack(repo, "python:\n  routes:\n    - name: flask-views\n      when: flask.views\n      path: literal\n"
+    with_stack(repo, "python:\n  routes:\n    - name: quart-views\n      when: quart.views\n      path: literal\n"
                      "      method: GET\n      regex: '@\\w+\\.route\\(\"(?P<path>[^\"]*)'\n")
     s = structure.build(repo, "docs/viz-code")
     assert route_set(s, ".py") == {("GET", "/x", "site::site.views#x/0")}
-    pat = next(p for p in s["stack"]["patterns"] if p["name"] == "flask-views")
+    pat = next(p for p in s["stack"]["patterns"] if p["name"] == "quart-views")
     assert (pat["matches"], pat["files"], pat["first_file"]) == (1, 1, "site/views.py:1")
-    assert stack.import_names([{"target": "flask", "relative": False, "names": ["views"]},
-                               {"target": ".x", "relative": True, "names": ["y"]}]) == ["flask.views"]
+    assert stack.import_names([{"target": "quart", "relative": False, "names": ["views"]},
+                               {"target": ".x", "relative": True, "names": ["y"]}]) == ["quart.views"]
 
 
 def test_unrecognised_imports_leave_out_language_items_and_keep_the_repos_own_package(make_repo):
