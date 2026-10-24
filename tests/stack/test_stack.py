@@ -671,3 +671,14 @@ def test_a_yaml_error_names_the_file_and_line(tmp_path):
     with pytest.raises(stack.StackError) as e:
         stack.load(bad)
     assert str(bad) in str(e.value) and "<unicode string>" not in str(e.value) and "line" in str(e.value)
+
+
+def test_a_module_named_like_a_declared_library_does_not_hide_it(make_repo):
+    """`app/celery.py` (the Celery app) beside a `celery` requirement: `import celery` elsewhere is the library."""
+    files = {"requirements.txt": "celery==5.5\nasana>=3.0  # sdk\n", "app/__init__.py": "",
+             "app/celery.py": "from celery import Celery\n\napp = Celery('app')\n",
+             "app/importers/__init__.py": "", "app/importers/asana/__init__.py": "",
+             "app/importers/asana/run.py": "import asana\n\n\ndef go():\n    return asana.Client()\n",
+             "app/util.py": "def x():\n    return 1\n", "app/main.py": "import util\n"}
+    s = structure.build(make_repo(files))
+    assert {"celery", "asana"} <= unrecognised(s) and "util" not in unrecognised(s)

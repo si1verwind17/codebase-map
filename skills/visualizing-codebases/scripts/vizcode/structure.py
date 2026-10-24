@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
@@ -145,10 +146,35 @@ def _relative_file(f: str, target: str, files: dict[str, dict]) -> str | None:
     return next((c for c in [base, *(stem + s for s in sufs), *(f"{stem}/index{s}" for s in sufs)] if c in files), None)
 
 
+PY_REQUIREMENT = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+
+def python_dependencies(root: Path) -> set[str]:
+    """The import-style names (lower case, `-` and `.` as `_`) of the libraries the repo's Python dependency files
+    declare: `requirements*.txt`/`.in` lines and pyproject.toml's project and Poetry dependencies."""
+    out: set[str] = set()
+    for p in [*root.glob("requirements*.txt"), *root.glob("requirements*.in"), *root.glob("*/requirements*.txt")]:
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.lstrip().startswith(("#", "-")) and (m := PY_REQUIREMENT.match(line)):
+                out.add(m.group(1))
+    for p in [root / "pyproject.toml", *root.glob("*/pyproject.toml")]:
+        try:
+            doc = tomllib.loads(p.read_text(encoding="utf-8", errors="replace")) if p.is_file() else {}
+        except tomllib.TOMLDecodeError:
+            continue
+        deps = (doc.get("project") or {}).get("dependencies") or []
+        out.update(m.group(1) for d in deps if isinstance(d, str) and (m := PY_REQUIREMENT.match(d)))
+        poetry = ((doc.get("tool") or {}).get("poetry") or {}).get("dependencies") or {}
+        out.update(k for k in poetry if isinstance(k, str) and k.lower() != "python")   # the interpreter, no library
+    return {re.sub(r"[-.]", "_", d.lower()) for d in out}
+
+
 def _internal(results: dict[str, dict], file_mod: dict[str, str], mod_by_id: dict[str, dict],
-              names: dict[str, dict[str, str]], protos: list[dict], aliases: set[str]) -> dict[str, set[str]]:
+              names: dict[str, dict[str, str]], protos: list[dict], aliases: set[str],
+              py_deps: set[str] = frozenset()) -> dict[str, set[str]]:
     """Language -> import prefixes that name the repo's own code: packages, Python dotted names, module names,
-    tsconfig path aliases, Rust `mod` names."""
+    tsconfig path aliases, Rust `mod` names. A Python file stem or folder named like a declared dependency
+    (`py_deps`: `app/celery.py` beside a `celery` requirement) is no own name: a bare import of it is the library."""
     scopes: dict[str, set[str]] = {scope: set(n) for scope, n in names.items()}
     jvm = scopes.setdefault("jvm", set())
     for f, r in results.items():
@@ -157,8 +183,7 @@ def _internal(results: dict[str, dict], file_mod: dict[str, str], mod_by_id: dic
                 scopes.setdefault(scope, set()).add(pkg)
         if f.endswith(".py"):
             jvm.add(py_adapter.dotted_names(mod_by_id[file_mod[f]], f)[0])
-            jvm.add(Path(f).stem)
-            jvm.update(Path(f).parent.parts)
+            jvm.update(x for x in (Path(f).stem, *Path(f).parent.parts) if x.lower() not in py_deps)
         if f.endswith(".rs"):
             scopes.setdefault("rust", set()).update(i["target"] for i in r["imports"]
                                                     if i["relative"] and "::" not in i["target"])
@@ -1052,6 +1077,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             if (p.is_file() and not p.is_symlink() and not excluded(f, patterns) and not proto.vendored(f)
                     and p.stat().st_size <= MAX_BYTES):
                 protos.append(proto.parse(p.read_text(encoding="utf-8", errors="replace"), f))
+        py_deps = python_dependencies(root)
         not_scanned = unscanned.report(tree, set(results), lambda f: excluded(f, patterns + BUILD_EXCLUDES),
                                        lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
         mapper_sql, sql_files = sqlfiles.read(root, tree, lambda f: excluded(f, patterns + BUILD_EXCLUDES)
@@ -1096,7 +1122,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     _implements(nodes, results, file_mod)
     _go_implements(nodes)
     names = _module_names(modules, results, file_mod, build_names)
-    internal = _internal(results, file_mod, mod_by_id, names, protos, aliases)
+    internal = _internal(results, file_mod, mod_by_id, names, protos, aliases, py_deps)
     constructors.mark(nodes, {cid for r in results.values() for cid in r.get("values", [])},
                       {fid for r in results.values() for fid in r.get("class_inits", [])})
     typelinks.link(nodes, results, file_mod, lambda f, t: _relative_file(f, t, results), _family, internal)
