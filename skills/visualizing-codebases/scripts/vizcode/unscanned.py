@@ -36,6 +36,22 @@ TOOLING = re.compile(r"(?i)^(?:\.(?:github|gitlab|circleci|buildkite|devcontaine
                      r"(?:[-_.].*)?)$")
 
 
+# a stock image of a database, broker, search, storage or monitoring server: what it runs is no code of the repo's
+INFRA_IMAGE = re.compile(r"(?i)^(?:postgres|postgis|mysql|mariadb|mongo|redis|valkey|rabbitmq|kafka|cp-kafka|zookeeper|"
+                         r"cp-zookeeper|elasticsearch|opensearch|kibana|logstash|cassandra|scylla|memcached|nats|minio|"
+                         r"localstack|prometheus|grafana|jaeger|all-in-one|zipkin|otel|opentelemetry-collector\S*|"
+                         r"consul|vault|etcd|clickhouse-server|clickhouse|influxdb|neo4j|couchdb|couchbase|mssql|"
+                         r"mssql-server|azure-sql-edge|oracle|db2|schema-registry|cp-schema-registry|kafka-ui)$")
+FROM = re.compile(r"^\s*FROM\s+(?:--\S+\s+)*(\S+)", re.M | re.I)
+
+
+def _base_image(text: str) -> str | None:
+    """The image a Dockerfile's last stage starts from, its name without registry, owner or tag
+    (`confluentinc/cp-kafka:7.4` -> cp-kafka)."""
+    froms = FROM.findall(text or "")
+    return re.split(r"[:@]", froms[-1].rsplit("/", 1)[-1])[0] if froms else None
+
+
 def tooling(folder: str) -> bool:
     """A folder of TOOLING, judged on the segments above any source tree (`src/main/java/dev/acme` is a package)."""
     segs = folder.split("/")
@@ -102,7 +118,8 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
     output, tests, docs); `read(path)`: a file's text. Returns `languages` (each unscanned language with its file count
     and outermost folders) and `deployables` (each deployable folder whose source is mostly unscanned, holds MANY unscanned
     files or more, or has no scanned source at all) and `tooling` (the image folders of tests, CI, docs or developer
-    tooling: no deployables)."""
+    tooling: no deployables) and `infrastructure` (the folders whose Dockerfiles only extend a stock database,
+    broker, search or monitoring image: datastores and platform, no deployables)."""
     source = {f: lang for f in files if not skip(f) and (lang := language(f))}
     by_lang: dict[str, list[str]] = {}
     for f, lang in source.items():
@@ -122,7 +139,7 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
                 found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, f])
                 if recipe is not None and _folder(recipe) != folder:
                     recipes.add(recipe)
-    deployables, tools = [], []
+    deployables, tools, infra = [], [], []
     for folder, how in sorted(found.items()):
         if not how["compose"] and how["dockerfiles"] and set(how["dockerfiles"]) <= recipes:
             continue   # `docker/local.Dockerfile` of a service built from `.`: the context is the deployable
@@ -135,7 +152,12 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
             if _inside(f, folder) and lang not in TEMPLATES:
                 missed[lang] = missed.get(lang, 0) + 1
         main = sum(n for lang, n in missed.items() if lang not in AUXILIARY)
+        images = [_base_image(read(d)) for d in how["dockerfiles"]]
+        if mine == 0 and main == 0 and images and all(i and INFRA_IMAGE.match(i) for i in images):
+            infra.append({"folder": folder, "images": sorted(set(images)), **how})
+            continue   # `docker/postgres` FROM postgres: a datastore's or broker's own image, never a service
         if mine == 0 or sum(missed.values()) > mine or (main >= MANY and 5 * main >= mine):
             deployables.append({"folder": folder, **how, "scanned": mine,
                                 "unscanned": [[lang, n] for lang, n in sorted(missed.items(), key=lambda kv: (-kv[1], kv[0]))]})
-    return {"languages": languages, "deployables": deployables, **({"tooling": tools} if tools else {})}
+    return {"languages": languages, "deployables": deployables, **({"tooling": tools} if tools else {}),
+            **({"infrastructure": infra} if infra else {})}

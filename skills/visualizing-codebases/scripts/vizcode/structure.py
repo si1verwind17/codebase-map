@@ -1931,7 +1931,7 @@ def _tooling_file(f: str) -> bool:
 def _unscanned_lines(rep: dict) -> list[str]:
     """The Not scanned section: source in languages without a reader, and the deployables made mostly of it."""
     langs, deps = rep.get("languages", []), rep.get("deployables", [])
-    if not langs and not deps:
+    if not langs and not deps and not rep.get("infrastructure"):
         return []
     lines = [f"## Not scanned — {_plural(len(langs), 'language', 'languages')} without a reader, "
              f"{_plural(len(deps), 'deployable', 'deployables')} mostly in them", ""]
@@ -1948,6 +1948,11 @@ def _unscanned_lines(rep: dict) -> list[str]:
             missed = ", ".join(f"{lang} {n}" for lang, n in d["unscanned"])
             lines.append(f"- deployable `{d['folder']}` ({'; '.join(how)}) — {_plural(d['scanned'], 'file', 'files')} "
                          f"scanned; " + (f"not scanned: {missed}" if missed else "no source the scanner reads"))
+        lines.append("")
+    if infra := rep.get("infrastructure", []):
+        lines.append("Images of a database, broker, search or monitoring server (a stock image extended, no source of "
+                     "its own): the datastore or broker node it runs, never a service — "
+                     + ", ".join(f"`{d['folder']}` ({', '.join(d['images'])})" for d in infra))
         lines.append("")
     if tools := rep.get("tooling", []):
         lines.append("Images of tests, CI, docs or developer tooling (their folder says so): no deployables, no "

@@ -201,7 +201,8 @@ the repository's top level, and in a subfolder scan reads the wrong file
 without an error.
 `summary.md` also lists excluded files (tests, docs, vendored code), what it
 did not scan (§ Not scanned near the top: source in languages without a
-reader, by language and folder, and the deployables made mostly of it), and
+reader, by language and folder, the deployables made mostly of it, and the images of a stock database, broker,
+search or monitoring server, which are the datastore or broker node they run, never a service), and
 FastAPI `include_router` calls: the scanner joins their prefixes onto the
 included router's routes (`composed onto N routes`); compose only those
 marked `not composed` yourself.

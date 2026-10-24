@@ -155,3 +155,17 @@ def test_a_folder_of_dockerfiles_a_compose_service_names_is_no_deployable(make_r
              **{f"x/m{i}.ex": "defmodule M do\nend\n" for i in range(3)}, "app.py": "def main():\n    pass\n"}
     s = structure.build(make_repo(files), "docs/viz-code")
     assert [d["folder"] for d in s["unscanned"]["deployables"]] == ["."]
+
+
+def test_a_stock_database_or_broker_image_is_infrastructure_not_a_deployable(make_repo):
+    files = {"docker-compose.yml": "services:\n  db:\n    build: docker/postgres\n  mq:\n    build: docker/kafka\n"
+                                   "  web:\n    build: ./web\n",
+             "docker/postgres/Dockerfile": "FROM postgres:16-alpine\nCOPY init.sql /docker-entrypoint-initdb.d/\n",
+             "docker/postgres/init.sql": "CREATE TABLE t (id int);\n",
+             "docker/kafka/Dockerfile": "FROM confluentinc/cp-kafka:7.4.0\n",
+             "web/Dockerfile": "FROM node:20\n", "web/server.ex": "defmodule S do\nend\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert [d["folder"] for d in s["unscanned"]["deployables"]] == ["web"]
+    assert [(d["folder"], d["images"]) for d in s["unscanned"]["infrastructure"]] == [
+        ("docker/kafka", ["cp-kafka"]), ("docker/postgres", ["postgres"])]
+    assert "`docker/postgres` (postgres)" in structure.summary_md(s)
