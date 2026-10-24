@@ -8,7 +8,7 @@
 # file, so minimal APIs and `MapGroup` run without `when` (see the entries); for the sinks of such a file the agent adds what it needs.
 # routes: ASP.NET controllers (`form: annotated`: `[Route]` prefix with the `[controller]` token, `[HttpGet]`...;
 # a method template starting with `/` or `~/` overrides the prefix); minimal APIs `app.MapGet("/x", h)` (regex;
-# `MapGroup` is a mount). tables: EF Core `[Table("x")]` (defined on the class) and `ToTable("x")`.
+# `MapGroup` is a mount). tables: EF Core `[Table("x")]` (defined on the class), `ToTable("x")` and `DbSet<T> X`.
 # queues: in-process queue creation sites (`System.Threading.Channels`, `BlockingCollection`): candidates the agent confirms (references/interactions.md).
 csharp:
   ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions]
@@ -68,6 +68,8 @@ csharp:
     - {name: ef-table-attribute, when: System.ComponentModel.DataAnnotations.Schema,
        regex: '\[(?:[^\[\]]*?,\s*)?(?:System\.ComponentModel\.DataAnnotations\.Schema\.)?Table(?:Attribute)?\(\s*@?"(?P<table>[^"]+)"'}
     - {name: ef-to-table, when: Microsoft.EntityFrameworkCore, regex: '\.ToTable\(\s*@?"(?P<table>[^"]+)"'}
+    # `DbSet<User> Users { get; set; }` on a DbContext: EF Core names the table after the property
+    - {name: ef-dbset, when: Microsoft.EntityFrameworkCore, regex: '\bDbSet<\s*[\w.]+\s*>\s+(?P<table>\w+)\s*\{'}
   queues:
     - {name: dotnet-channel, when: System.Threading.Channels, delivery: queue, regex: '\bChannel\.Create(?:Bounded|Unbounded)\b'}
     - {name: blocking-collection, when: System.Collections.Concurrent, delivery: queue, regex: '\bnew\s+BlockingCollection\s*<'}

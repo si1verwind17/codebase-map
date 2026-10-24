@@ -341,3 +341,66 @@ def test_a_client_factory_and_a_method_first_call_over_lines(make_repo):
     s = structure.build(make_repo(files))
     assert clients(s, "app/s3.py") == []
     assert clients(s, "app/use.py") == [("POST", "/jobs", "app.use#run/0")]
+
+
+def test_orm_access_through_typed_repositories_and_ef_dbsets(make_repo):
+    """A field typed with an entity (`Repository<User>`) reaches its table; an EF context's `DbSet<T> Users`
+    names a table that `_context.Users.Where(..)` reads; the context itself is no entity."""
+    files = {"package.json": '{"name": "a", "dependencies": {"typeorm": "0.3"}}\n',
+             "src/user.entity.ts": "import { Entity } from 'typeorm'\n@Entity('users')\nexport class User {}\n",
+             "src/users.service.ts": "import { Repository } from 'typeorm'\nimport { User } from './user.entity'\n"
+                                     "export class UsersService {\n  constructor(private readonly repo: Repository<User>) {}\n"
+                                     "  find(id: number) { return this.repo.findOneBy({ id }) }\n"
+                                     "  add(u: User) { return this.repo.save(u) }\n}\n",
+             "Api/Api.csproj": "<Project/>\n",
+             "Api/AppDb.cs": "using Microsoft.EntityFrameworkCore;\nnamespace Api;\npublic class AppDb : DbContext\n{\n"
+                             "    public DbSet<Order> Orders { get; set; }\n    public DbSet<Line> Lines { get; set; }\n}\n",
+             "Api/OrdersRepo.cs": "using Microsoft.EntityFrameworkCore;\nnamespace Api;\npublic class OrdersRepo\n{\n"
+                                  "    private readonly AppDb _context;\n"
+                                  "    public object Open() { return _context.Orders.Where(o => o.Open).ToListAsync(); }\n"
+                                  "    public void Add(Line l) { _context.Lines.Add(l); }\n}\n"}
+    s = structure.build(make_repo(files))
+    acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
+                 for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
+    assert acc == [("Lines", "write", "Add/1"), ("Orders", "read", "Open/0"),
+                   ("users", "read", "find/1"), ("users", "write", "add/1")]
+
+
+def test_orm_access_needs_the_entity_or_its_repository_and_a_context_for_a_dbset(make_repo):
+    """A list of entities, a same-named interface elsewhere, a relation attribute in between, or a DbSet's name on
+    another object reads no table."""
+    files = {"package.json": '{"name": "a", "dependencies": {"typeorm": "0.3"}}\n',
+             "src/user.ts": "import { Entity } from 'typeorm'\n@Entity()\nexport class User {}\n",
+             "src/svc.ts": "import { User } from './user'\nexport function pick(users: User[]) { return users.find(u => u) }\n"
+                           "export function all(users: Array<User>) { return users.filter(u => u) }\n",
+             "web/ui.ts": "interface User { name: string }\nexport function show(users: User) { return users.find(1) }\n",
+             "Api/Api.csproj": "<Project/>\n",
+             "Api/AppDb.cs": "using Microsoft.EntityFrameworkCore;\nnamespace Api;\npublic class AppDb : DbContext\n{\n"
+                             "    public DbSet<Item> Items { get; set; }\n}\n",
+             "Api/Cart.cs": "namespace Api;\npublic class Cart\n{\n    public void Add(Response response, string x)\n    {\n"
+                            "        response.Items.Add(x);\n        this.Items.Add(x);\n    }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [t for ff in s["facts"].values() for t in ff.get("tables", []) if t.get("pattern") == "orm-call"] == []
+
+
+def test_orm_access_through_a_django_queryset_and_a_nested_ef_context(make_repo):
+    files = {"requirements.txt": "django\n", "app/__init__.py": "", "app/migrations/__init__.py": "",
+             "app/migrations/0001_initial.py": "from django.db import migrations\n\n\nclass Migration(migrations.Migration):\n"
+                                               "    operations = [migrations.CreateModel(name='Ping', fields=[], "
+                                               "options={'db_table': 'pings'})]\n",
+             "app/models.py": "from django.db import models\n\n\nclass Ping(models.Model):\n    class Meta:\n"
+                              "        db_table = 'pings'\n",
+             "app/admin.py": "from django.db.models import QuerySet\nfrom app.models import Ping\n\n\n"
+                             "def queryset(request, qs: QuerySet[Ping]):\n    return qs.filter(kind=1)\n",
+             "Api/Api.csproj": "<Project/>\n",
+             "Api/AppDb.cs": "using Microsoft.EntityFrameworkCore;\nnamespace Api;\npublic class AppDb : DbContext\n{\n"
+                             "    public DbSet<Item> Items { get; set; }\n}\n",
+             "Api/Svc.cs": "namespace Api;\npublic class Svc\n{\n    public object A(IUnitOfWork unitOfWork)\n    {\n"
+                           "        return unitOfWork.DataContext.Items.ToListAsync();\n    }\n"
+                           "    public void B(HttpRequest request) { request.HttpContext.Items.Add(\"k\", 1); }\n"
+                           "    private readonly HttpContext _httpContext;\n"
+                           "    public void C() { _httpContext.Items.Add(\"k\", 1); }\n}\n"}
+    s = structure.build(make_repo(files))
+    acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
+                 for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
+    assert acc == [("Items", "read", "A/1"), ("pings", "read", "queryset/2")]

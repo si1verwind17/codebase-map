@@ -136,9 +136,10 @@ typescript:
     # `@Entity()` with no name: the table is the class as written (the naming strategy is the agent's to read)
     - {name: typeorm-entity-class, when: typeorm,
        regex: '@Entity\(\s*\)(?:\s*@\w+(?:\([^()]*\))?)*\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+(?P<table>\w+)'}
-    # `prisma.order.findMany(...)`: the table is the model as written
+    # `prisma.order.findMany(...)` (or a transaction's `tx.`, a client named like `prismaWithLogging`): the table is
+    # the model as written
     - {name: prisma, when: "@prisma/client",
-       regex: '\bprisma\.(?P<table>[A-Za-z]\w*)\.(?:findUnique|findUniqueOrThrow|findFirst|findFirstOrThrow|findMany|create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany|count|aggregate|groupBy)\b'}
+       regex: '\b(?:\w*[pP]risma\w*|tx|trx|db)\.(?P<table>[A-Za-z]\w*)\.(?:findUnique|findUniqueOrThrow|findFirst|findFirstOrThrow|findMany|create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany|count|aggregate|groupBy)\b'}
     # `sequelize.define('Order', ...)`: the model name as written, unless the call's options give `tableName:`
     # (then that is the table, and the model name is not one); the lookahead stays inside the call's parentheses
     - {name: sequelize-define, when: sequelize,

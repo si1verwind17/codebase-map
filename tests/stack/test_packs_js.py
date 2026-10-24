@@ -44,8 +44,11 @@ def test_nest_sinks_and_tables(nest_repo):
     assert sinks(s, "libs/db/src/order.entity.ts") == [("sql-db", "typeorm")]
     assert tables(s, "libs/db/src/order.entity.ts") == [
         ("orders", 3, "libs/db::src.order.entity.Order", "defined", "typeorm-entity")]
+    # the service reaches the table through its `Repository<Order>` field
+    assert [(t[0], t[2].rsplit("#", 1)[-1], t[3]) for t in tables(s, f"{API}/orders/orders.service.ts")] == [
+        ("orders", "find/1", "access"), ("orders", "create/1", "access")]
     for f in s["facts"]:
-        if f != "libs/db/src/order.entity.ts":
+        if f not in ("libs/db/src/order.entity.ts", f"{API}/orders/orders.service.ts"):
             assert "tables" not in s["facts"][f], f
     # the workspace package `@shop/db` is the repo's own
     assert {(r["from"], r["to"]) for r in s["relations"]} == {("mod:apps/api", "mod:libs/db")}

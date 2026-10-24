@@ -118,13 +118,28 @@ def attach(statements: list[dict], nodes: list[dict], file_facts: dict[str, dict
 ORM_WRITES = {"create", "save", "update", "update_all", "delete", "delete_all", "destroy", "destroy_all", "insert",
               "insert_all", "upsert", "bulk_create", "bulk_update", "update_or_create", "get_or_create", "increment",
               "decrement", "truncate", "remove", "create_many", "createMany", "updateMany", "deleteMany", "bulkCreate",
-              "findOrCreate", "firstOrCreate", "updateOrCreate", "insertGetId", "forceDelete"}
+              "findOrCreate", "firstOrCreate", "updateOrCreate", "insertGetId", "forceDelete", "softDelete",
+              "Add", "AddAsync", "AddRange", "Remove", "RemoveRange", "Update", "UpdateRange", "ExecuteDeleteAsync",
+              "ExecuteUpdateAsync"}
 ORM_READS = {"get", "filter", "filter_by", "all", "first", "last", "find", "find_by", "find_each", "where", "select",
              "query", "count", "exists", "pluck", "find_one", "findOne", "findAll", "findFirst", "findMany",
              "findUnique", "findByPk", "findAndCountAll", "aggregate", "sum", "paginate", "one", "order_by",
              "includes", "joins", "limit", "order", "values", "values_list", "get_or_404", "first_or_404",
-             "firstOrFail", "findOrFail", "whereIn", "orderBy", "latest", "exclude", "annotate", "scalar"}
+             "firstOrFail", "findOrFail", "whereIn", "orderBy", "latest", "exclude", "annotate", "scalar",
+             "findBy", "findOneBy", "findAndCount", "findOneOrFail", "findOneByOrFail", "countBy", "existsBy",
+             "exists", "createQueryBuilder", "AsNoTracking", "Where", "FirstOrDefaultAsync", "ToListAsync",
+             "FindAsync", "SingleOrDefaultAsync", "AnyAsync", "CountAsync", "Include"}
+CONTEXT_WORDS = re.compile(r"_*(?:db|ctx|\w*[cC]ontext|\w*[dD]b|\w*[cC]tx)")
+
+
+def _context_name(name: str) -> bool:
+    """How code names an EF DbContext (`_context`, `db`, `DataContext`); ASP.NET's `HttpContext` is none."""
+    return bool(CONTEXT_WORDS.fullmatch(name)) and "httpcontext" not in name.lower()
 ORM_HOLDERS = {"objects", "query", "unscoped"}   # Django's manager, Flask-SQLAlchemy's query
+# a declared type that holds an entity's rows: the entity itself, or a repository generic of it (TypeORM
+# `Repository<User>`, Mongoose `Model<User>`, Spring Data `UserRepository` aside: a class of its own)
+REPO_TYPE = re.compile(r"(?:\w+\.)*(?:\w*Repository|Repo|Model|DbSet|IQueryable|EntityRepository|ModelStatic|QuerySet|"
+                       r"Manager)[<\[](?:\w+\.)*['\"]?([A-Za-z_]\w*)['\"]?[>\]]|(?:\w+\.)*([A-Za-z_]\w*)")
 
 
 def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dict]) -> None:
@@ -137,7 +152,9 @@ def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dic
     tables: dict[str, str] = {}   # entity class id -> its table
     for ff in file_facts.values():
         for t in ff.get("tables", []):
-            if t.get("kind") == "defined" and by_id.get(t["in"], {}).get("kind") == "class":
+            # a context's DbSet facts name tables by property: the context is no entity
+            if t.get("kind") == "defined" and by_id.get(t["in"], {}).get("kind") == "class" \
+                    and t.get("pattern") != "ef-dbset":
                 tables[t["in"]] = t["table"]
     for d in defined:
         if d.get("model"):
@@ -152,6 +169,37 @@ def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dic
     named: dict[str, list[str]] = {}
     for cid in tables:
         named.setdefault(by_id[cid]["name"], []).append(cid)
+    # EF Core: a context's `DbSet<User> Users` names a table; `_context.Users.Where(..)` reaches it by the property
+    context_sets = {t["table"] for ff in file_facts.values() for t in ff.get("tables", []) if t.get("pattern") == "ef-dbset"}
+    contexts = {by_id[t["in"]]["name"] for ff in file_facts.values() for t in ff.get("tables", [])
+                if t.get("pattern") == "ef-dbset" and t["in"] in by_id}
+
+    def declared(caller: dict, value: str) -> list[dict]:
+        """The caller's parameter or its class's field called `value` (`type`, the `refs` it resolves to)."""
+        owner = by_id.get(caller.get("parent") or "", {})
+        out = [p for p in (caller.get("signature") or {}).get("params", []) if p.get("name") == value]
+        return out + [x for x in owner.get("fields") or [] if x.get("name") == value]
+
+    def decls(caller: dict, value: str) -> list[str]:
+        return [d.get("type") or "" for d in declared(caller, value)]
+
+    def typed(caller: dict, value: str) -> str | None:
+        """The entity a value's declared type names: the entity itself (`User user`, `user: User`) or a repository
+        of it (`Repository<UserEntity>`, `Model<User>`), never a list or map of it; an entity of the caller's
+        language."""
+        for d in declared(caller, value):
+            m = REPO_TYPE.fullmatch(re.sub(r"\s+", "", d.get("type") or "").strip("?"))
+            word = (m.group(1) or m.group(2)) if m else None
+            hits = [x for x in named.get(word or "", []) if by_id[x].get("lang") == caller.get("lang")
+                    and (not d.get("refs") or x in d["refs"])]   # a resolved type: only the class it names
+            if hits and len({tables[x] for x in hits}) == 1:
+                return hits[0]
+        return None
+
+    def a_context(caller: dict, value: str) -> bool:
+        """`_context.Users`: a value typed with a DbContext the scan holds, or named like one."""
+        return any(w in contexts for d in decls(caller, value) for w in re.findall(r"[A-Za-z_]\w*", d)) \
+            or _context_name(value)
     for f, ff in file_facts.items():
         seen = {(t["table"], t["in"], t.get("op")) for t in ff.get("tables", [])}
         for c in ff["calls"]:
@@ -165,12 +213,23 @@ def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dic
                     and parts[1] in ORM_HOLDERS:
                 owner = by_id.get(by_id.get(c.get("in") or "", {}).get("parent") or "", {})
                 cid, rest = (owner["id"], parts[1:]) if owner.get("id") in tables else (None, [])
-            if cid is None:
+            table = tables[cid] if cid else None
+            if table is None and len(parts) > 1 and (caller := by_id.get(c.get("in") or "")):
+                # a value typed with an entity (`this.users: Repository<User>`), or an EF context's DbSet property
+                at = 1 if parts[0] in ("self", "this") and len(parts) > 2 else 0
+                if (ent := typed(caller, parts[at])) is not None and parts[at + 1:at + 2] \
+                        and parts[at + 1] in ORM_READS | ORM_WRITES:   # `school.courses.all()`: another table
+                    table, rest = tables[ent], parts[at + 1:]
+                elif (i := next((i for i in range(at + 1, len(parts) - 1) if parts[i] in context_sets and (
+                        a_context(caller, parts[i - 1]) if i - 1 == at else _context_name(parts[i - 1]))),
+                        None)) is not None:   # `_context.Users`, `unitOfWork.DataContext.Users`
+                    table, rest = parts[i], parts[i + 1:]
+            if table is None:
                 continue
             op = "write" if any(p in ORM_WRITES for p in rest) else "read" if any(p in ORM_READS for p in rest) else None
-            if op and (key := (tables[cid], c["in"], op)) not in seen:
+            if op and (key := (table, c["in"], op)) not in seen:
                 seen.add(key)
-                ff.setdefault("tables", []).append({"table": tables[cid], "line": c["line"], "in": c["in"],
+                ff.setdefault("tables", []).append({"table": table, "line": c["line"], "in": c["in"],
                                                     "kind": "access", "op": op, "pattern": "orm-call",
                                                     "source": "scanner"})
         writes = {(t["table"], t["in"], t["line"]) for t in ff.get("tables", []) if t.get("op") == "write"}
