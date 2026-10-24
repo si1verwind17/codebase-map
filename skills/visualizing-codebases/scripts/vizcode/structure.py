@@ -6,7 +6,9 @@ import fnmatch
 import posixpath
 import os
 import re
+import signal
 import tempfile
+import threading
 import time
 import tomllib
 from pathlib import Path
@@ -206,6 +208,38 @@ def _family(lang: str) -> str:
 
 
 GO_PACKAGE = re.compile(r"^package\s+(\w+)", re.M)
+PATTERN_SECONDS = 60   # one file's pattern pass; longer means a regex that backtracks without end
+
+
+class PatternTimeout(Exception):
+    pass
+
+
+class _time_limit:
+    """Raise PatternTimeout in the block after `seconds` (a regex match is interruptible); a no-op off the main
+    thread or without SIGALRM."""
+    def __init__(self, seconds: float):
+        self.on = hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
+        self.seconds = seconds
+
+    def __enter__(self):
+        if self.on:
+            self.old = signal.signal(signal.SIGALRM, self._raise)
+            self.outer = signal.setitimer(signal.ITIMER_REAL, self.seconds)[0]   # a caller's own timer, if any
+            self.start = time.monotonic()
+        return self
+
+    def __exit__(self, *exc):
+        if self.on:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, self.old)
+            if self.outer:   # put it back, less the time this block took
+                signal.setitimer(signal.ITIMER_REAL, max(self.outer - (time.monotonic() - self.start), 0.001))
+        return False
+
+    def _raise(self, *_):
+        raise PatternTimeout(f"the patterns ran over {self.seconds:g} s: a stack.yaml regex that backtracks "
+                             "(a nested quantifier such as `(\\w+\\s*)+`)?")
 
 
 def _rust_module(f: str) -> tuple[str, ...]:
@@ -1443,26 +1477,28 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         for f, (lang, names) in list(pending.items()):
             r = results[f]
             try:   # the patterns read the source with comments and docstrings blanked
-                names = names + hop.get(f, [])
-                data = stack.pattern_text(sources[f], lang).encode()
-                r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
-                r["routes"] += _beside_code_rules(r, _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names))
-                if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
-                    r["route_like"] = [x for x in stack.route_like(decode(data), lang)
-                                       if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
-                r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
-                r["untabled"] = stack.entities_without_table(r, any(
-                    h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
-                r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
-                r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
-                                            {n["id"]: n["name"] for n in r["nodes"]},
-                                            _file_id(r, mod_by_id[file_mod[f]], lang))
-                renamed = {a: m for imp in r["imports"] for a, m in (imp.get("renames") or {}).items()}
-                for j in r["jobs"]:   # `from tasks import send as send_task`: `send_task.delay()` enqueues `send`
-                    if j["side"] == "enqueue" and j["job"] in renamed:
-                        j["job"] = re.split(r"\.|::|\\", renamed[j["job"]])[-1]
+                with _time_limit(PATTERN_SECONDS):
+                    names = names + hop.get(f, [])
+                    data = stack.pattern_text(sources[f], lang).encode()
+                    r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
+                    r["routes"] += _beside_code_rules(r, _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names))
+                    if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
+                        r["route_like"] = [x for x in stack.route_like(decode(data), lang)
+                                           if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
+                    r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                    r["untabled"] = stack.entities_without_table(r, any(
+                        h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
+                    r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                    r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
+                                                {n["id"]: n["name"] for n in r["nodes"]},
+                                                _file_id(r, mod_by_id[file_mod[f]], lang))
+                    renamed = {a: m for imp in r["imports"] for a, m in (imp.get("renames") or {}).items()}
+                    for j in r["jobs"]:   # `from tasks import send as send_task`: `send_task.delay()` enqueues `send`
+                        if j["side"] == "enqueue" and j["job"] in renamed:
+                            j["job"] = re.split(r"\.|::|\\", renamed[j["job"]])[-1]
             except Exception as err:   # as a parse crash: the file is skipped whole
-                skipped.append({"file": f, "reason": f"parser failed: {type(err).__name__}: {err}"[:200]})
+                skipped.append({"file": f, "reason": str(err) if isinstance(err, PatternTimeout)
+                                else f"parser failed: {type(err).__name__}: {err}"[:200]})
                 for store in (results, sources, lines, texts):
                     store.pop(f, None)
                 if f in gen_files:

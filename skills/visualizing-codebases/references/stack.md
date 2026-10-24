@@ -102,8 +102,9 @@ scala:
   `tables`. Packs and `stack.yaml` add up; `stack.yaml` removes no pack
   entry, but replaces one of the same name (above).
 - A route (`form: regex`, the default): `name` (unique per language;
-  `fastapi`, `tapir` and `tapir-client` are taken), `regex` (Python `re` over the whole file, multiline) with a
-  named group `path`; the method from a `method` group, a `methods` group
+  `fastapi`, `tapir` and `tapir-client` are taken), `regex` (Python `re` over the whole file, multiline; avoid
+  nested quantifiers such as `(\w+\s*)+`: a file whose patterns run over 60 s is skipped, its reason in
+  `summary.md`) with a named group `path`; the method from a `method` group, a `methods` group
   (each quoted word is one route), or the entry's `method:`; both groups also
   read a qualified constant by its last part (`http.MethodHead` → `HEAD`,
   `HttpMethod.GET`, `Method::POST`): the method the

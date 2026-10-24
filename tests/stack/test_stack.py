@@ -726,3 +726,30 @@ def test_a_pattern_gate_reaches_through_the_repos_own_module(make_repo):
              "src/users.ts": "import { prisma } from './db'\nexport function list() { return prisma.user.findMany() }\n"}
     s = structure.build(make_repo(files))
     assert [t["table"] for t in s["facts"]["src/users.ts"]["tables"]] == ["user"]
+
+
+def test_a_backtracking_stack_regex_skips_its_file_instead_of_hanging(make_repo, monkeypatch):
+    monkeypatch.setattr(structure, "PATTERN_SECONDS", 0.5)
+    files = {"app/__init__.py": "", "app/slow.py": "X = '" + "a" * 40 + "!'\n", "app/fine.py": "Y = 1\n",
+             "docs/viz-code/stack.yaml": "python:\n  routes:\n    - name: bad\n      method: GET\n"
+                                         "      regex: '(?P<path>(?:a+)+)b'\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert [(x["file"], x["reason"].split(":")[0]) for x in s["skipped"]] == [
+        ("app/slow.py", "the patterns ran over 0.5 s")]
+    assert "app/fine.py" in s["files"]
+
+
+def test_the_pattern_time_limit_leaves_an_outer_timer_running():
+    import signal
+    if not hasattr(signal, "SIGALRM"):
+        return
+    old = signal.signal(signal.SIGALRM, lambda *_: None)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, 300)
+        for _ in range(6):
+            with structure._time_limit(60):
+                pass
+        assert signal.getitimer(signal.ITIMER_REAL)[0] > 290
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, old)
