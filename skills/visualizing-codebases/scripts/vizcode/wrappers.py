@@ -32,6 +32,10 @@ CLIENT_WORDS = {"client", "http", "https", "api", "rest", "axios", "fetcher", "w
 SERVER_WORDS = {"router", "app", "route", "routes", "server", "express", "mux", "engine"}
 CAMEL = re.compile(r"[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])")
 URL_NAME = re.compile(r"(?i)url|uri|path|endpoint|route|href")   # a parameter that carries an address
+DESCRIPTOR_FILES = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".vue", ".svelte")
+# a descriptor's address key: `path` is left out, the key of server route tables and API contracts
+DESCRIPTOR_KEY = re.compile(r"""\b(?:url|uri|endpoint)\s*[:=]\s*(`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')""")
+SERVER_KEY = re.compile(r"\b(?:handler|preHandler|controller|resolve)\s*[:(,}]")
 
 
 def _path(literal: str) -> str | None:
@@ -83,9 +87,10 @@ def _parts(callee: str) -> list[str]:
     return [p for p in IDENT.findall(re.sub(r"\([^()]*\)", "", callee))]
 
 
-def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> None:
-    """Add `clients` facts (framework `wrapper:<name>` or `client`) to each file's result. `sources`: a file's text;
-    `client_heads(f)`: the local names of the HTTP client libraries file f imports (empty when none)."""
+def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_file: str) -> None:
+    """Add `clients` facts (framework `wrapper:<name>`, `client` or `descriptor`) to each file's result. `sources`: a
+    file's text; `client_heads(f)`: the local names of the HTTP client libraries file f imports (empty when none);
+    `new_file`: the `in` of a fact outside any method of a file with no file node yet."""
     nodes = {n["id"]: n for r in results.values() for n in r["nodes"]}
     lines = {f: t.split("\n") for f, t in sources.items()}
     heads = {f: set(client_heads(f)) for f in results}
@@ -138,7 +143,11 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> Non
             return None   # a request call, not a client's constructor (`httpx.Client(..)`) or setting
         if head in GLOBAL_CLIENTS or head in heads[f] or (heads[f] and typed_client(f, c, receiver)):
             return "strong"
-        return "weak" if heads[f] and _words(receiver) & CLIENT_WORDS else None
+        if heads[f] and _words(receiver) & CLIENT_WORDS:
+            return "weak"
+        # the app's own client class, its library not imported here, given an options object with an address
+        # (`ApiClient.get({endpoint: '/x'})`)
+        return "loose" if "client" in _words(receiver) else None
 
     def passes(text: str, mine: set[str]) -> bool:
         """The function passes its own parameter on as the address: a parameter named like one (`url`, `path`)
@@ -241,7 +250,8 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> Non
             lit = keyed.group(1)[1:-1] if keyed else next((x for g in STRING.finditer(first) for x in g.groups()
                                                             if x is not None), None)
             path = _path(lit) if lit is not None else None
-            if path is None or (how == "weak" and "/" not in lit):
+            if path is None or (how == "weak" and "/" not in lit) \
+                    or (how == "loose" and not (keyed and lit.startswith("/"))):   # a key store's `get('/a')`: none
                 continue   # a value only named like a client needs a path that reads as one
             method_key = METHOD_KEY.search(text)
             verb = lead or (method_key.group(1).upper() if method_key else None) or (w["verb"] if w else None) \
@@ -249,3 +259,70 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads) -> Non
             results[f].setdefault("clients", []).append(
                 {"method": verb, "path": path, "in": mid, "line": c["line"],
                  "framework": f"wrapper:{w['name']}" if w else "client"})
+    _descriptors(results, lines, new_file)
+
+
+def _descriptors(results: dict[str, dict], lines: dict[str, list[str]], new_file: str) -> None:
+    """Request descriptors in JS/TS: an object literal holding both a verb `method:` and an address key (`url:`,
+    `path:`, `endpoint:`) with a path literal, as handed to a generated client's `request(cfg, {..})` or returned by
+    a query definition (`query: (id) => ({method: 'GET', url: ...})`). An object with a `handler` is a server's
+    route (`server.route({method, path, handler})`); one a client call already read is not counted twice."""
+    for f, ls in lines.items():
+        if not f.endswith(DESCRIPTOR_FILES) or f not in results:
+            continue
+        r = results[f]
+        text = "\n".join(ls)
+        if "method" not in text:
+            continue
+        spans = [(n["line"], n["line"] + n["metrics"]["loc"] - 1, n["id"]) for n in r["nodes"] if n["kind"] == "method"]
+        file_id = next((n["id"] for n in r["nodes"] if n["kind"] == "file"), new_file)
+        known = {(c["path"], c["line"]) for c in r.get("clients", [])}
+        routes = {x["line"] for x in r["routes"]}
+        for m in DESCRIPTOR_KEY.finditer(text):
+            if (found := _object_around(text, m.start())) is None or SERVER_KEY.search(found[0]) \
+                    or not _handed_on(text, found[1]):
+                continue
+            obj = found[0]
+            if not (verb := METHOD_KEY.search(obj)) or (path := _path(m.group(1)[1:-1])) is None:
+                continue
+            line = text.count("\n", 0, m.start()) + 1
+            if line in routes or any((path, x) in known for x in range(line - 6, line + 1)):
+                continue
+            inside = [s for s in spans if s[0] <= line <= s[1]]
+            where = max(inside, key=lambda s: s[0])[2] if inside else file_id
+            r.setdefault("clients", []).append({"method": verb.group(1).upper(), "path": path, "in": where,
+                                                "line": line, "framework": "descriptor"})
+
+
+def _handed_on(text: str, start: int) -> bool:
+    """The object literal opening at `start` is a call's argument (`request(cfg, {..})`) or what an arrow returns
+    (`=> ({..})`), not an array entry or a property's value (a route table, an API contract, a serverless event)."""
+    depth = 0
+    for i in range(start - 1, max(-1, start - 2000), -1):
+        depth += text[i] in ")]}"
+        depth -= text[i] in "([{"
+        if depth < 0:
+            return text[i] == "(" and (bool(re.search(r"[\w$\]>)]\s*(?:<[^<>()]*>)?\s*$", text[:i]))
+                                       or text[:i].rstrip().endswith("=>"))
+    return False
+
+
+def _object_around(text: str, at: int) -> tuple[str, int] | None:
+    """The text of the innermost `{..}` around offset `at`, and where it opens (strings not parsed: a brace in one
+    may mislead)."""
+    depth = 0
+    for i in range(at - 1, max(-1, at - 2000), -1):
+        depth += text[i] in ")]}"
+        depth -= text[i] in "([{"
+        if depth < 0:
+            if text[i] != "{":
+                return None
+            close, d = None, 0
+            for j in range(i, min(len(text), i + 4000)):
+                d += text[j] in "([{"
+                d -= text[j] in ")]}"
+                if d == 0:
+                    close = j
+                    break
+            return None if close is None else (text[i + 1:close], i)
+    return None

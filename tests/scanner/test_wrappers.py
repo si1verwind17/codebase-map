@@ -184,3 +184,44 @@ def test_a_route_handler_beside_a_plain_module_import(make_repo):
                      "      regex: '\\bpath\\(\\s*[\"''](?P<path>[^\"'']*)[\"'']\\s*,\\s*(?P<handler>\\w+)'\n")
     s = structure.build(repo, "docs/viz-code")
     assert [r["handler"] for r in s["facts"]["app/urls.py"]["routes"]] == ["app::app.views#ping/0"]
+
+
+def test_request_descriptors_and_the_apps_own_client_class(make_repo):
+    """`request(cfg, {method, url})` from a generated client, a query definition returning `{method, url}`, and
+    the app's own `XClient.get({endpoint})` whose library this file does not import; a server's route object
+    (`{method, path, handler}`) and an axios call already read are not counted (again)."""
+    files = {"package.json": '{"name": "ui"}\n',
+             "src/gen/services.ts": "import { request } from './core/request'\n\nexport class AssetService {\n"
+                                    "  static getAsset(id: string) {\n    return request(OpenAPI, {\n      method: 'GET',\n"
+                                    "      url: '/api/v2/assets/{asset_id}',\n      path: { asset_id: id },\n    })\n  }\n}\n",
+             "src/api/user.ts": "export const userApi = api.injectEndpoints({\n  endpoints: (builder) => ({\n"
+                                "    getUser: builder.query({\n      query: (id) => ({\n        method: 'GET',\n"
+                                "        url: `/api/user/${id}`,\n      }),\n    }),\n  }),\n})\n",
+             "src/charts.ts": "import { ApiClient } from '@acme/ui-core'\n\n"
+                              "export function load(id: number) {\n  return ApiClient.get({ endpoint: `/api/v1/chart/${id}` })\n}\n"
+                              "export function local(k: string) {\n  return cacheClient.get(k)\n}\n",
+             "src/server.ts": "import Hapi from '@hapi/hapi'\n\nexport function start(server) {\n"
+                              "  server.route({ method: 'GET', path: '/items', handler: list })\n}\n",
+             "src/up.ts": "import axios from 'axios'\n\nexport function up() {\n  return axios({\n    method: 'post',\n"
+                          "    url: '/upload',\n  })\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(c["method"], c["path"]) for c in s["facts"]["src/gen/services.ts"]["clients"]] == [
+        ("GET", "/api/v2/assets/{asset_id}")]
+    assert [(c["method"], c["path"]) for c in s["facts"]["src/api/user.ts"]["clients"]] == [("GET", "/api/user/{id}")]
+    assert clients(s, "src/charts.ts") == [("GET", "/api/v1/chart/{id}", "src/charts.ts#load/1")]
+    assert s["facts"]["src/server.ts"].get("clients", []) == []
+    assert [(c["method"], c["path"]) for c in s["facts"]["src/up.ts"]["clients"]] == [("POST", "/upload")]
+
+
+def test_route_tables_contracts_and_key_stores_are_no_requests(make_repo):
+    """Objects with a method and a path that a server or a contract declares (an array entry, a property value), and
+    a key store's client called with a `/`-rooted key, are no outbound requests."""
+    files = {"package.json": '{"name": "svc"}\n',
+             "src/serverless.ts": "export const fn = { handler: 'h.main', events: [{ http: { method: 'post', path: '/hello' } }] }\n",
+             "src/routes.ts": "export const routes = [\n  { method: 'get', path: '/users', action: list },\n"
+                              "  { method: 'post', url: '/users', fn: create },\n]\n",
+             "src/contract.ts": "export const c = c.router({\n  getPost: { method: 'GET', path: '/posts/:id', responses: {} },\n})\n",
+             "src/zk.ts": "export function drop() {\n  return zkClient.delete('/brokers/ids/1')\n}\n",
+             "app/__init__.py": "", "app/locks.py": "def release(self):\n    self.zk_client.delete('/locks/job')\n"}
+    s = structure.build(make_repo(files))
+    assert {f: ff["clients"] for f, ff in s["facts"].items() if ff.get("clients")} == {}

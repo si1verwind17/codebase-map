@@ -356,17 +356,19 @@ def _file_id(r: dict, module: dict, lang: str) -> str:
 
 
 def _file_node(r: dict, f: str, module_id: str, lang: str, loc: int, reg: ids.IdRegistry) -> None:
-    """Create the file node of a generic-walker file whose route handler, table or queue site is the file itself (an
-    inline function, a file of no functions), as the walker creates it on a top-level function. Runs after
-    _resolve_handlers: a route whose handler name resolves needs none."""
-    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []))
+    """Create the file node of a generic-walker file whose route handler, table, queue site or request is the file
+    itself (an inline function, a file of no functions), as the walker creates it on a top-level function; a file
+    node already made is reused. Runs after _resolve_handlers (a route whose handler name resolves needs none) and
+    again after wrappers.find, for requests."""
+    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []), *r.get("clients", []))
              if NEW_FILE_NODE in (x.get("handler"), x.get("in"))]
     if not facts:
         return
-    pid, name = ids.package_id(module_id, r["package"]), Path(f).name
-    node = {"id": reg.claim(f"{pid}{name}"), "kind": "file", "parent": pid, "name": name, "lang": lang, "file": f,
-            "line": 1, "visibility": "public", "metrics": {"loc": loc, "methods": 0}}
-    r["nodes"].append(node)
+    if (node := next((n for n in r["nodes"] if n["kind"] == "file"), None)) is None:
+        pid, name = ids.package_id(module_id, r["package"]), Path(f).name
+        node = {"id": reg.claim(f"{pid}{name}"), "kind": "file", "parent": pid, "name": name, "lang": lang,
+                "file": f, "line": 1, "visibility": "public", "metrics": {"loc": loc, "methods": 0}}
+        r["nodes"].append(node)
     for x in facts:
         for key in ("handler", "in"):
             if x.get(key) == NEW_FILE_NODE:
@@ -987,7 +989,10 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)
-    wrappers.find(results, sources, lambda f: _client_heads(st, results[f], LANGS[Path(f).suffix][0]))
+    wrappers.find(results, sources, lambda f: _client_heads(st, results[f], LANGS[Path(f).suffix][0]), NEW_FILE_NODE)
+    for f, r in results.items():   # a request descriptor outside any function
+        if f in lines and any(c["in"] == NEW_FILE_NODE for c in r.get("clients", [])):
+            _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)
     sources.clear()
     handlers = {route["handler"] for r in results.values() for route in r["routes"]}
     for f in gen_files:
