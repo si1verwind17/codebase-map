@@ -325,3 +325,11 @@ def test_a_job_triggering_a_job_of_its_own_service_is_a_batch_relation(shop_repo
     # the target is an entry point like any batch target: it wants an example for its task key, nothing else
     assert [(w["id"], w["node"]) for w in mapcheck.warnings(cmap) if "health" in (w["node"] or "")] == [
         ("example.missing", "worker::worker.main#health/0")]
+
+
+def test_one_call_through_two_library_methods_is_one_relation():
+    rel = lambda via: {"kind": "request", "from": "svc:web", "to": "api::a.v#list/0", "key": "GET /charts",
+                       "via": via, "confidence": "confirmed", "evidence": [{"file": "web/a.ts", "line": 3}]}
+    errors = meaning_errors({"relations": [rel("lib::c#get/1"), rel("lib::c#fetch/1")]}, {"nodes": []})
+    assert len(errors) == 1 and "two library methods (lib::c#get/1, lib::c#fetch/1)" in errors[0]
+    assert "job queue" not in errors[0]

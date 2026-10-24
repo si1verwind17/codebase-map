@@ -79,6 +79,7 @@ def meaning_errors(meaning: dict, structure: dict) -> list[str]:
         if missing:
             errors.append(f"node {i}: missing {', '.join(missing)}")
     seen: dict[str, int] = {}
+    vias: dict[str, str | None] = {}
     for i, r in enumerate(meaning.get("relations", []), 1):
         missing = [k for k in ("kind", "from", "to") if not isinstance(r, dict) or not r.get(k)]
         if missing:
@@ -87,11 +88,16 @@ def meaning_errors(meaning: dict, structure: dict) -> list[str]:
             errors.append(f"relation {i} ({r['from']} -> {r['to']}): calls are resolved by the scanner; remove it")
         else:
             rid = ids.relation_id(r["kind"], r["from"], r["to"], r.get("key"))
-            if rid in seen:
+            if rid in seen and r.get("via") and vias[rid] and r.get("via") != vias[rid]:
+                errors.append(f"relation {i} duplicates relation {seen[rid]} ({rid}): the same call made by two "
+                              f"library methods ({vias[rid]}, {r['via']}) is one relation: keep one `via` and "
+                              "merge their evidence, which cites both call sites")
+            elif rid in seen:
                 errors.append(f"relation {i} duplicates relation {seen[rid]} ({rid}): merge their evidence, "
                               "or tell them apart by key (a job queue: key each enqueue by its job, "
                               "references/interactions.md § Queues in a store or a job system)")
             seen.setdefault(rid, i)
+            vias.setdefault(rid, r.get("via"))
     errors += pins.errors(meaning)
     errors += examples.shape_errors(meaning.get("examples") or {})
     packages = {n["id"] for n in structure.get("nodes", []) if n.get("kind") == "package"}
