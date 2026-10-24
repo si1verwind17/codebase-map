@@ -717,3 +717,12 @@ def test_a_js_regex_literal_is_no_comment():
     src = 'const u = env.URL.replace(/https?:\\/\\//, ""); router.get("/x", h)\nx = a / b // note\n'
     out = stack.pattern_text(src, "typescript")
     assert 'router.get("/x", h)' in out and "note" not in out and len(out) == len(src)
+
+
+def test_a_pattern_gate_reaches_through_the_repos_own_module(make_repo):
+    """A file importing the repo's wrapper of a library (a local Prisma client) counts as importing the library."""
+    files = {"package.json": '{"name": "a"}\n',
+             "src/db.ts": "import { PrismaClient } from '@prisma/client'\nexport const prisma = new PrismaClient()\n",
+             "src/users.ts": "import { prisma } from './db'\nexport function list() { return prisma.user.findMany() }\n"}
+    s = structure.build(make_repo(files))
+    assert [t["table"] for t in s["facts"]["src/users.ts"]["tables"]] == ["user"]

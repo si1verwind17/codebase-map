@@ -734,6 +734,28 @@ def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, s
     return None
 
 
+def _imported_libraries(results: dict[str, dict], pending: dict[str, tuple[str, list[str]]]) -> dict[str, list[str]]:
+    """File -> the library imports of the repo files it imports (one hop): a pattern gated on a library also runs
+    on a file that reaches it through the repo's own module (`from app.extensions import db` over flask_sqlalchemy,
+    a local Prisma client, a Flask-RESTX `api` object)."""
+    out: dict[str, list[str]] = {}
+    for f, r in results.items():
+        got: list[str] = []
+        for imp in r["imports"]:
+            if imp["relative"]:
+                g = _relative_file(f, imp["target"], results)
+            elif f.endswith(".py"):
+                g = _python_file(f, imp["target"], results) or next(
+                    (x for n in imp.get("names") or [] if (x := _python_file(f, imp["target"] + "." + n, results))), None)
+            else:
+                g = None
+            if g and g != f and g in pending:
+                got += pending[g][1]
+        if got:
+            out[f] = list(dict.fromkeys(got))
+    return out
+
+
 def _passed_mounts(results: dict[str, dict]) -> None:
     """A mount handed to a function (`users.UsersRegister(v1.Group("/users"))`, gin, echo, chi): the routes that
     function registers on its first parameter get the mount's full prefix. The function is the one of that name
@@ -1228,6 +1250,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     texts: dict[str, str] = {}
     sources: dict[str, str] = {}   # every scanned file's text, for the HTTP client wrappers (dropped after)
     lines: dict[str, int] = {}     # a generic-walker file's line count, for a file node made after the scan
+    pending: dict[str, tuple[str, list[str]]] = {}   # a parsed file's language and import names, for the patterns
     skipped: list[dict] = []
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1259,11 +1282,27 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             try:   # a crash on one file never stops the scan
                 r = adapter.parse(data, f, mod_by_id[file_mod[f]], reg, st)
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
-                data_text = data   # the source as written; the patterns read it with comments and docstrings blanked
-                data = stack.pattern_text(decode(data), lang).encode()
+                sources[f] = decode(data)
+                r["grpc_text"] = _grpc_text(decode(data), r, lang)
+                if lang in SPECS:
+                    lines[f] = decode(data).count("\n") + 1
+            except Exception as err:
+                skipped.append({"file": f, "reason": f"parser failed: {type(err).__name__}: {err}"[:200]})
+                continue
+            results[f] = r
+            pending[f] = (lang, names)
+            if generated.generated(f, decode(data)):
+                gen_files.append(f)
+            if f.endswith(".scala"):   # kept only for `_declared`
+                texts[f] = decode(data)
+        hop = _imported_libraries(results, pending)
+        for f, (lang, names) in list(pending.items()):
+            r = results[f]
+            try:   # the patterns read the source with comments and docstrings blanked
+                names = names + hop.get(f, [])
+                data = stack.pattern_text(sources[f], lang).encode()
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
                 r["routes"] += _beside_code_rules(r, _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names))
-                sources[f] = decode(data_text)
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
                     r["route_like"] = [x for x in stack.route_like(decode(data), lang)
                                        if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
@@ -1274,17 +1313,12 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
                                             {n["id"]: n["name"] for n in r["nodes"]},
                                             _file_id(r, mod_by_id[file_mod[f]], lang))
-                r["grpc_text"] = _grpc_text(decode(data_text), r, lang)
-                if lang in SPECS:
-                    lines[f] = decode(data).count("\n") + 1
-            except Exception as err:
+            except Exception as err:   # as a parse crash: the file is skipped whole
                 skipped.append({"file": f, "reason": f"parser failed: {type(err).__name__}: {err}"[:200]})
-                continue
-            results[f] = r
-            if generated.generated(f, decode(data_text)):
-                gen_files.append(f)
-            if f.endswith(".scala"):   # kept only for `_declared`
-                texts[f] = decode(data_text)
+                for store in (results, sources, lines, texts):
+                    store.pop(f, None)
+                if f in gen_files:
+                    gen_files.remove(f)
         protos = []
         for p in sorted(root.rglob("*.proto")):
             f = p.relative_to(root).as_posix()
