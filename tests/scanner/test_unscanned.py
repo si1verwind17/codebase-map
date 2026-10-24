@@ -80,3 +80,20 @@ def test_server_templates_are_listed_but_never_make_a_deployable_unscanned(make_
     langs = {x["lang"]: x["files"] for x in s["unscanned"]["languages"]}
     assert langs == {"Twig": 3, "Razor": 1}
     assert s["unscanned"]["deployables"] == []
+
+
+def test_tooling_images_apart_and_a_large_unread_share_counts(make_repo):
+    """An image under a test, CI, docs or dev folder is no deployable; a deployable holding many unread source files
+    (a fifth of the read ones or more) is listed even when read files outnumber them; shell scripts do not count
+    to that share."""
+    files = {"Dockerfile": "FROM clojure\n", "package.json": '{"name": "ui"}\n',
+             **{f"frontend/src/c{i}.ts": "export const x = 1\n" for i in range(300)},
+             **{f"src/backend/n{i}.clj": "(ns a)\n" for i in range(120)},
+             "dev/sandbox/Dockerfile": "FROM node\n", "docker-stack-docs/Dockerfile": "FROM nginx\n",
+             "e2e-tests/Dockerfile": "FROM node\n",
+             "tools/Dockerfile": "FROM alpine\n", **{f"tools/s{i}.sh": "echo\n" for i in range(120)},
+             **{f"tools/x{i}.ts": "export const y = 2\n" for i in range(200)}}
+    s = structure.build(make_repo(files))
+    assert [d["folder"] for d in s["unscanned"]["deployables"]] == ["."]
+    assert [d["folder"] for d in s["unscanned"]["tooling"]] == ["dev/sandbox", "docker-stack-docs", "e2e-tests"]
+    assert "no service needed — `dev/sandbox`, `docker-stack-docs`, `e2e-tests`" in structure.summary_md(s)

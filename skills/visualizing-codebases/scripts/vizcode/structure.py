@@ -1219,6 +1219,10 @@ def _unscanned_lines(rep: dict) -> list[str]:
             lines.append(f"- deployable `{d['folder']}` ({'; '.join(how)}) — {_plural(d['scanned'], 'file', 'files')} "
                          f"scanned; " + (f"not scanned: {missed}" if missed else "no source the scanner reads"))
         lines.append("")
+    if tools := rep.get("tooling", []):
+        lines.append("Images of tests, CI, docs or developer tooling (their folder says so): no deployables, no "
+                     "service needed — " + ", ".join(f"`{d['folder']}`" for d in tools))
+        lines.append("")
     return lines
 
 

@@ -28,6 +28,13 @@ SOURCE = {
 }
 NAMES = {"Caddyfile": "server config"}
 DOCKERFILE = re.compile(r"^(?:Dockerfile[^/]*|[^/]+\.[Dd]ockerfile)$")
+# a folder segment that says the image is for tests, CI, docs, examples or a developer's tooling, not the product
+TOOLING = re.compile(r"(?i)^(?:\.(?:github|gitlab|circleci|buildkite|devcontainer)|dev|devtools?|dev-tools?|ci|"
+                     r"(?:.*[-_.])?(?:tests?|testing|e2e|it|integration|docs?|documentation|examples?|samples?|"
+                     r"benchmarks?|sandbox)(?:[-_.].*)?)$")
+# source that runs beside any deployable (scripts, server config): it never makes one unscanned by its share
+AUXILIARY = {"shell", "PowerShell", "server config"}
+MANY = 100   # this many unread source files, a fifth of the read ones or more, make a deployable unscanned in part
 COMPOSE = re.compile(r"^(?:docker-)?compose[^/]*\.ya?ml$")
 
 
@@ -70,8 +77,9 @@ def _build_contexts(path: str, text: str) -> list[tuple[str, str]]:
 def report(files: list[str], scanned: set[str], skip, read) -> dict:
     """`files`: every file of the tree; `scanned`: the files the scan read; `skip(path)`: excluded (vendored, build
     output, tests, docs); `read(path)`: a file's text. Returns `languages` (each unscanned language with its file count
-    and outermost folders) and `deployables` (each deployable folder whose source is mostly unscanned, or that has no
-    scanned source at all)."""
+    and outermost folders) and `deployables` (each deployable folder whose source is mostly unscanned, holds MANY unscanned
+    files or more, or has no scanned source at all) and `tooling` (the image folders of tests, CI, docs or developer
+    tooling: no deployables)."""
     source = {f: lang for f in files if not skip(f) and (lang := language(f))}
     by_lang: dict[str, list[str]] = {}
     for f, lang in source.items():
@@ -88,14 +96,18 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         elif COMPOSE.match(name):
             for svc, folder in _build_contexts(f, read(f)):
                 found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, f])
-    deployables = []
+    deployables, tooling = [], []
     for folder, how in sorted(found.items()):
+        if any(TOOLING.match(seg) for seg in folder.split("/")):
+            tooling.append({"folder": folder, **how})
+            continue
         mine = sum(1 for f in scanned if _inside(f, folder))
         missed: dict[str, int] = {}
         for f, lang in source.items():
             if _inside(f, folder) and lang not in TEMPLATES:
                 missed[lang] = missed.get(lang, 0) + 1
-        if mine == 0 or sum(missed.values()) > mine:
+        main = sum(n for lang, n in missed.items() if lang not in AUXILIARY)
+        if mine == 0 or sum(missed.values()) > mine or (main >= MANY and 5 * main >= mine):
             deployables.append({"folder": folder, **how, "scanned": mine,
                                 "unscanned": [[lang, n] for lang, n in sorted(missed.items(), key=lambda kv: (-kv[1], kv[0]))]})
-    return {"languages": languages, "deployables": deployables}
+    return {"languages": languages, "deployables": deployables, **({"tooling": tooling} if tooling else {})}
