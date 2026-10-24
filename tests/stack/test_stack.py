@@ -601,7 +601,7 @@ def test_unrecognised_imports_leave_out_language_items_and_keep_the_repos_own_pa
     below the module root, and a library prefix that would also cover the repo's own package (`com.acme` when the
     repo is `com.acme.shop`): none is noise in the list, and a server-looking library is flagged first."""
     files = {"composer.json": "{\"name\": \"demo/app\"}\n",
-             "app/Job.php": "<?php\n\nnamespace App;\n\nuse Exception;\nuse Closure;\nuse Monolog\\Logger;\n\n"
+             "app/Job.php": "<?php\n\nnamespace App;\n\nuse Exception;\nuse Closure;\nuse Brick\\Math;\n\n"
                             "class Job {}\n",
              "Cargo.toml": "[package]\nname = \"app\"\n",
              "src/main.rs": "use SortType::*;\nuse Self::Kind;\nuse dashmap::DashMap;\n\nenum SortType { A }\n",
@@ -614,7 +614,7 @@ def test_unrecognised_imports_leave_out_language_items_and_keep_the_repos_own_pa
     s = structure.build(make_repo(files))
     got = [(u["lang"], u["prefix"], u.get("looks_like")) for u in s["stack"]["unrecognised"]]
     assert got == [("typescript", "hono", "server"), ("java", "com.acme.tools", None),
-                   ("php", "Monolog", None), ("rust", "dashmap", None)]
+                   ("php", "Brick", None), ("rust", "dashmap", None)]
     assert "- typescript `hono` — 1 file: web/assets/js/app.ts:2 (looks like a server library)" in structure.summary_md(s)
 
 

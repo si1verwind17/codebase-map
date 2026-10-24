@@ -228,8 +228,10 @@ def test_js_import_kinds(lang):
         assert [h["kind"] for h in stack.sink_kinds(st, lang, target)] == [kind], (lang, target)
     for target in ("@nestjs/common", "@nestjs/config", "@nestjs/swagger", "node:fs", "path"):
         assert stack.covered(st, lang, target) and stack.sink_kinds(st, lang, target) == [], target
-    # middleware packages are libraries the agent judges
-    for target in ("cors", "helmet", "@fastify/cors", "koa-bodyparser", "pgx", "express-validator"):
+    for target in ("cors", "helmet", "@fastify/cors", "koa-bodyparser", "express-validator"):
+        assert stack.covered(st, lang, target) and stack.sink_kinds(st, lang, target) == [], target
+    # a middleware that does IO is a library the agent judges
+    for target in ("http-proxy-middleware", "pgx", "express-session"):
         assert not stack.covered(st, lang, target), target
 
 

@@ -1,7 +1,8 @@
 # Built-in pack: what the scanner knows about Rust libraries. Same format as stack.yaml; stack.yaml adds to it.
 # use paths are matched on `::` boundaries; `crate::`, `self::`, `super::` and `mod` are the crate's own. A crate
 # is named as code writes it (`tokio_postgres`, `actix_web`); each AWS SDK crate is its own entry (`aws_sdk_s3`).
-# ignore: the standard library.
+# ignore: the standard library and common crates that do no IO (data formats, time, ids, errors, async helpers,
+# logging macros, the `http` and `actix` type and actor crates; `actix_web`, `reqwest`, `hyper` are imports entries).
 # routes (regex, gated on the import): Axum `.route("/x", get(h))` (the handler group is the method router's
 # argument when it is a name; a chained router `get(a).put(b).delete(c)` gives one route per call, its 2nd to 4th
 # calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
@@ -9,7 +10,9 @@
 # `resource` (mounts; a resource's `.route(get().to(h))` is on its path).
 # queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (references/interactions.md).
 rust:
-  ignore: [std, core, alloc]
+  ignore: [std, core, alloc, serde, serde_json, serde_derive, serde_with, chrono, time, uuid, futures, futures_util, regex,
+           validator, slug, failure, thiserror, anyhow, log, tracing, lazy_static, once_cell, itertools, rand, async_trait,
+           derive_more, strum, bitflags, base64, hex, clap, env_logger, http, actix, actix_http, bytes, either, indexmap]
   imports:
   - {prefix: "lettre", kind: mail}
   - {prefix: sqlx, kind: sql-db}

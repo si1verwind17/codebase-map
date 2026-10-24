@@ -66,14 +66,14 @@ def test_prefix_drops_a_leading_separator():
 
 MIXED = {
     "Cargo.toml": '[package]\nname = "a"\n',
-    "src/main.rs": "use ::serde::Deserialize;\nuse ::anyhow::Result;\nuse tokio::sync;\nfn main() {}\n",
+    "src/main.rs": "use ::dashmap::DashMap;\nuse ::smallvec::SmallVec;\nuse tokio::sync;\nfn main() {}\n",
     "web/package.json": "{}",
     "web/main.ts": "import x from '/src/main'\nimport y from '/vendor.js'\nimport z from 'lodash/fp'\n"
                    "import w from '@scope/pkg/x'\nexport const a = 1\n",
     "go.mod": "module shop\n",
     "x.go": 'package shop\nimport "github.com/jackc/pgx/v5"\n',
     "composer.json": "{}",
-    "A.php": "<?php\nnamespace App;\nuse \\Monolog\\Logger\\X;\nclass A {}\n",
+    "A.php": "<?php\nnamespace App;\nuse \\Brick\\Math\\X;\nclass A {}\n",
     "Gemfile": "",
     "a.rb": "require 'sidekiq/web'\n",
 }
@@ -82,7 +82,7 @@ MIXED = {
 def test_absolute_ts_import_is_the_repos_own(make_repo):
     s = structure.build(make_repo(MIXED), "docs/viz-code")
     got = unrec(s)
-    assert ("rust", "serde") in got and ("rust", "anyhow") in got
+    assert ("rust", "dashmap") in got and ("rust", "smallvec") in got
     assert not any(p in ("", "src", "vendor.js") or p.startswith("/") for _, p in got), got
 
 

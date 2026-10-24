@@ -2,14 +2,15 @@
 # use names are matched on `\` boundaries; the standard library is global functions and classes (`PDO`, the
 # phpredis `Redis`), not namespaces. Imports win over ignore, and the longest matching prefix names the kind.
 # ignore: the wiring of Laravel (`Illuminate`) and Symfony (their IO parts are imports entries: Laravel's `DB`,
-# `Route`, `Http`, `Redis`, `Queue` facades, Eloquent, Symfony Routing, HttpClient, Messenger).
+# `Route`, `Http`, `Redis`, `Queue` facades, Eloquent, Symfony Routing, HttpClient, Messenger), and common libraries that
+# do no IO (dates, ids, Markdown, logging and container interfaces, assertions).
 # routes: Laravel `Route::get('/x', [C::class, 'm'])` (regex; the handler is the action named; `Route::prefix`, or
 # a chain from `Route::` ending in `->prefix`, is a mount; not when a chained call's arguments hold parentheses). No `when`: a routes file may call the global `Route`
 # alias without a `use`, and `Route::verb('` is Laravel's alone; Symfony `#[Route('/x', methods: ['GET'])]` (`form: annotated`: a class
 # `Route` is the prefix, the method comes from `methods`, none: ANY). tables: Eloquent `protected $table = 'x'`,
 # Doctrine `ORM\Table(name: 'x')` (attribute or docblock annotation), both defined on the class.
 php:
-  ignore: [Illuminate, Symfony]
+  ignore: [Illuminate, Symfony, Carbon, Ramsey\Uuid, League\CommonMark, Psr\Log, Psr\Container, Monolog, Webmozart\Assert]
   imports:
   - {prefix: "PHPMailer", kind: mail}
   - {prefix: "Illuminate\\Support\\Facades\\Mail", kind: mail}

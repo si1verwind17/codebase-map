@@ -6,13 +6,16 @@
 # Airflow DAGs, Flyte workflows and launch plans, gRPC and proto services.
 # tables: SQLAlchemy (also through Flask-SQLAlchemy or SQLModel) `__tablename__ = "x"` and Django `db_table = "x"` (in the model's Meta), defined on the class.
 # The standard library is ignored in code (sys.stdlib_module_names), not listed here.
-# ignore: libraries the code rules above read (Airflow, Flyte), so they are not listed as unrecognised.
+# ignore: libraries the code rules above read (Airflow, Flyte), so they are not listed as unrecognised, and common
+# libraries that do no IO (serializers, validation, auth sessions, forms, CORS, dates, CLI, templating, logging, retries).
 # routes: Flask `@x.route(path, methods=[..])` (GET when none), `@x.get(path)`... (Flask 2) and `add_url_rule`;
 # Flask-RESTX/RESTplus `@ns.route`, Flask-RESTful `add_resource`, Django `path()`; a route a class handles is one per
 # verb method of the class (structure).
 # queues: in-process queue creation sites (`asyncio.Queue` and `queue.Queue` (and their Priority/Lifo/Simple forms)): candidates the agent confirms (references/interactions.md).
 python:
-  ignore: [airflow, flytekit]
+  ignore: [airflow, flytekit, flask_marshmallow, marshmallow_sqlalchemy, flask_login, flask_cors, flask_wtf,
+           wtforms, pydantic, pydantic_settings, attr, attrs, dateutil, pytz, typing_extensions, click, jinja2, structlog,
+           loguru, tenacity, rich, tqdm, numpy, arrow, humanize, slugify, bleach, markdown, environ, decouple, dotenv]
   imports:
   - {prefix: "smtplib", kind: mail}
   - {prefix: "flask_mail", kind: mail}

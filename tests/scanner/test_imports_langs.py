@@ -48,8 +48,8 @@ def test_packs_ignore_standard_libraries():
                            ("kotlin", "kotlin.collections", "kotlinx.coroutines"), ("kotlin", "java.time", "arrow.core"),
                            ("csharp", "System.Linq", "Newtonsoft.Json"),
                            ("typescript", "node:fs", "three"), ("typescript", "path", "pathe"),
-                           ("javascript", "child_process", "chalk"), ("rust", "std::collections", "serde"),
-                           ("rust", "core::fmt", "anyhow"), ("ruby", "net/http", "nokogiri"),
+                           ("javascript", "child_process", "chalk"), ("rust", "std::collections", "dashmap"),
+                           ("rust", "core::fmt", "smallvec"), ("ruby", "net/http", "nokogiri"),
                            ("ruby", "securerandom", "rack")]:
         assert stack.covered(st, lang, std), (lang, std)
         assert not stack.covered(st, lang, lib), (lang, lib)
@@ -157,12 +157,12 @@ def test_rust_imports(make_repo):
         "core/src/lib.rs": "pub mod model;\n",
         "core/src/model.rs": "pub struct Order;\n",
         "api/Cargo.toml": '[package]\nname = "shop-api"\n',
-        "api/src/main.rs": "mod handlers;\nuse std::collections::HashMap;\nuse core::fmt;\nuse serde::{Deserialize, Serialize};\n"
+        "api/src/main.rs": "mod handlers;\nuse std::collections::HashMap;\nuse core::fmt;\nuse dashmap::{DashMap, DashSet};\n"
                            "use tokio::sync::mpsc;\nuse crate::handlers::x;\nuse handlers::y;\nuse shop_core::model::Order;\n"
                            "fn main() {}\n",
         "api/src/handlers.rs": "use super::*;\npub fn x() {}\npub fn y() {}\n",
     }), "docs/viz-code")
-    assert unrec(s) == {("rust", "serde"), ("rust", "tokio")}
+    assert unrec(s) == {("rust", "dashmap"), ("rust", "tokio")}
     assert uses(s) == {("mod:api", "mod:core")}
 
 
@@ -199,11 +199,11 @@ def test_php_imports(make_repo):
         "common/composer.json": "{}", "api/composer.json": "{}",
         "common/src/Db.php": "<?php\nnamespace Acme\\Common;\n\nclass Db {}\n",
         "api/src/Api.php": "<?php\nnamespace Acme\\Api;\n\nuse Acme\\Common\\Db;\nuse Acme\\Api\\Http\\Kernel;\n"
-                           "use Illuminate\\Support\\Facades\\Route;\nuse Psr\\Log\\{LoggerInterface, NullLogger};\n\n"
+                           "use Illuminate\\Support\\Facades\\Route;\nuse Psr\\Http\\{ClientInterface, RequestInterface};\n\n"
                            "class Api {}\n",
     }), "docs/viz-code")
-    # Illuminate is the pack's (the Route facade: http-in); Psr\\Log is not
-    assert unrec(s) == {("php", "Psr\\Log")}
+    # Illuminate is the pack's (the Route facade: http-in); Psr\\Http is not
+    assert unrec(s) == {("php", "Psr\\Http")}
     assert uses(s) == {("mod:api", "mod:common")}
 
 
