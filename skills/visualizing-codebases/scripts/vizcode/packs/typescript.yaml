@@ -3,7 +3,8 @@
 # import paths are matched on `/` boundaries; a library is its npm package name (`@scope/name`); imports win
 # over ignore, and the longest matching prefix names the kind (`@google-cloud/pubsub` is an event, the rest
 # of `@google-cloud` a cloud SDK). Relative imports and workspace package names are the repo's own.
-# ignore: the Node built-ins (`node:` covers every `node:x`), and NestJS's wiring (`@nestjs/common`, `config`,
+# ignore: the Node built-ins (`node:` covers every `node:x`), common UI and utility libraries that do no IO
+# (an IO one, such as RTK Query or a data-fetching hook library, is left out), and NestJS's wiring (`@nestjs/common`, `config`,
 # ...: `@nestjs/common` is in every service, so the server entry is `@nestjs/core`, the bootstrap's; its IO
 # parts are imports entries).
 # routes: NestJS (`form: annotated`, `@Controller` prefix + `@Get`...; `setGlobalPrefix` is a mount); Express,
@@ -15,8 +16,13 @@
 typescript:
   ignore: ["node:", fs, path, http, https, crypto, os, url, util, events, stream, child_process, buffer, zlib, net, tls, dns,
            assert, process, timers, querystring, readline, worker_threads, cluster, perf_hooks, async_hooks, vm,
-           module, "@nestjs"]
+           module, "@nestjs",
+           # UI, state, forms, dates, utilities and editors: libraries that never talk to the network
+           react, react-dom, react-router, react-router-dom, vue, vue-router, pinia, svelte, "@angular/core", "@angular/common", "@angular/forms", "@angular/router", "@angular/material", "@angular/cdk", "@angular/animations", "@angular/platform-browser", rxjs, lodash, lodash-es, underscore, ramda, classnames, clsx, date-fns, dayjs, moment, luxon, uuid, nanoid, zod, yup, joi, immer, antd, "@ant-design", "@mui", "@emotion", styled-components, "@mantine", "@chakra-ui", "@radix-ui", "@headlessui", tailwind-merge, lucide-react, react-icons, "@fortawesome", i18next, react-i18next, ttag, formik, react-hook-form, redux, react-redux, mobx, mobx-react, zustand, jotai, prop-types, tslib, core-js, chart.js, echarts, recharts, framer-motion, "@dnd-kit", react-dnd, "@tiptap", "@codemirror", codemirror, monaco-editor, marked, dompurify, highlight.js, prismjs, numeral, bignumber.js, decimal.js, color, polished, invariant, tiny-invariant, deepmerge, fast-deep-equal]
   imports:
+  - {prefix: rxjs/ajax, kind: http-out}
+  - {prefix: rxjs/webSocket, kind: ws}
+  - {prefix: "@angular/common/http", kind: http-out}
   - {prefix: pg, kind: sql-db}
   - {prefix: mysql2, kind: sql-db}
   - {prefix: "@prisma/client", kind: sql-db}

@@ -47,8 +47,8 @@ def test_packs_ignore_standard_libraries():
                            ("java", "jakarta.inject", "jakarta.mail"),
                            ("kotlin", "kotlin.collections", "kotlinx.coroutines"), ("kotlin", "java.time", "arrow.core"),
                            ("csharp", "System.Linq", "Newtonsoft.Json"),
-                           ("typescript", "node:fs", "react"), ("typescript", "path", "pathe"),
-                           ("javascript", "child_process", "lodash"), ("rust", "std::collections", "serde"),
+                           ("typescript", "node:fs", "three"), ("typescript", "path", "pathe"),
+                           ("javascript", "child_process", "chalk"), ("rust", "std::collections", "serde"),
                            ("rust", "core::fmt", "anyhow"), ("ruby", "net/http", "nokogiri"),
                            ("ruby", "securerandom", "rack")]:
         assert stack.covered(st, lang, std), (lang, std)
@@ -103,20 +103,20 @@ NPM = {
     "packages/web/package.json": '{"name": "@acme/web"}',
     "packages/web/tsconfig.json": '{\n  // aliases\n  "compilerOptions": {"paths": {"@/*": ["./src/*"], "~cfg": ["./src/cfg.ts"]}}\n}\n',
     "packages/web/src/app.tsx":
-        'import React from "react";\nimport { useQuery } from "@tanstack/react-query";\nimport fs from "node:fs";\n'
+        'import * as THREE from "three";\nimport { useQuery } from "@tanstack/react-query";\nimport fs from "node:fs";\n'
         'import path from "path";\nimport { x } from "./local";\nimport { u } from "@acme/shared/src/utils";\n'
         'import { b } from "@/components/Button";\nimport cfg from "~cfg";\n'
         'import "./app.css";\nexport const App = () => null;\n',
     "packages/web/src/local.ts": "export const x = 1;\n",
     "packages/admin/package.json": '{"name": "admin"}',
-    "packages/admin/src/main.ts": 'import { u } from "../../shared/src/utils";\nimport axios from "axios";\nimport dayjs from "dayjs";\n',
+    "packages/admin/src/main.ts": 'import { u } from "../../shared/src/utils";\nimport axios from "axios";\nimport Papa from "papaparse";\n',
 }
 
 
 def test_typescript_imports(make_repo):
     s = structure.build(make_repo(NPM), "docs/viz-code")
-    # axios is the pack's (http-out); dayjs is not
-    assert unrec(s) == {("typescript", "react"), ("typescript", "@tanstack/react-query"), ("typescript", "dayjs")}
+    # axios is the pack's (http-out); papaparse is not
+    assert unrec(s) == {("typescript", "three"), ("typescript", "@tanstack/react-query"), ("typescript", "papaparse")}
     # by workspace package name (web) and by a relative path into another workspace (admin)
     assert uses(s) == {("mod:packages/web", "mod:packages/shared"), ("mod:packages/admin", "mod:packages/shared")}
 
@@ -129,10 +129,10 @@ def test_javascript_imports(make_repo):
         "api/server.js": 'const express = require("express");\nconst fs = require("fs");\n'
                          'const lib = require("acme-lib");\nconst h = require("./handlers");\n'
                          'import("child_process");\n',
-        "api/handlers/index.js": 'const { Pool } = require("pg");\nconst _ = require("lodash/fp");\n',
+        "api/handlers/index.js": 'const { Pool } = require("pg");\nconst _ = require("chalk/source");\n',
     }), "docs/viz-code")
-    # express and pg are the pack's; lodash is not
-    assert unrec(s) == {("javascript", "lodash")}
+    # express and pg are the pack's; chalk is not
+    assert unrec(s) == {("javascript", "chalk")}
     assert uses(s) == {("mod:api", "mod:lib")}
 
 

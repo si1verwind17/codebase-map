@@ -442,7 +442,8 @@ pattern read: `Route::apiResource('songs', ..)`), entity-looking classes with no
 ORM model base that no table pattern named), and `stack.yaml` route or table
 patterns with 0 matches.
 It never lists the standard library (the packs' `ignore` lists, Go paths
-without a host, Python's own list) or the repo's own code: relative imports,
+without a host, Python's own list), common JS/TS UI and utility libraries that do no IO (react, lodash, date and form
+libraries: the TypeScript and JavaScript packs' `ignore`) or the repo's own code: relative imports,
 module folders and package names, Python sibling modules and `<stem>_pb2`
 stubs, Scala imports that start uppercase or name something declared in the
 file, workspace and `go.mod`/Cargo package names (Cargo `[lib] name` first), tsconfig `paths` aliases (`"*"` too),

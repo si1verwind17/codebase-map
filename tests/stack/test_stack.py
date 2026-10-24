@@ -649,23 +649,23 @@ def test_build_tool_configs_bundler_aliases_and_baseurl_imports_are_no_libraries
              "tsconfig.json": '{"compilerOptions": {"baseUrl": "src"}}\n',
              "src/components/Button.ts": "export const Button = 1\n",
              "src/app.ts": "import { Button } from 'components/Button'\nimport { page } from '$app/stores'\n"
-                           "import { x } from '$lib/x'\nimport dayjs from 'dayjs'\nexport const y = [Button, page, x, dayjs]\n"}
+                           "import { x } from '$lib/x'\nimport Papa from 'papaparse'\nexport const y = [Button, page, x, Papa]\n"}
     s = structure.build(make_repo(files))
-    assert [u["prefix"] for u in s["stack"]["unrecognised"]] == ["dayjs"]
+    assert [u["prefix"] for u in s["stack"]["unrecognised"]] == ["papaparse"]
 
 
 def test_own_folders_imported_bare_are_not_libraries(make_repo):
     """tsconfig `"*"` paths, a folder of the module root a bundler resolves from (`src/x`), and a paths key mapped
     into node_modules (a library's own files, so the library stays a library)."""
-    files = {"package.json": '{"name": "ui", "dependencies": {"echarts": "5", "react": "18"}}\n',
+    files = {"package.json": '{"name": "ui", "dependencies": {"pdfjs-dist": "4", "three": "1"}}\n',
              "tsconfig.json": '{"compilerOptions": {"paths": {"*": ["./web/src/*"], '
-                              '"echarts/types/src/*": ["./node_modules/echarts/types/src/*"]}}}\n',
+                              '"pdfjs-dist/types/src/*": ["./node_modules/pdfjs-dist/types/src/*"]}}}\n',
              "web/src/shop-lib/q.ts": "export const q = 1\n",
              "web/src/app.ts": "import { q } from 'shop-lib/q'\nimport { v } from 'src/views'\n"
-                               "import * as e from 'echarts/types/src/x'\nimport React from 'react'\n",
+                               "import * as e from 'pdfjs-dist/types/src/x'\nimport * as T from 'three'\n",
              "src/views.ts": "export const v = 2\n"}
     s = structure.build(make_repo(files))
-    assert unrecognised(s) == {"echarts", "react"}
+    assert unrecognised(s) == {"pdfjs-dist", "three"}
 
 
 def test_a_yaml_error_names_the_file_and_line(tmp_path):
