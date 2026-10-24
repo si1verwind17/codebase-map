@@ -73,5 +73,8 @@ ruby:
   jobs:
     # Sidekiq and ActiveJob (Ruby files import nothing: no `when`)
     - {name: sidekiq-job, side: define, regex: '^[ \t]*include\s+Sidekiq::(?:Job|Worker)\b'}
-    - {name: active-job, side: define, regex: '^[ \t]*class\s+(?P<job>[A-Z]\w*(?:::[A-Z]\w*)*)\s*<\s*(?:ApplicationJob|ActiveJob::Base)\b'}
+    # a subclass of ActiveJob::Base or of any class named `*Job` (`ApplicationJob`, `Billing::BaseJob`)
+    - {name: active-job, side: define, regex: '^[ \t]*class\s+(?P<job>[A-Z]\w*(?:::[A-Z]\w*)*)\s*<\s*(?:ActiveJob::Base|(?:[A-Z]\w*::)*[A-Z]\w*Job)(?![\w:])'}
+    # ActionMailer: `UserMailer.welcome(user).deliver_later` runs the mailer method as a job
+    - {name: mailer-deliver-later, side: enqueue, regex: '\b[A-Z]\w*Mailer(?:\.with\([^()]*\))?\.(?P<job>[a-z_]\w*[?!]?)\b(?:\([^()]*\))?\.deliver_later\b'}
     - {name: job-enqueue, side: enqueue, regex: '\b(?P<job>[A-Z]\w*(?:::[A-Z]\w*)*)(?:\.set\([^()]*\))?\.(?:perform_later|perform_async|perform_in|perform_at|perform_bulk)\b'}

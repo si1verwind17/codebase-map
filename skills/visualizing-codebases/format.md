@@ -648,8 +648,10 @@ per module as `in-process queues`. Two patterns matching at one (line, in) give 
 A file a job pattern matched carries a `jobs` fact: `[{side, job, line, pattern, source}]` with `in` (an enqueue:
 the innermost method around it, else the file) or `node` (a definition or schedule: for a decorator or annotation,
 the method or class starting within 3 lines below it; else the class around the match). `job` is the pattern's `job` group's last segment, else
-the node's name. `summary.md` lists them per module as `jobs defined` and `jobs enqueued`, each enqueue followed by
-the nodes defining a job of that name anywhere in the repo, else up to 3 methods of that name.
+the node's name; an enqueue through an import alias (`send_task.delay()` after `import send as send_task`) names the
+imported job. `summary.md` lists them per module as `jobs defined` and `jobs enqueued`, each enqueue followed by
+the nodes defining a job of that name anywhere in the repo, else up to 3 classes of that name (a command-bus job
+with no marker), else up to 3 methods of that name.
 
 A file a table pattern matched carries a `tables` fact in `structure.json`
 (the key is absent when nothing matched): `[{table, line, in, kind, pattern,

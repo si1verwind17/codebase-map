@@ -1331,6 +1331,10 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
                                             {n["id"]: n["name"] for n in r["nodes"]},
                                             _file_id(r, mod_by_id[file_mod[f]], lang))
+                renamed = {a: m for imp in r["imports"] for a, m in (imp.get("renames") or {}).items()}
+                for j in r["jobs"]:   # `from tasks import send as send_task`: `send_task.delay()` enqueues `send`
+                    if j["side"] == "enqueue" and j["job"] in renamed:
+                        j["job"] = re.split(r"\.|::|\\", renamed[j["job"]])[-1]
             except Exception as err:   # as a parse crash: the file is skipped whole
                 skipped.append({"file": f, "reason": f"parser failed: {type(err).__name__}: {err}"[:200]})
                 for store in (results, sources, lines, texts):
@@ -1651,9 +1655,12 @@ def summary_md(s: dict) -> str:
     names = {n["id"]: n["name"] for n in s["nodes"]}
     job_defs: dict[str, list[str]] = {}   # a job's name -> the nodes that define it, anywhere in the repo
     methods_named: dict[str, list[str]] = {}   # for a job that is a plain method (Hangfire `() => svc.Run()`)
+    classes_named: dict[str, list[str]] = {}   # for a job that is a plain class (a Laravel command-bus job)
     for n in s["nodes"]:
         if n["kind"] == "method":
             methods_named.setdefault(n["name"], []).append(n["id"])
+        elif n["kind"] == "class":
+            classes_named.setdefault(n["name"], []).append(n["id"])
     for ff in s["facts"].values():
         for j in ff.get("jobs", []):
             if j["side"] == "define" and j.get("node"):
@@ -1679,7 +1686,9 @@ def summary_md(s: dict) -> str:
             for j in ff.get("jobs", []):
                 if j["side"] == "enqueue":
                     to, same = job_defs.get(j["job"], []), methods_named.get(j["job"], [])
+                    kind = classes_named.get(j["job"], [])
                     where = f" → {', '.join(to)}" if to else \
+                        f" → a class of that name: {', '.join(kind)}" if 0 < len(kind) <= 3 else \
                         f" → a method of that name: {', '.join(same)}" if 0 < len(same) <= 3 else \
                         f" → no definition; {len(same)} methods have that name" if same else " → no definition found"
                     jobs_enq.append(f"{j['pattern']} `{j['job']}` ← {j['in']} ({f}:{j['line']}){where}")

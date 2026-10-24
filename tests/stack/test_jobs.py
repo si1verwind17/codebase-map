@@ -58,3 +58,31 @@ def test_no_job_from_look_alikes(make_repo):
              "src/Shop.php": "<?php\nclass Shop\n{\n    public function buy() { $this->dispatcher->dispatch(new OrderPlaced()); }\n}\n"}
     s = structure.build(make_repo(files))
     assert all(not ff.get("jobs") for ff in s["facts"].values())
+
+
+def test_aliased_tasks_namespaced_jobs_mailers_and_controller_dispatch(make_repo):
+    files = {
+        "app/__init__.py": "", "app/worker.py": "from celery import Celery\n\napp = Celery('app')\n",
+        "app/tasks.py": "from app.worker import app\n\n\n@app.task\ndef email_send(email_id):\n    return email_id\n",
+        "app/services.py": "from app.tasks import email_send as email_send_task\n\n\n"
+                           "def send_all(ids):\n    for i in ids:\n        email_send_task.delay(i)\n",
+        "Gemfile": "gem 'rails'\n",
+        "app/jobs/billing/add_job.rb": "class Billing::AddJob < Billing::BaseJob\n  def perform(id)\n  end\nend\n",
+        "app/filters/filter.rb": "class Filter < GoodJob::JobsFilter\nend\nclass JobTest < ActiveJob::TestCase\nend\n",
+        "app/models/user.rb": "class User\n  def signup\n    UserMailer.welcome(self).deliver_later\n"
+                              "    Billing::AddJob.set(wait: 5).perform_later(id)\n  end\nend\n",
+        "composer.json": "{}\n",
+        "src/Http/Ctl.php": "<?php\nnamespace App\\Http;\nclass Ctl\n{\n"
+                            "    public function store($r) { $this->dispatchSync(CreateReply::fromRequest($r)); }\n"
+                            "    public function update() { $this->dispatch(new UpdateReply(1)); }\n}\n",
+        "src/Jobs/UpdateReply.php": "<?php\nnamespace App\\Jobs;\nfinal class UpdateReply\n{\n    public function handle() {}\n}\n"}
+    s = structure.build(make_repo(files))
+    assert jobs(s, "app/services.py") == [("enqueue", "email_send", "celery-enqueue")]
+    assert jobs(s, "app/jobs/billing/add_job.rb") == [("define", "AddJob", "active-job")]
+    assert jobs(s, "app/filters/filter.rb") == []   # a namespace ending in `Job` is no job base
+    assert jobs(s, "app/models/user.rb") == [("enqueue", "AddJob", "job-enqueue"),
+                                             ("enqueue", "welcome", "mailer-deliver-later")]
+    assert jobs(s, "src/Http/Ctl.php") == [("enqueue", "CreateReply", "laravel-dispatch-new"),
+                                           ("enqueue", "UpdateReply", "laravel-dispatch-new")]
+    assert "laravel-dispatch-new `UpdateReply` ← " in (md := structure.summary_md(s))
+    assert "→ a class of that name: " in md.split("laravel-dispatch-new `UpdateReply`")[1].split("\n")[0]

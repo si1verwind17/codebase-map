@@ -56,7 +56,8 @@ it: `topic:<engine>:<name>` with that store's engine, `delivery: queue`, its
   and each worker consumes its own key. `summary.md`'s `jobs enqueued` lines
   give the enqueue sites, each with the job's definition (`jobs defined`): write
   one `event` per line, from the `←` method, and the consumer from the `→`
-  node (its run method: `perform`, `handle`, the task function). A line `no
+  node (its run method: `perform`, `handle`, the task function; for `a class
+  of that name`, check the class is the job, then its run method). A line `no
   definition found` is a job the packs do not see defined (or no job: a
   Laravel event also `dispatch`es): read the code. A `jobs defined` line marked
   `scheduled` is a timed run: a `batch` keyed `task <name>`.
