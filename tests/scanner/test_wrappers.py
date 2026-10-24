@@ -332,6 +332,39 @@ def test_concatenated_and_built_addresses(make_repo):
     assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/api/c"), ("POST", "/api/d/{i}/x")]
 
 
+def test_formatted_held_and_folded_addresses_and_more_client_calls(make_repo):
+    """A format call, a local variable, a file's path constant, a placeholder host, C#'s typed HttpClient with
+    implicit usings, Go net/http, a WebClient `.uri` chain and a Locust user all give their request."""
+    files = {"app/__init__.py": "",
+             "app/pay.py": "import requests\n\n\ndef pay(host, i):\n    requests.get('http://{}:8080/api/pay/{}'.format(host, i))\n"
+                           "    url = BASE + '/cart/' + str(i)\n    requests.delete(url)\n",
+             "app/load.py": "from locust import HttpUser\n\n\nclass U(HttpUser):\n    def view(self):\n"
+                            "        self.client.get('/api/cart')\n",
+             "package.json": '{"name": "ui"}\n',
+             "src/api.ts": "import axios from 'axios'\nconst basePath = '/api'\n\nexport function add(id: string) {\n"
+                           "  return axios.post(`${basePath}/cart/${id}`)\n}\n",
+             "Web/Web.csproj": "<Project/>\n",
+             "Web/Catalog.cs": "namespace Web;\npublic class Catalog(HttpClient httpClient)\n{\n"
+                               "    private readonly string baseUrl = \"api/catalog/\";\n"
+                               "    public Task<Item> Get(int id)\n    {\n        var uri = $\"{baseUrl}items/{id}?x=1\";\n"
+                               "        return httpClient.GetFromJsonAsync<Item>(uri);\n    }\n}\n",
+             "go.mod": "module shop\n",
+             "front/cart.go": "package front\n\nimport (\n\t\"fmt\"\n\t\"net/http\"\n)\n\n"
+                              "func View(base string, id int) {\n\turl := fmt.Sprintf(\"%s/cart/%d\", base, id)\n\thttp.Get(url)\n}\n",
+             "pom.xml": "<project/>\n",
+             "src/main/java/a/Vets.java": "package a;\nimport org.springframework.web.reactive.function.client.WebClient;\n"
+                                          "public class Vets {\n    private WebClient webClient;\n    public Object all() {\n"
+                                          "        return webClient.get()\n            .uri(\"/vets/{id}\", 1)\n"
+                                          "            .retrieve();\n    }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/pay.py")] == [("GET", "/api/pay/{v}"), ("DELETE", "/cart/{i}")]
+    assert [(m, p) for m, p, _ in clients(s, "app/load.py")] == [("GET", "/api/cart")]
+    assert [(m, p) for m, p, _ in clients(s, "src/api.ts")] == [("POST", "/api/cart/{id}")]
+    assert [(m, p) for m, p, _ in clients(s, "Web/Catalog.cs")] == [("GET", "/api/catalog/items/{id}")]
+    assert [(m, p) for m, p, _ in clients(s, "front/cart.go")] == [("GET", "/cart/{v}")]
+    assert [(m, p) for m, p, _ in clients(s, "src/main/java/a/Vets.java")] == [("GET", "/vets/{id}")]
+
+
 def test_a_client_factory_and_a_method_first_call_over_lines(make_repo):
     """`boto3.client("s3")` makes a client, it sends nothing; `request(\\n "POST",\\n "/jobs")` is a POST."""
     files = {"app/__init__.py": "",
@@ -404,3 +437,90 @@ def test_orm_access_through_a_django_queryset_and_a_nested_ef_context(make_repo)
     acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
                  for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
     assert acc == [("Items", "read", "A/1"), ("pings", "read", "queryset/2")]
+
+
+
+def test_built_addresses_stay_honest(make_repo):
+    """Two verbs on one line are two requests; a path of placeholders only is none; a loop variable takes no
+    other function's local; a wrapper named `getResponse` passing its caller's verb is no GET; Go `api.Get` on a
+    store is no request."""
+    files = {"app/__init__.py": "",
+             "app/a.py": "import httpx\nimport asyncio\nimport requests\n\n\ndef both():\n"
+                         "    return asyncio.gather(httpx.get('/items'), httpx.post('/items'))\n\n\n"
+                         "def s3(bucket, key):\n    return requests.get(f'https://{bucket}.s3.amazonaws.com/{key}')\n\n\n"
+                         "def a():\n    url = '/a/admin'\n    return url\n\n\ndef b(items):\n    for url in items:\n"
+                         "        requests.get(url)\n",
+             "package.json": '{"name": "ui"}\n',
+             "src/api.ts": "export class Api {\n  getResponse(url: string, method: string) { return fetch(url, {method}) }\n"
+                           "  save(id: string) { return this.getResponse(`/items/${id}`, 'POST') }\n}\n",
+             "go.mod": "module shop\n",
+             "svc/svc.go": "package svc\n\nimport \"net/http\"\n\ntype Svc struct{ api *Store }\n\n"
+                           "func (s *Svc) Load(id string) { s.api.Get(\"users/\" + id); _ = http.StatusOK }\n"}
+    s = structure.build(make_repo(files))
+    assert sorted((m, p) for m, p, _ in clients(s, "app/a.py")) == [("GET", "/items"), ("POST", "/items")]
+    assert [(m, p) for m, p, _ in clients(s, "src/api.ts")] == [("POST", "/items/{id}")]
+    assert clients(s, "svc/svc.go") == []
+
+
+def test_a_made_client_a_body_word_and_constants_of_a_class_or_a_method(make_repo):
+    """Go `client := &http.Client{..}` sends; a verb word in a request body is no verb; a class constant resolves;
+    a Java method's `final` local is no file constant."""
+    files = {"go.mod": "module shop\n",
+             "svc/a.go": "package svc\n\nimport \"net/http\"\n\nfunc Local() {\n\tclient := &http.Client{Timeout: 5}\n"
+                         "\tclient.Get(\"/local\")\n}\n",
+             "package.json": '{"name": "ui"}\n',
+             "src/api.ts": "export class Api {\n  send(url: string, body: any) { return fetch(url, {method: 'POST', body}) }\n"
+                           "  mark(id: string) { return this.send(`/items/${id}`, {\"status\": \"delete\"}) }\n}\n",
+             "app/__init__.py": "",
+             "app/c.py": "import requests\n\n\nclass Api:\n    BASE = '/api/v1/items'\n\n    def list(self):\n"
+                         "        return requests.get(self.BASE)\n",
+             "pom.xml": "<project/>\n",
+             "src/main/java/a/W.java": "package a;\nimport org.springframework.web.client.RestTemplate;\npublic class W {\n"
+                                       "    private RestTemplate rest;\n    void a() { final String base = \"/local/a\"; }\n"
+                                       "    Object c() { return rest.getForObject(base + \"/x\", Object.class); }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "svc/a.go")] == [("GET", "/local")]
+    assert [(m, p) for m, p, _ in clients(s, "src/api.ts")] == [("POST", "/items/{id}")]
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/api/v1/items")]
+    assert [(m, p) for m, p, _ in clients(s, "src/main/java/a/W.java")] == [("GET", "/x")]
+
+
+def test_a_made_client_binds_in_its_own_function_only(make_repo):
+    files = {"go.mod": "module shop\n",
+             "svc/a.go": "package svc\n\nimport \"net/http\"\n\nfunc A() {\n\tclient := &http.Client{}\n\tclient.Get(\"/a\")\n}\n\n"
+                         "func B(client *cache.Cache) {\n\tclient.Get(\"user:1\")\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "svc/a.go")] == [("GET", "/a")]
+
+
+def test_a_client_bound_on_the_object_holds_in_the_classs_other_methods(make_repo):
+    files = {"app/__init__.py": "",
+             "app/c.py": "from rest import RestClient\n\n\nclass Api:\n    def __init__(self):\n"
+                         "        self.api = RestClient('http://cart')\n\n    def view(self):\n"
+                         "        return self.api.get('/cart')\n",
+             "package.json": '{"name": "ui"}\n',
+             "src/a.ts": "export class A {\n  constructor() {\n    this.http = new HttpClient()\n  }\n"
+                         "  view() { return this.http.get('/cart') }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/cart")]
+    assert [(m, p) for m, p, _ in clients(s, "src/a.ts")] == [("GET", "/cart")]
+
+
+def test_a_client_bound_on_the_object_is_its_classs_alone(make_repo):
+    files = {"app/__init__.py": "",
+             "app/c.py": "from rest import RestClient\n\n\nclass Api:\n    def __init__(self):\n"
+                         "        self.store = RestClient('http://cart')\n\n    def view(self):\n"
+                         "        return self.store.get('/cart')\n\n\nclass Repo:\n    def __init__(self, db):\n"
+                         "        self.store = db\n\n    def load(self):\n        return self.store.get('/user/1')\n\n\n"
+                         "def lookup(store):\n    return store.get('/k/v')\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/cart")]
+
+
+def test_a_client_bound_in_a_base_class_holds_in_its_subclass(make_repo):
+    files = {"app/__init__.py": "",
+             "app/c.py": "from rest import RestClient\n\n\nclass Base:\n    def __init__(self):\n"
+                         "        self.api = RestClient('a')\n\n\nclass Cart(Base):\n    def view(self):\n"
+                         "        return self.api.get('/cart')\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/cart")]

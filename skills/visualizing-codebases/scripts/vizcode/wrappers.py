@@ -15,7 +15,18 @@ from pathlib import Path
 VERBS = ("get", "post", "put", "patch", "delete", "head")
 # a client object's methods that send a request
 CLIENT_CALLS = {*VERBS, "request", "fetch", "send", "exchange", "execute", "retrieve", "getForObject", "getForEntity",
-                "postForObject", "postForEntity", "patchForObject"}
+                "postForObject", "postForEntity", "patchForObject",
+                # C# HttpClient, Go net/http
+                "GetAsync", "PostAsync", "PutAsync", "PatchAsync", "DeleteAsync", "SendAsync", "GetFromJsonAsync",
+                "PostAsJsonAsync", "PutAsJsonAsync", "PatchAsJsonAsync", "GetStringAsync", "GetStreamAsync",
+                "GetByteArrayAsync", "Get", "Post", "Head", "PostForm", "NewRequest", "NewRequestWithContext"}
+# client types known by name, also where no import names them (C# implicit usings)
+CLIENT_TYPES = {"HttpClient", "WebClient", "RestTemplate", "RestClient"}
+# a name bound to a client the code makes (Go `client := &http.Client{..}`, `var c = new HttpClient()`)
+BOUND_CLIENT = re.compile(r"(?:(?:self|this)\s*\.\s*)?([A-Za-z_]\w*)\s*(?::=|=)\s*&?\s*(?:new\s+)?"
+                          r"(?:http\.Client|(?:[\w$]+\.)*(?:HttpClient|RestTemplate|WebClient|RestClient))\s*[{(]")
+# names common on stores and caches too (`cache.Get(key)`): a request only on an imported or typed client
+STRONG_ONLY = {"Get", "Post", "Head", "PostForm"}
 GLOBAL_CLIENTS = {"fetch", "$fetch", "ofetch", "axios", "ky", "got"}
 SELVES = {"this", "self", "cls"}
 IDENT = re.compile(r"[A-Za-z_$][\w$]*")
@@ -42,12 +53,19 @@ def _path(literal: str) -> str | None:
     """A request path in the key form from a call's literal (`albums/${id}` -> /albums/{id}); None for an absolute
     URL (a URL literal fact already) or anything that is no path. A leading base placeholder (`${API_URL}/x`)
     is dropped."""
+    literal = re.split(r"\?(?![^{]*\})", literal, maxsplit=1)[0]   # the query string is no part of the route
     p = INTERP.sub(lambda m: "{" + (m.group(1) or m.group(2) or m.group(3)).split(".")[-1].strip() + "}", literal)
+    if (host := re.match(r"^[a-z]+://[^/]*\{[^/]*(?=/|$)", p)) is not None:
+        p = p[host.end():] or "/"   # `http://${host}:8080/api/x`: another service's address, its path kept
     if "://" in p or not p or not PATHLIKE.match(p) or not any(c.isalpha() for c in p):
         return None
     segs = [s for s in p.split("/") if s]
+    if not any(re.sub(r"\{[^}]*\}", "", s) for s in segs):
+        return None   # `/{key}` from `f"https://{bucket}.s3../{key}"`, `%s%s`: no word of a route in it
     while segs and re.fullmatch(r"\{(\w+)\}", segs[0]) and (BASE_WORD.search(segs[0]) or segs[0][1:-1].isupper()):
         segs.pop(0)
+    if segs and (glued := re.match(r"\{(\w+)\}(?=[A-Za-z])", segs[0])) and BASE_WORD.search(glued.group(1)):
+        segs[0] = segs[0][glued.end():]   # `{baseUrl}items/{id}`: a base holding its own trailing slash
     return "/" + "/".join(segs) if segs else None
 
 
@@ -74,7 +92,11 @@ def _args(lines: list[str], line: int, name: str, nth: int = 0) -> str:
 
 # a URL builder taking the path as an argument: `urljoin(BASE, "/x")`, `path.join(base, "x")`, `new URL("/x", base)`
 URL_BUILDER = re.compile(r"""^(?:new\s+URL|(?:[\w$]+\.)*(?:urljoin|join|resolve))\s*\((.*)\)$""", re.S)
-STRING_PREFIX = re.compile(r"^[fFrRbBuU]{1,2}(?=[\"'])")   # Python's `f"…"`, `r'…'`
+STRING_PREFIX = re.compile(r"^(?:[fFrRbBuU]{1,2}|\$@?|@\$?)(?=[\"'])")   # Python's `f"…"`, `r'…'`; C#'s `$"…"`, `@"…"`
+# a format call on a literal: `"…/{}".format(x)`, Go `fmt.Sprintf("%s/x", base)`, Java `String.format("/x/%s", id)`
+FORMATTED = re.compile(r"""^(?:(?P<lit>(?:[fFrRbBuU]|\$)?(?:"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'))\.format\s*\(.*\)"""
+                       r"""|(?:fmt\.Sprintf|String\.format)\s*\(\s*(?P<fmt>"(?:\\.|[^"\\\n])*")\s*(?:,.*)?\))$""", re.S)
+PRINTF = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[sdvqfx]")
 
 
 def _plus_terms(arg: str) -> list[str]:
@@ -102,12 +124,21 @@ def _literal(term: str) -> str | None:
     return next((x for x in s.groups() if x is not None), None) if s else None
 
 
-def _address(arg: str) -> str | None:
-    """The path an address argument spells: a string or template, a URL builder's literal argument, or `+`-joined
-    terms holding a literal (a leading base dropped, each later value a `{name}` segment:
-    `'/api/users/' + id` -> `/api/users/{id}`). None for a literal inside another call, a lookup or a choice
-    (`route('name')`, `opts.get("url")`, `a ? 'x' : 'y'`), which names no path."""
+def _address(arg: str, resolve=None, depth: int = 0) -> str | None:
+    """The path an address argument spells: a string or template, a format call on one (`"/x/{}".format(i)`,
+    `fmt.Sprintf("%s/x", base)`), a URL builder's literal argument, or `+`-joined terms holding a literal (a leading
+    base dropped, each later value a `{name}` segment: `'/api/users/' + id` -> `/api/users/{id}`); `resolve(name)`
+    gives the expression a bare name holds (a local assignment, a file constant), read the same way. None for a
+    literal inside another call, a lookup or a choice (`route('name')`, `opts.get("url")`, `a ? 'x' : 'y'`), which
+    names no path."""
     arg = arg.strip()
+    if resolve is not None and depth < 3 and re.fullmatch(r"[A-Za-z_$][\w$.]*", arg) \
+            and (held := resolve(arg)) is not None:
+        return _address(held, resolve, depth + 1)
+    if (fm := FORMATTED.match(arg)) is not None:
+        text = PRINTF.sub("{v}", re.sub(r"\{\d*\}", "{v}", _literal(fm.group("lit") or fm.group("fmt")) or ""))
+        # a placeholder before the first `/` is the base (`%s/api/x`): uppercase, so `_path` drops it
+        return re.sub(r"^\{v\}(?=/)", "{BASE}", text) or None
     if (b := URL_BUILDER.match(arg)) is not None:
         lits = [x for part in _split_args(b.group(1)) if (x := _literal(part)) is not None]
         return lits[0] if len(lits) == 1 else None
@@ -119,6 +150,9 @@ def _address(arg: str) -> str | None:
         if (lit := _literal(term)) is not None:
             out.append(lit)
             seen_literal = True
+        elif i == 0 and resolve is not None and depth < 3 and (held := resolve(term)) is not None \
+                and (head := _address(held, resolve, depth + 1)) is not None and head.startswith("/"):
+            out.append(head)   # `API_PREFIX + "/users"`, the prefix a path constant of the file
         elif i == 0:
             continue   # the base the path is joined onto
         elif re.fullmatch(r"[\w$.()\[\]'\"]+", term) and (words := IDENT.findall(term)):   # `str(i)`, `user.id`
@@ -126,6 +160,31 @@ def _address(arg: str) -> str | None:
         else:
             return None
     return "".join(out) if seen_literal else None
+
+
+# a file-level name bound to a string literal: `const basePath = '/api'`, `BASE = "/v1"`, `private static final
+# String PATH = "/x";`, Go `const prefix = "/api"`
+CONST_LINE = re.compile(r"""^\s*(?:export\s+)?(?:(?:const|let|var|val|final|static|private|public|protected|readonly|"""
+                        r"""internal)\s+)*(?:[\w<>\[\],?]+\s+)?([A-Za-z_$][\w$]*)\s*(?::\s*[\w<>\[\]|]+\s*)?:?=\s*"""
+                        r"""([fFrRbBuU$@]{0,2}(?:"[^"\n]*"|'[^'\n]*'|`[^`\n]*`))\s*;?\s*$""")
+TEMPLATE_HEAD = re.compile(r"^\$?\{\s*([A-Za-z_$][\w$.]*)\s*\}")   # `${basePath}` (JS), `{baseUrl}` (C#, f-strings)
+
+
+FIELD_WORDS = re.compile(r"\b(?:private|public|protected|internal|static|readonly)\b")
+CONSTANT_NAME = re.compile(r"[A-Z][A-Z0-9_]*$")   # `BASE_URL`, `TOPIC`: a class's or object's constant
+
+
+def _constants(lines: list[str]) -> dict[str, str]:
+    from .stack import in_function
+    """A file's names bound once to a string literal at its top, as a declared field (`private readonly string
+    baseUrl = "x"`) or as a constant-cased name (`BASE = "/api"` in a class, Kotlin `const val TOPIC`): a name bound
+    to two different ones, or a function's local (`final String base = ..` in a method), is left out."""
+    seen: dict[str, set[str]] = {}
+    for i, line in enumerate(lines):
+        if (m := CONST_LINE.match(line)) is not None and (not line[:1].isspace() or (
+                (CONSTANT_NAME.match(m.group(1)) or FIELD_WORDS.search(line.split("=", 1)[0])) and not in_function(lines, i))):
+            seen.setdefault(m.group(1), set()).add(m.group(2))
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 
 
 def _split_args(text: str) -> list[str]:
@@ -189,14 +248,85 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
 
     route_lines = {f: {x["line"] for x in r["routes"]} for f, r in results.items()}
     nodes_files = set(results)
+    consts = {f: _constants(ls) for f, ls in lines.items()}
+    # bound at the file's top: holds in every function of the file
+    top_clients = {f: {n for x in ls if x[:1] not in " \t" and ("Client" in x or "Rest" in x)
+                       for n in BOUND_CLIENT.findall(x)} for f, ls in lines.items()}
+    # bound on the object in a method (`self.api = RestClient(..)` in `__init__`, `this.http = new HttpClient()` in
+    # a constructor): holds for `self.api` / `this.http` in that class's methods, as (class id, name)
+    methods = {}
+    for n in nodes.values():
+        if n["kind"] == "method" and n.get("file"):
+            methods.setdefault(n["file"], []).append(n)
+    object_clients: dict[str, set[tuple[str, str]]] = {}
+    for f, ls in lines.items():
+        for i, x in enumerate(ls, 1):
+            if ("Client" in x or "Rest" in x) and re.match(r"\s*(?:self|this)\s*\.", x) and (names := BOUND_CLIENT.findall(x)):
+                here = max((m for m in methods.get(f, []) if (m.get("line") or 0) <= i),
+                           key=lambda m: m.get("line") or 0, default=None)
+                if here is not None and here.get("parent"):
+                    object_clients.setdefault(f, set()).update((here["parent"], n) for n in names)
+
+    def resolver(f: str, c: dict):
+        """A bare name's expression: its last assignment in the calling function before the call, else a file
+        constant (`url := base + "/x"`, `const basePath = '/api'`)."""
+        start = nodes.get(c.get("in") or "", {}).get("line") or 1
+
+        def resolve(name: str) -> str | None:
+            pat = re.compile(rf"(?<![\w$.]){re.escape(name)}\s*(?::\s*[\w<>\[\]|?]+\s*)?:?=(?!=)\s*(.+?)\s*;?\s*$")
+            # bound some other way in the function (`for url in urls`, `with .. as url`, `catch (url)`, `{url} =`):
+            # its value is no constant of the file
+            other = re.compile(rf"\bfor\s*\(?\s*(?:(?:const|let|var|val|final)\s+)?(?:\w+\s+)?{re.escape(name)}\b"
+                               rf"|\bas\s+{re.escape(name)}\b|\bcatch\s*\(\s*(?:\w+\s+)?{re.escape(name)}\b"
+                               rf"|^\s*(?:(?:const|let|var|val)\s+)?[{{\[][^=\n]*(?<![\w$]){re.escape(name)}(?![\w$])[^=\n]*[}}\]]\s*=")
+            for line in reversed(lines[f][max(start - 1, 0):c["line"] - 1]):
+                if (m := pat.search(line)) is not None:
+                    return m.group(1)
+                if other.search(line):
+                    return None
+            return consts[f].get(name.split(".")[-1])
+        return resolve
+
+    def fold(f: str, lit: str, resolve) -> str:
+        """A template whose head is a path constant (`${basePath}/cart` with basePath = '/api', `{baseUrl}items` with
+        baseUrl = "api/catalog/") with it written in."""
+        if (m := TEMPLATE_HEAD.match(lit)) is not None and (held := resolve(m.group(1))) is not None \
+                and (head := _literal(held)) is not None and head and "://" not in head and PATHLIKE.match(head):
+            rest = lit[m.end():]
+            return "/" + head.strip("/") + ("/" if rest and not rest.startswith("/") else "") + rest
+        return lit
+
+    bases_of = {cid: names for r in results.values() for cid, names in r.get("bases", []) + r.get("supers", [])}
+    classes_in = {}
+    for n in nodes.values():
+        if n["kind"] == "class" and n.get("file"):
+            classes_in.setdefault(n["file"], {}).setdefault(n["name"], n["id"])
+
+    def lineage(f: str, cid: str | None) -> list[str]:
+        """A class and its bases written in the same file (`class Cart(Base)` holds what `Base.__init__` binds)."""
+        out, todo = [], [cid] if cid else []
+        while todo and len(out) < 16:
+            k = todo.pop()
+            if k not in out:
+                out.append(k)
+                todo += [i for b in bases_of.get(k, []) if (i := classes_in.get(f, {}).get(b.rsplit(".", 1)[-1]))]
+        return out
 
     def typed_client(f: str, c: dict, receiver: str) -> bool:
         """The receiver is a parameter or field whose declared type is an imported client (`client: HttpClient`)."""
         m = nodes.get(c["in"], {})
         types = [p.get("type") or "" for p in (m.get("signature") or {}).get("params", []) if p.get("name") == receiver]
-        types += [x.get("type") or "" for x in nodes.get(m.get("parent") or "", {}).get("fields") or []
-                  if x.get("name") == receiver]
-        return any(set(IDENT.findall(t)) & heads[f] for t in types)
+        owner = nodes.get(m.get("parent") or "", {})
+        types += [x.get("type") or "" for x in (owner.get("fields") or []) + ((owner.get("ctor") or {}).get("params") or [])
+                  if x.get("name") == receiver]   # a field, or a constructor parameter (C# `class Catalog(HttpClient h)`)
+        start = m.get("line") or 1
+        here = "\n".join(x for x in lines[f][max(start - 1, 0):c["line"]] if "Client" in x or "Rest" in x)
+        made = {n for n in BOUND_CLIENT.findall(here)} | top_clients[f]   # in the calling function, or the file's top
+        if any((k, receiver) in object_clients.get(f, ()) for k in lineage(f, m.get("parent"))):
+            raw = _parts(c["callee"])
+            if len(raw) > 2 and raw[0] in ("self", "this") and raw[1] == receiver:   # `self.api.get(..)`
+                return True
+        return receiver in made or any(set(IDENT.findall(t)) & (heads[f] | CLIENT_TYPES) for t in types)
 
     def client_call(f: str, c: dict) -> str | None:
         """`strong` for a call to an imported or global client, `weak` for a value only named like one, else None."""
@@ -207,13 +337,14 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
         receiver = parts[-2] if len(parts) > 1 else ""
         if _words(receiver) & SERVER_WORDS:
             return None
-        if heads[f] and (last.lower() in CLIENT_WORDS or last.lower().endswith("client")) and not last[:1].isupper():
+        if (heads[f] or typed_client(f, c, receiver)) and (last.lower() in CLIENT_WORDS or last.lower().endswith("client")) \
+                and not last[:1].isupper():
             return "weak"   # a callable client (`this.client(url, ..)`), or a factory (`session.client("sts")`)
         if not (last in CLIENT_CALLS or (len(parts) == 1 and head in GLOBAL_CLIENTS)):
             return None   # a request call, not a client's constructor (`httpx.Client(..)`) or setting
-        if head in GLOBAL_CLIENTS or head in heads[f] or (heads[f] and typed_client(f, c, receiver)):
+        if head in GLOBAL_CLIENTS or head in heads[f] or typed_client(f, c, receiver):
             return "strong"
-        if heads[f] and _words(receiver) & CLIENT_WORDS:
+        if heads[f] and _words(receiver) & CLIENT_WORDS and last not in STRONG_ONLY:
             return "weak"
         # the app's own client class, its library not imported here, given an options object with an address
         # (`ApiClient.get({endpoint: '/x'})`)
@@ -229,8 +360,16 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
         first = _first_arg(text)
         return first in mine
 
-    def verb_of(*hints: str | None) -> str | None:
-        return next((h.upper() for h in hints if h and h.lower() in VERBS), None)
+    def verb_of(*hints: str | None, heads: tuple[str | None, ...] = ()) -> str | None:
+        """The verb a hint says: one that is a verb (`post`) first, else the head of a client call's name in `heads`
+        (`GetFromJsonAsync`, `postForObject`); a function's own name says it only whole (`getResponse(url, method)`
+        is no GET, a `getPermalink` calling `client.post` is a POST)."""
+        if exact := next((h.upper() for h in (*hints, *heads) if h and h.lower() in VERBS), None):
+            return exact
+        for h in heads:
+            if h and (v := next((v for v in VERBS if h[:len(v)].lower() == v and h[len(v):][:1].isupper()), None)):
+                return v.upper()
+        return None
 
     wrappers: dict[str, dict] = {}   # method id -> {"name", "owner", "file", "verb"}
     by_name: dict[str, list[dict]] = {}
@@ -278,7 +417,7 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
                 text = _args(lines[f], c["line"], _parts(c["callee"])[-1])
                 if passes(text, mine):
                     lit = VERB_LIT.search(text)
-                    add(mid, verb_of(m["name"], lit.group(1) if lit else None, _parts(c["callee"])[-1]))
+                    add(mid, verb_of(m["name"], lit.group(1) if lit else None, heads=(_parts(c["callee"])[-1],)))
                     break
     for _ in range(3):   # and one passing its parameter on to a wrapper
         grew = False
@@ -317,17 +456,33 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
                 text = text[text.index(first) + len(first):].lstrip(" ,\n\t")
                 first = _first_arg(text)
             keyed = KEYED.search(first) if first.startswith("{") else None
-            lit = keyed.group(1)[1:-1] if keyed else _address(first)
+            resolve = resolver(f, c)
+            lit = keyed.group(1)[1:-1] if keyed else _address(first, resolve)
+            if lit is None and not first and re.search(r"\.uri\s*\(", "\n".join(lines[f][c["line"] - 1:c["line"] + 5])):
+                # `webClient.get().uri("/x/{id}", id).retrieve()`: the address is the chained `uri` call's
+                lit = _address(_first_arg(_args(lines[f], c["line"], "uri")), resolve)
+            if lit is not None:
+                lit = fold(f, lit, resolve)
             path = _path(lit) if lit is not None else None
             if path is None or (how == "weak" and "/" not in lit) \
                     or (how == "loose" and not (keyed and lit.startswith("/"))):   # a key store's `get('/a')`: none
                 continue   # a value only named like a client needs a path that reads as one
             method_key = METHOD_KEY.search(text)
-            verb = lead or (method_key.group(1).upper() if method_key else None) or (w["verb"] if w else None) \
-                or verb_of(name) or ("GET" if name in ("fetch", "$fetch", "ofetch") else "ANY")
-            results[f].setdefault("clients", []).append(
-                {"method": verb, "path": path, "in": mid, "line": c["line"],
-                 "framework": f"wrapper:{w['name']}" if w else "client"})
+            # a wrapper given its verb by the caller (`this.getResponse(`/items/${id}`, 'POST')`)
+            passed = next((v.group(1).upper() for a in _split_args(text)[1:] if w and (v := VERB_LIT.fullmatch(a.strip()))),
+                          None)   # an argument of its own, never a word inside a body (`{status: 'delete'}`)
+            verb = lead or (method_key.group(1).upper() if method_key else None) or passed or (w["verb"] if w else None) \
+                or verb_of(name, heads=() if w else (name,)) or ("GET" if name in ("fetch", "$fetch", "ofetch") else "ANY")
+            have = results[f].setdefault("clients", [])
+            same = next((x for x in have if (x["in"], x["line"], x["path"]) == (mid, c["line"], path)
+                         and (x["method"] == verb or "ANY" in (x["method"], verb))), None)
+            if same is not None:   # one request per call site: `get().uri(..).retrieve()` is one, its verb kept
+                # (`gather(get('/x'), post('/x'))` on one line is two)
+                if same["method"] == "ANY":
+                    same["method"] = verb
+                continue
+            have.append({"method": verb, "path": path, "in": mid, "line": c["line"],
+                         "framework": f"wrapper:{w['name']}" if w else "client"})
     _descriptors(results, lines, new_file)
 
 

@@ -40,6 +40,7 @@ python:
   - {prefix: redis, kind: cache}
   - {prefix: requests, kind: http-out}
   - {prefix: httpx, kind: http-out}
+  - {prefix: locust, kind: http-out}   # a load test's `self.client.get("/x")`: requests to the system
   - {prefix: aiohttp, kind: http}
   - {prefix: urllib.request, kind: http-out}
   - {prefix: fastapi, kind: http-in}
