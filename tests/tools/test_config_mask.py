@@ -66,3 +66,11 @@ def test_a_dsn_keeps_its_host_and_database_and_the_script_reads_a_commit(tmp_pat
     out = subprocess.run([sys.executable, str(SCRIPT), "--repo", str(repo), "--commit", "HEAD", "compose.yml"],
                          capture_output=True, text=True)
     assert out.returncode == 0 and "s3cr3t" not in out.stdout and "4:       POSTGRES_PASSWORD: <hidden>" in out.stdout
+
+
+def test_php_arrows_http_request_variables_and_block_openers():
+    """PHP `'secret' => env(..)` keeps its arrow; an HTTP request file's `@password = x` is a key; a credential-named
+    key that only opens a block keeps the brace and hides what it holds."""
+    got = [line for _, line in secrets.mask("    'secret' => env('GITHUB_SECRET'),\n@password = Pass1!\n"
+                                            "  'oauth2_password': {\n      'value': 'x'\n")]
+    assert got == ["    'secret' => <hidden>,", "@password = <hidden>", "  'oauth2_password': {", "      <hidden>"]

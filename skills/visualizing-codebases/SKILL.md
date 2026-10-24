@@ -232,7 +232,7 @@ problems. Which files you may read, and how:
   not. List the keys with their line numbers, never the values:
   `grep -noE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_.-]*[=:]' FILE`.
 - **Every other config file** (YAML, `.properties`, TOML, INI, JSON, HOCON `.conf`,
-  hjson, compose files): read it only through
+  hjson, compose files, HTTP request files `.http`/`.rest`): read it only through
   `$PY SKILL_DIR/scripts/config.py FILE [FILE ...]`, which prints each line with
   every value that may be a credential hidden (a key naming a password, secret,
   token, API key or private key; a token-shaped value; a PEM block; the user and
@@ -244,6 +244,9 @@ Any other read of these files (`cat`, `head`, a `grep` or `awk` that prints
 lines, a file read) prints the values: not allowed. A command that reads many files at once (a loop or glob over
 `git ls-files`, `cat */*`, `grep -r`) reaches them too: leave config and env files
 out of its list first, and search code with `git grep` over source paths.
+
+Source code can hold a credential too (a hard-coded key, a seed script's password, a test fixture's token): when
+one shows in what you read, never repeat its value anywhere (output, evidence, ids, problems); cite its `file:line`.
 
 A relation whose target is only in a value you may not read stays `inferred`:
 cite the key's line as evidence and name the key in `why`.

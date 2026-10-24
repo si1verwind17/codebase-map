@@ -18,8 +18,10 @@ CREDENTIAL_KEY = re.compile(
 # a key that ends saying what kind of setting it is, not a credential: `accessTokenUri`, `password_min_length`
 SETTING_KEY = re.compile(r"(?i)(ur[il]|host|endpoint|path|name|type|file|enabled|expir\w*|ttl|timeout|length|"
                          r"header|policy|mode|scope|issuer|audience|algorithm|prefix|location|provider)s?$")
-# `key: value`, `key = value`, `KEY=value`, `- KEY=value`, `"key": value`, `export KEY=value`
-KEY_VALUE = re.compile(r"""^(\s*(?:-\s+)?(?:export\s+)?["']?)([A-Za-z_][\w.\-\[\]]*)(["']?\s*[:=]\s*)(.*)$""")
+# `key: value`, `key = value`, `KEY=value`, `- KEY=value`, `"key": value`, `export KEY=value`, PHP `'key' => value`,
+# an HTTP request file's `@key = value`
+KEY_VALUE = re.compile(r"""^(\s*(?:-\s+)?(?:export\s+|@)?["']?)([A-Za-z_][\w.\-\[\]]*)(["']?\s*(?:=>|[:=])\s*)(.*)$""")
+OPENER = re.compile(r"^[\[{(]\s*$")   # a value that only opens a nested block: its own keys are judged one by one
 USERINFO = re.compile(r"(?<=://)[^/\s:@]+:[^/\s@]+(?=@)")
 # a connection string's own password field (`Server=db;Password=x`, `password=x host=db`)
 CONN_PASSWORD = re.compile(r"(?i)\b(password|pwd)\s*=\s*[^;\s\"']*")
@@ -67,6 +69,11 @@ def mask(text: str) -> list[tuple[int, str]]:
             continue
         head, key, value = m.group(1) + m.group(2) + m.group(3), m.group(2), m.group(4)
         last = re.split(r"[.\[\]]", key.strip("[]"))[-1] or key
+        if OPENER.match(value.strip()):   # the brace stays; under a credential key, what it holds is hidden
+            out.append((no, line))
+            if CREDENTIAL_KEY.search(last) and not SETTING_KEY.search(last):
+                block_over = _indent(line)
+            continue
         if (CREDENTIAL_KEY.search(last) and not SETTING_KEY.search(last)) or SECRET_VALUE.match(value.strip()):
             out.append((no, head + HIDDEN + ("," if value.rstrip().endswith(",") else "")))
             if BLOCK.match(value.strip()):
