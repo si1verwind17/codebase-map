@@ -297,7 +297,7 @@ def _add_routes(st: Stack, fname: str, lang: str, entries: list, source: str) ->
         if mount and expand:
             raise _fail(fname, where, name, "a mount has no expand")
         if mount:
-            if extra := sorted(set(regex.groupindex) - {"path", "target"}):
+            if extra := sorted(set(regex.groupindex) - {"path", "target", "module"}):
                 raise _fail(fname, where, name, f"mount regex has group '{extra[0]}': only path and target")
         elif "method" not in regex.groupindex and not e.get("method") and not expand:
             raise _fail(fname, where, name, "no method source: add a method group, or method: "
@@ -809,9 +809,11 @@ def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict
     out = []
     for pat, m, text in _matches(st, lang, src, imports, True):
         target = m.group("target") if "target" in pat.regex.groupindex else None
+        module = (m.group("module") or "").strip() if "module" in pat.regex.groupindex else ""
         out.append({"path": read_path(text, pat.path), "target": (target or "").strip() or None,
                     "line": src.count("\n", 0, m.start()) + 1, "framework": pat.name, "source": pat.source,
-                    "at": m.start(), "call": src.rfind("(", m.start(), m.start("path"))})
+                    "at": m.start(), "call": src.rfind("(", m.start(), m.start("path")),
+                    **({"module": module} if module else {})})
     return out
 
 
@@ -828,14 +830,45 @@ BINDING = re.compile(r"(?<![\w.$])(\$?[A-Za-z_]\w*)\s*(?::\s*[\w.<>\[\], ]+?\s*)
 BOUND_TO = re.compile(r"\s*(?:(?:new\s+)?[\w.$:]+\s*\(\s*\{?\s*)?")
 
 
+RUBY_TOKENS = re.compile(r"\bdo\b|^[ \t]*(?:if|unless|case|while|until|begin|def|class|module)\b|\bend\b", re.M)
+RUBY_DO = re.compile(r"\bdo\b(?:\s*\|[^|\n]*\|)?[ \t]*(?:#[^\n]*)?$", re.M)
+
+
+def _camel(word: str) -> str:
+    """`admin_tools` -> `AdminTools`, `v1` -> `V1`: a Ruby module name from a route namespace."""
+    return "".join(x[:1].upper() + x[1:] for x in re.split(r"[_/]", word) if x)
+
+
+def _ruby_block_end(src: str, at: int) -> int:
+    """Where the Ruby `do .. end` block opening on the line of `at` ends (after its `end`), -1 when none opens there
+    or it does not close: `do` and the keywords that open a body count up, `end` counts down."""
+    eol = src.find("\n", at)
+    eol = len(src) if eol < 0 else eol
+    if not (m := RUBY_DO.search(src, at, eol + 1)) or m.start() > eol:
+        return -1
+    depth, i = 0, m.start()
+    # strings blanked, length kept: `post 'calls/end'` holds no `end`
+    code = re.sub(r"""(["'])(?:\\.|(?!\1)[^\\\n])*\1""", lambda s: s.group(1) + " " * (len(s.group(0)) - 2) + s.group(1),
+                  src[i:])
+    for tok in RUBY_TOKENS.finditer(code):
+        depth += -1 if tok.group(0) == "end" else 1
+        if depth == 0:
+            return i + tok.end()
+    return -1
+
+
 def _extent(src: str, mount: dict) -> int:
     """Where the code a mount covers ends: its call's closing bracket, a trailing block on the same line
-    (`route("/v1") { }`), and, for a mount without a target (it returns the prefixed router), the calls chained on
-    it. -1 when its brackets do not balance."""
+    (`route("/v1") { }`, Ruby `namespace :api do .. end`), and, for a mount without a target (it returns the
+    prefixed router), the calls chained on it. -1 when its brackets do not balance."""
     i = mount["call"]
+    if i < 0 and (end := _ruby_block_end(src, mount["at"])) >= 0:
+        return end
     if i < 0 or (end := _close(src, i)) < 0:
         return -1
     end += 1
+    if re.match(r"[ \t]*do\b", src[end:]) and (block := _ruby_block_end(src, end)) >= 0:
+        return block   # `namespace(:api) do .. end`
     if (m := re.match(r"[ \t]*\{", src[end:])) and (close := _close(src, end + m.end() - 1)) >= 0:
         end = close + 1
     while mount["target"] is None and (m := CHAIN_STEP.match(src, end)):
@@ -935,9 +968,13 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
         if chain:
             r["path"] = normalise("/".join(x.strip("/") for x in [*(mounts[k]["path"] for k in chain), r["path"]]
                                            if x.strip("/")))
+            if r.get("handler_class") and (mods := [mounts[k]["module"] for k in chain if mounts[k].get("module")]):
+                # a namespace mount names the controllers inside it too (`namespace :api` -> `Api::UsersController`)
+                r["handler_class"] = "::".join(_camel(x) for x in mods) + "::" + r["handler_class"]
             for k in chain:
                 mounts[k]["composed"] = mounts[k].get("composed", 0) + 1
     for mt in mounts:
+        mt.pop("module", None)
         if "at" in mt and (on := _head(src, mt["at"])):
             mt["on"] = on
         mt.pop("at", None)

@@ -41,6 +41,16 @@ ruby:
       regex: '^[ \t]*(?P<method>get|post|put|patch|delete)\s*\(?\s*["''](?P<path>[^"'']+)["'']\s*,\s*to:\s*["''](?P<controller>[\w/]+)#(?P<action>\w+)["''](?P<handler>)'
       handler_class: '{controller|camel}Controller'
       handler_method: '{action}'
+    # `namespace :api do .. end` prefixes its routes and names their controllers (`Api::UsersController`);
+    # `scope "/x" do .. end` (or `scope path: "/x"`) prefixes only
+    - name: rails-namespace
+      path: literal
+      mount: true
+      regex: '^[ \t]*namespace\s*\(?\s*[:"''](?P<path>(?P<module>\w+))'
+    - name: rails-scope
+      path: literal
+      mount: true
+      regex: '^[ \t]*scope\s*\(?\s*(?:path:\s*)?["''](?P<path>/?[\w/:{}.-]+)["'']'
     - name: rails-resources
       regex: '^[ \t]*resources\s*\(?\s*:(?P<path>\w+)\b(?:(?=[^\n#]*?(?:\bparam:|:param\s*=>)\s*:(?P<param>\w+)))?(?:(?=[^\n#]*?(?:\bonly:|:only\s*=>)\s*(?P<only>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\bexcept:|:except\s*=>)\s*(?P<except>%[iIwW]\[[^\]]*\]|\[[^\]]*\]|:\w+)))?(?:(?=[^\n#]*?(?:\b(?:controller|module):|:(?:controller|module)\s*=>)\s*(?P<nohandler>\S+)))?(?P<handler>)'
       expand: {index: GET, new: GET /new, create: POST, show: GET /:id, edit: GET /:id/edit,

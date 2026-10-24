@@ -622,7 +622,8 @@ def test_every_pack_regex_entry_has_when(lang):
     minimal APIs (implicit usings), Laravel routes (the global `Route` alias), Rails models (`self.table_name`)
     and gorm models (`TableName`)."""
     st = stack.default()
-    no_when = {("ruby", "rails"), ("ruby", "rails-resources"), ("ruby", "rails-resource"),
+    no_when = {("ruby", "rails"), ("ruby", "rails-resources"), ("ruby", "rails-resource"), ("ruby", "rails-namespace"),
+               ("ruby", "rails-scope"),
                ("ruby", "active-record-table-name"), ("csharp", "aspnet-minimal"),
                ("csharp", "aspnet-map-group"), ("php", "laravel"), ("php", "laravel-invokable"), ("php", "laravel-match"), ("php", "laravel-prefix"),
                ("go", "gorm-table-name")}

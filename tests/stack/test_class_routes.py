@@ -67,6 +67,24 @@ def test_same_named_handler_classes_are_told_apart_by_the_files_imports(make_rep
                    "/settings/unblock": "App\\Http\\Controllers\\Settings.Unblock#__invoke/0"}
 
 
+def test_rails_namespaces_and_scopes_prefix_routes_and_name_controllers(make_repo):
+    files = {"Gemfile": "gem 'rails'\n",
+             "app/controllers/api/v1/gems_controller.rb": "module Api\n  module V1\n    class GemsController\n"
+                                                          "      def index\n      end\n\n      def show\n      end\n"
+                                                          "    end\n  end\nend\n",
+             "app/controllers/gems_controller.rb": "class GemsController\n  def index\n  end\nend\n",
+             "app/controllers/pages_controller.rb": "class PagesController\n  def about\n  end\nend\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  namespace :api do\n    namespace :v1 do\n"
+                                 "      resources :gems, only: %i[index show]\n    end\n  end\n  resources :gems, only: [:index]\n"
+                                 "  scope '/info' do\n    get 'about', to: 'pages#about'\n  end\nend\n"}
+    s = structure.build(make_repo(files))
+    got = sorted((r["method"], r["path"], r["handler"].split("::", 1)[-1]) for r in s["facts"]["config/routes.rb"]["routes"])
+    assert [(m, p) for m, p, _ in got] == [("GET", "/api/v1/gems"), ("GET", "/api/v1/gems/{id}"), ("GET", "/gems"),
+                                           ("GET", "/info/about")]
+    h = {p: h for _, p, h in got}
+    assert "V1" in h["/api/v1/gems"] and "V1" not in h["/gems"] and h["/info/about"].endswith("PagesController#about/0")
+
+
 def test_a_named_method_a_library_class_and_decorators_between_route_and_class(make_repo):
     """An explicit `methods=['GET']` keeps that verb only; a Laravel `::class` that is not invokable is no verb
     dispatch; a class view imported from a library binds no repo class of that name; a restx route reaches its
@@ -94,6 +112,18 @@ def test_a_named_method_a_library_class_and_decorators_between_route_and_class(m
     assert routes(s, "app/api.py") == [("DELETE", "/users/{uid}", "delete"), ("POST", "/plain", "plain")]
     assert [r[2] for r in routes(s, "shop/urls.py")] == ["urls.py"]
     assert routes(s, "routes/web.php") == [("GET", "/p3", "PhotoController")]
+
+
+def test_a_rails_namespace_block_ignores_end_in_strings_and_takes_parentheses(make_repo):
+    files = {"Gemfile": "gem 'rails'\n",
+             "app/controllers/api/calls_controller.rb": "module Api\n  class CallsController\n    def end\n    end\n"
+                                                        "    def start\n    end\n  end\nend\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  namespace :api do\n"
+                                 "    post 'calls/end', to: 'calls#end'\n    post 'calls/start', to: 'calls#start'\n  end\n"
+                                 "  namespace(:admin) do\n    get 'stats', to: 'stats#show'\n  end\nend\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in routes(s, "config/routes.rb")] == [
+        ("GET", "/admin/stats"), ("POST", "/api/calls/end"), ("POST", "/api/calls/start")]
 
 
 def test_relatively_imported_views_and_restx_routes_across_lines_or_stacked(make_repo):
