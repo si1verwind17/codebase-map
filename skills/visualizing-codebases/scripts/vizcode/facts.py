@@ -104,7 +104,7 @@ def text_output_scopes(calls: list[dict]) -> set:
 
 
 
-USERINFO = re.compile(r"^([a-z]+://)[^/@\s]+@", re.I)
+USERINFO = re.compile(r"^([a-z]+://)[^/\s]*@", re.I)   # up to the last `@` before the path: a password may hold `@`
 
 
 def redact(text: str) -> str:

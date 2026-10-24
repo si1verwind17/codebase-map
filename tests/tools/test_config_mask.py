@@ -74,3 +74,14 @@ def test_php_arrows_http_request_variables_and_block_openers():
     got = [line for _, line in secrets.mask("    'secret' => env('GITHUB_SECRET'),\n@password = Pass1!\n"
                                             "  'oauth2_password': {\n      'value': 'x'\n")]
     assert got == ["    'secret' => <hidden>,", "@password = <hidden>", "  'oauth2_password': {", "      <hidden>"]
+
+
+def test_a_password_holding_at_signs_is_hidden_whole():
+    assert masked("PG_URL: postgres://user:p@ss@w0rd@db:5432/x\nMQ: amqp://guest:a@b@c@rabbit:5672/\n") == [
+        "PG_URL: postgres://<hidden>@db:5432/x", "MQ: amqp://<hidden>@rabbit:5672/"]
+
+
+def test_a_url_found_in_code_drops_its_whole_userinfo():
+    from vizcode import facts
+    assert facts.USERINFO.sub(r"\1***@", "amqp://guest:a@b@rabbit:5672/x") == "amqp://***@rabbit:5672/x"
+    assert facts.USERINFO.sub(r"\1***@", "https://example.com/@user") == "https://example.com/@user"

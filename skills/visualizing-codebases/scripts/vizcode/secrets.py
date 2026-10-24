@@ -22,7 +22,8 @@ SETTING_KEY = re.compile(r"(?i)(ur[il]|host|endpoint|path|name|type|file|enabled
 # an HTTP request file's `@key = value`
 KEY_VALUE = re.compile(r"""^(\s*(?:-\s+)?(?:export\s+|@)?["']?)([A-Za-z_][\w.\-\[\]]*)(["']?\s*(?:=>|[:=])\s*)(.*)$""")
 OPENER = re.compile(r"^[\[{(]\s*$")   # a value that only opens a nested block: its own keys are judged one by one
-USERINFO = re.compile(r"(?<=://)[^/\s:@]+:[^/\s@]+(?=@)")
+# a URL's `user:password`, up to its last `@`: a password may hold `@` itself
+USERINFO = re.compile(r"(?<=://)[^/\s:@]+:\S*(?=@)")
 # a connection string's own password field (`Server=db;Password=x`, `password=x host=db`)
 CONN_PASSWORD = re.compile(r"(?i)\b(password|pwd)\s*=\s*[^;\s\"']*")
 # a value that is a secret by its shape: a provider token prefix, a JWT, or a long random-looking string
