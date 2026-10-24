@@ -731,6 +731,33 @@ def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
                 yield pat, m, ""
 
 
+def _call_end_line(src: str, at: int, line: int) -> int:
+    """The line a registration call that starts at `at` ends on: the line of the `)` closing the first `(` on its
+    line (strings skipped), or its own line when the call has no parentheses there (`get '/x' do`)."""
+    nl = src.find("\n", at)
+    nl = len(src) if nl < 0 else nl
+    i = src.find("(", at, nl)
+    if i < 0:
+        return line
+    depth, quote = 0, None
+    while i < len(src):
+        ch = src[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            quote = None if ch == quote else quote
+        elif ch in "\"'`":
+            quote = ch
+        else:
+            depth += ch in "([{"
+            depth -= ch in ")]}"
+            if depth == 0:
+                return line + src.count("\n", at, i)
+        i += 1
+    return line
+
+
 def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
                 file_id: str, mounts: list[dict] | None = None) -> list[dict]:
     """Route facts from every pattern of the language that applies to the file (imports: import_names). A match
@@ -763,9 +790,11 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
         handler = _handler(spans, line, file_id, "handler" not in groups)
         named = m.group("handler") if "handler" in groups else None
         on_mount = {"on_mount": True} if "(?P<path>)" in pat.regex.pattern else {}
+        call_end = _call_end_line(src, m.start(), line)
         for method in methods:
             out.append({"method": method, "path": read_path(text, pat.path), "handler": handler,
                         "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
+                        "call_end": call_end,
                         **({"handler_name": named.strip()} if named and named.strip() else {}),
                         **_named_handler(pat, m), **on_mount})
     compose(src, out, mounts or [], lang)

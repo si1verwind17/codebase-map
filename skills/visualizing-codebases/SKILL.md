@@ -152,8 +152,8 @@ inside the repo).
    `{"text": "...", "nodes": ["<node id>", ...]}`, `nodes` optional); that clears it. So does a
    `queue.missing` site that is no hand-off (`references/interactions.md`): name its `file:line`. A route whose handler is
    a file or the function that registers it (`route.file-handler`, `route.setup-handler`) gets its real handler
-   from a `stack.yaml` handler group; when the code has none (a routes file read by the framework, inline
-   blocks), a `problems` entry naming the handler id or a route's `file:line` says so and clears it. Report `name.container` and
+   from a `stack.yaml` handler group (an inline handler is a node of its own, in a function or at the file's top);
+   when the code has none (a routes file read by the framework), a `problems` entry naming the handler id or a route's `file:line` says so and clears it. Report `name.container` and
    `pin.start-missing` warnings and audit errors (`audit.error`); do not fix
    them. Map limits and findings are reported, not fixed. The drawing checks
    stop at a budget on large maps (the line says how many floors were not

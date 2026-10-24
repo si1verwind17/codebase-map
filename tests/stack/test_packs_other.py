@@ -300,8 +300,8 @@ def test_rust_import_kinds():
 def test_sinatra_service(make_repo):
     s = build(make_repo, SINATRA_SERVICE)
     # a Sinatra block is inline: the handler is the file, never the `def` below
-    assert routes(s, "app.rb") == [("GET", "/orders/{id}", ".::_root_/app.rb", 6, "sinatra", "pack"),
-                                   ("POST", "/orders", ".::_root_/app.rb", 10, "sinatra", "pack")]
+    assert routes(s, "app.rb") == [("GET", "/orders/{id}", ".::_root_/app.rb#get_orders_id/0", 6, "sinatra", "pack"),
+                                   ("POST", "/orders", ".::_root_/app.rb#post_orders/0", 10, "sinatra", "pack")]
     assert sinks(s, "app.rb") == [("http-in", "sinatra"), ("sql-db", "pg")]
     assert s["stack"]["unrecognised"] == [] and s["stack"]["servers_without_routes"] == []
 
@@ -446,8 +446,8 @@ def test_laravel_service(make_repo):
         ("GET", "/orders/{id}", f"{ctrl}#show/1", 6, "laravel", "pack"),
         ("POST", "/orders", f"{ctrl}#store/0", 7, "laravel", "pack"),
         ("DELETE", "/v1/orders/{id}", f"{ctrl}#destroy/1", 10, "laravel", "pack"),
-        ("GET", "/sync", ".::routes/api.php", 8, "laravel-match", "pack"),
-        ("POST", "/sync", ".::routes/api.php", 8, "laravel-match", "pack")]
+        ("GET", "/sync", ".::routes/api.php#get_sync/0", 8, "laravel-match", "pack"),
+        ("POST", "/sync", ".::routes/api.php#get_sync/0", 8, "laravel-match", "pack")]
     assert mounts(s, "routes/api.php") == [("/v1", None, 9, "laravel-prefix")]
     assert sinks(s, "routes/api.php") == [("http-in", "Illuminate\\Support\\Facades\\Route")]
     assert sinks(s, "app/Http/Controllers/OrderController.php") == [("sql-db", "Illuminate\\Support\\Facades\\DB")]

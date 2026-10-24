@@ -99,8 +99,8 @@ serve({ fetch: app.fetch, port: 3000 });
 2. **Routes found:** `structure.json` holds every route with its handler:
    catalog `GET /items/{id}` (`Handler#GetItem`), `POST /items`
    (`Handler#CreateItem`), `GET /health` (`Health`); notes `GET /{id}`
-   (`getNote`), `PUT /{id}` (`putNote`), `GET /health` (the file: an inline
-   handler). A sample `stack.yaml` gives exactly these (checked 2026-10-13).
+   (`getNote`), `PUT /{id}` (`putNote`), `GET /health` (`get_health`: an inline
+   handler at the file's top is a method of the file named after the route). A sample `stack.yaml` gives exactly these (checked 2026-10-13).
 3. **Mounts, not routes:** `summary.md` lists catalog's `/api` and notes'
    `/notes → notes` as mounts, and the map composes them: any relation or
    `problems` entry that names these routes writes `/api/items/{id}` and

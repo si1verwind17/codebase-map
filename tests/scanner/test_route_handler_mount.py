@@ -33,8 +33,9 @@ def test_handler_group_resolves_across_files_of_the_module(make_repo):
     rs = {(r["method"], r["path"]): r["handler"] for r in s["facts"]["src/app.js"]["routes"]}
     assert rs[("GET", "/orders")] == ".::src/handlers.js#listOrders/0"
     assert all("handler_name" not in r for r in s["facts"]["src/app.js"]["routes"])
-    # not found: the span rule's handler stays (the file node here, since no function surrounds the match)
-    assert "missing" not in rs[("POST", "/orders")] and rs[("POST", "/orders")] == rs[("GET", "/inline")]
+    # not found: the span rule's handler stays (the file node here, since no function surrounds the match); an
+    # inline handler at the file's top is a node of its own
+    assert rs[("POST", "/orders")] == ".::src/app.js" and rs[("GET", "/inline")] == ".::src/app.js#get_inline/0"
 
 
 def test_same_file_beats_other_files(make_repo):
@@ -49,7 +50,7 @@ def test_two_candidates_in_one_level_is_ambiguous(make_repo):
              "src/a.js": "function listOrders() {}\n", "src/b.js": "function listOrders() {}\n"}
     s = build(make_repo, files)
     rs = {(r["method"], r["path"]): r["handler"] for r in s["facts"]["src/app.js"]["routes"]}
-    assert rs[("GET", "/orders")] == rs[("GET", "/inline")]   # the span rule's handler
+    assert rs[("GET", "/orders")] == ".::src/app.js"   # the span rule's handler
 
 
 def test_mounts_are_facts_not_routes(make_repo):

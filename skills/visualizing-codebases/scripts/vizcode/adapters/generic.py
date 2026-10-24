@@ -638,7 +638,7 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
         if spec.test_only and (t in spec.classes or t in spec.functions or t in spec.imports or t in spec.attach) \
                 and _test_only(n, spec):
             continue
-        if scope is not None and t in spec.lambdas:   # an inline function: a node only when a route is its
+        if t in spec.lambdas:   # an inline function (in a function or at the file's top): a node only when a route is its
             res.setdefault("lambdas", []).append({"in": scope, "start": n.start_point[0] + 1,
                                                   "end": n.end_point[0] + 1})
         if t in spec.aliases and not _is_class(n, spec) and (alias := child(n, spec.aliases[t])) is not None:

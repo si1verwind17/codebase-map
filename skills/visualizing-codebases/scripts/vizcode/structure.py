@@ -532,6 +532,44 @@ def _route_lambda(r: dict, route: dict) -> dict | None:
     return lam
 
 
+def _file_level_handlers(r: dict, reg: ids.IdRegistry) -> None:
+    """A route registered at a file's top level with an inline handler (`router.post("x", auth(), async (ctx) =>
+    {..})`) has the file as handler: the outermost lambda among the call's own arguments becomes a method node of the
+    file named after the route (`post_x`), the route's handler, and the calls, strings, tables, queues, jobs and
+    requests inside it move to it."""
+    file_node = next((n for n in r["nodes"] if n["kind"] == "file"), None)
+    if file_node is None:
+        return
+    for route in r["routes"]:
+        # one of the call's own arguments: a lambda starting from the route's line to the line its call closes on
+        if "call_end" not in route:
+            continue
+        here = [x for x in r.get("lambdas", []) if x["in"] is None
+                and route["line"] <= x["start"] <= route["call_end"]]
+        if route["handler"] != file_node["id"] or not here:
+            continue
+        lam = min(here, key=lambda x: (x["start"], -x["end"]))
+        if lam.get("node"):   # one handler for several methods (`route({method: ['GET', 'POST'], ..})`)
+            route["handler"] = lam["node"]
+            continue
+        words = [w for w in re.split(r"[^A-Za-z0-9]+", route["path"]) if w]
+        name = "_".join([route["method"].lower(), *words]) or route["method"].lower()
+        nid = reg.claim(ids.method_id(file_node["id"], name, 0))
+        r["nodes"].append({"id": nid, "kind": "method", "parent": file_node["id"], "name": name,
+                           "lang": file_node["lang"], "file": file_node["file"], "line": lam["start"],
+                           "visibility": "private", "metrics": {"loc": lam["end"] - lam["start"] + 1},
+                           "signature": {"params": [], "returns": None}})
+        file_node["metrics"]["methods"] = file_node["metrics"].get("methods", 0) + 1
+        for group in ("calls", "strings", "tables", "queues", "jobs", "clients"):
+            for x in r.get(group, []):
+                if x.get("in") in (None, file_node["id"]) and lam["start"] <= x["line"] <= lam["end"] \
+                        and not (group == "calls" and x["line"] == route["line"] and x.get("in") is None
+                                 and x["callee"].rsplit(".", 1)[-1].lower() == route["method"].lower()):
+                    x["in"] = nid
+        lam["node"] = nid
+        route["handler"] = nid
+
+
 def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
     """Make a nested function a method node of its enclosing function's owner, `<owner>#<outer>.<name>/<arity>`,
     and move the calls, strings, tables and queues inside it from the enclosing function to it."""
@@ -1097,6 +1135,10 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)
+            _file_level_handlers(r, reg)
+    for r in results.values():
+        for route in r["routes"]:
+            route.pop("call_end", None)
     wrappers.find(results, sources, lambda f: _client_heads(st, results[f], LANGS[Path(f).suffix][0]), NEW_FILE_NODE)
     for f, r in results.items():   # a request descriptor outside any function
         if f in lines and any(c["in"] == NEW_FILE_NODE for c in r.get("clients", [])):

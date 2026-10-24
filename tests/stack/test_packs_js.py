@@ -74,7 +74,7 @@ def test_express_routes_and_handlers(express_repo):
     assert routes(s, "src/app.js") == [
         ("GET", "/orders", ".::src/handlers.js#listOrders/2", 7, "express", "pack"),
         ("GET", "/orders/{id}", ".::src/handlers.js#getOrder/2", 8, "express", "pack"),
-        ("ANY", "/ping", ".::src/app.js", 9, "express", "pack")]
+        ("ANY", "/ping", ".::src/app.js#any_ping/0", 9, "express", "pack")]
     assert routes(s, "src/v1.js") == [("POST", "/orders", ".::src/v1.js#createOrder/2", 4, "express", "pack")]
     assert routes(s, "src/handlers.js") == []
 
@@ -124,8 +124,8 @@ def test_express_handler_forms(make_repo):
     h = {r["path"]: r["handler"] for r in s["facts"]["r.ts"]["routes"]}
     # a multi-line call with a trailing comma; a member name resolves by its last segment
     assert h["/a"] == ".::_root_/r.ts#listA/0" and h["/c/{id}"] == ".::_root_/r.ts#h/0"
-    # an inline function, or an array argument (it ends the chain of names): the file
-    assert h["/b"] == h["/d"] == ".::_root_/r.ts"
+    # an inline function is a method of the file; an array argument (it ends the chain of names): the file
+    assert h["/b"] == ".::_root_/r.ts#put_b/0" and h["/d"] == ".::_root_/r.ts"
 
 
 # Koa and Fastify
@@ -161,10 +161,10 @@ def test_fastify(make_repo):
     # an inline handler: the file, not the function defined below the call
     assert [(r["method"], r["path"], r["handler"].split("#")[-1], r["framework"]) for r in f["routes"]] == [
         ("GET", "/orders/{id}", "getOrder/0", "fastify"),
-        ("POST", "/orders", ".::_root_/f.ts", "fastify"),
+        ("POST", "/orders", "post_orders/0", "fastify"),
         ("DELETE", "/orders/{id}", "drop/0", "fastify-route"),
-        ("GET", "/both", ".::_root_/f.ts", "fastify-route"),
-        ("HEAD", "/both", ".::_root_/f.ts", "fastify-route")]
+        ("GET", "/both", "get_both/0", "fastify-route"),
+        ("HEAD", "/both", "get_both/0", "fastify-route")]
     assert [(m["path"], m["target"]) for m in f["mounts"]] == [("/admin", "adminRoutes")]
 
 

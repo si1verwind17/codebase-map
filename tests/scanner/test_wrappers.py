@@ -285,3 +285,19 @@ def test_orm_calls_on_entities_are_table_access(make_repo):
                  for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
     assert acc == [("categories", "read", "run/0"), ("orders", "read", "recent/0"), ("orders", "read", "show/1"),
                    ("orders", "write", "drop/1"), ("orders_line", "write", "add/1")]
+
+
+def test_an_inline_handler_at_the_file_top_is_its_own_node(make_repo):
+    """`router.post("docs.info", auth(), async (ctx) => {..})` at a file's top, arguments over several lines: the
+    lambda is a method of the file named after the route, and the calls inside it are its."""
+    files = {"package.json": '{"name": "s", "dependencies": {"@koa/router": "12"}}\n',
+             "src/r.ts": "import Router from '@koa/router'\nconst router = new Router()\n"
+                         "router.post(\n  'docs.info',\n  auth(),\n  async (ctx) => {\n    ctx.body = await load(ctx)\n  },\n)\n"
+                         "router.get('docs.list', async (ctx) => { ctx.body = await list() })\n"
+                         "function load(c) { return c }\nfunction list() { return [] }\nfunction auth() { return 1 }\n"
+                         "export default router\n"}
+    s = structure.build(make_repo(files))
+    rs = {r["path"]: r["handler"] for r in s["facts"]["src/r.ts"]["routes"]}
+    assert rs == {"/docs.info": ".::src/r.ts#post_docs_info/0", "/docs.list": ".::src/r.ts#get_docs_list/0"}
+    ins = {c["callee"]: c["in"] for c in s["facts"]["src/r.ts"]["calls"]}
+    assert ins["load"] == rs["/docs.info"] and ins["list"] == rs["/docs.list"] and ins["auth"] is None

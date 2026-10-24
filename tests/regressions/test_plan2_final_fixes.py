@@ -141,7 +141,7 @@ def test_ef_core_generated_migrations_are_excluded(make_repo):
 
 # --- 5. an inline handler is the file -----------------------------------------------------------------------
 
-def test_inline_handler_is_the_file_node(make_repo):
+def test_an_inline_handler_at_the_file_top_is_a_method_of_the_file(make_repo):
     s = build(make_repo, {
         "package.json": "{\"name\": \"api\"}\n",
         # a class but no top-level function: the handler is the file, not the class
@@ -155,15 +155,15 @@ def test_inline_handler_is_the_file_node(make_repo):
         "src/users.ts": "import { Router } from 'express';\nimport { list } from './handlers';\n"
                         "const router = Router();\nrouter.get('/users', list);\nexport default router;\n",
         "src/handlers.ts": "export function list(req, res) { res.json([]); }\n"})
-    assert routes(s, "src/tags.ts") == [("GET", "/tags", ".::src/tags.ts", 4, "express", "pack")]
-    assert routes(s, "src/ping.ts") == [("GET", "/ping", ".::src/ping.ts", 3, "express", "pack")]
+    assert routes(s, "src/tags.ts") == [("GET", "/tags", ".::src/tags.ts#get_tags/0", 4, "express", "pack")]
+    assert routes(s, "src/ping.ts") == [("GET", "/ping", ".::src/ping.ts#get_ping/0", 3, "express", "pack")]
     assert routes(s, "src/users.ts") == [("GET", "/users", ".::src/handlers.ts#list/2", 4, "express", "pack")]
     files = {n["id"]: n for n in s["nodes"] if n["kind"] == "file"}
     assert {".::src/tags.ts", ".::src/ping.ts", ".::src/handlers.ts"} <= set(files)
     assert ".::src/users.ts" not in files
     assert files[".::src/ping.ts"] == {"id": ".::src/ping.ts", "kind": "file", "parent": ".::src/", "name": "ping.ts",
                                        "lang": "typescript", "file": "src/ping.ts", "line": 1, "visibility": "public",
-                                       "metrics": {"loc": 5, "methods": 0}}
+                                       "metrics": {"loc": 5, "methods": 1}}
 
 
 # --- 6. framework wiring ----------------------------------------------------------------------------------
