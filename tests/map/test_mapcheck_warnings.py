@@ -70,6 +70,14 @@ def test_module_empty():
     assert [w["node"] for w in got] == ["svc:ghost"]
 
 
+def test_module_empty_skips_a_service_a_problem_names():
+    m = copy.deepcopy(DEMO)
+    m["nodes"] += [{"id": "svc:sdk-js", "kind": "service", "name": "sdk-js"},
+                   {"id": "svc:sdk", "kind": "service", "name": "sdk"}]
+    m["problems"] = m.get("problems", []) + [{"text": "svc:sdk-js packages generated client code the scan does not read"}]
+    assert [w["node"] for w in mapcheck.warnings(m) if w["id"] == "module.empty"] == ["svc:sdk"]
+
+
 def test_ext_missing_accounted_for():
     m = copy.deepcopy(DEMO)
     m["nodes"].append({"id": "db:postgres:ORDERS_HOST", "kind": "datastore", "name": "ORDERS_HOST"})

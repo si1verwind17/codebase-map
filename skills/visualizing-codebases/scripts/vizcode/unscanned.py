@@ -77,8 +77,9 @@ def compose_services(doc) -> dict:
     return {k: v for k, v in doc.items() if isinstance(v, dict) and ("image" in v or "build" in v)}
 
 
-def _build_contexts(path: str, text: str) -> list[tuple[str, str]]:
-    """(compose service, its build context folder) for each service a compose file builds from this repo."""
+def _build_contexts(path: str, text: str) -> list[tuple[str, str, str | None]]:
+    """(compose service, its build context folder, the Dockerfile it names or None) for each service a compose file
+    builds from this repo."""
     try:
         doc = yaml.safe_load(text)
     except yaml.YAMLError:
@@ -89,8 +90,10 @@ def _build_contexts(path: str, text: str) -> list[tuple[str, str]]:
         context = build.get("context", ".") if isinstance(build, dict) else build
         if isinstance(context, str) and "://" not in context and not context.startswith("git@"):
             folder = posixpath.normpath(posixpath.join(_folder(path), context))
+            named = build.get("dockerfile") if isinstance(build, dict) else None
+            recipe = posixpath.normpath(posixpath.join(folder, named)) if isinstance(named, str) else None
             if not folder.startswith(".."):
-                out.append((str(name), folder))
+                out.append((str(name), folder, recipe))
     return out
 
 
@@ -107,6 +110,7 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
     languages = [{"lang": lang, "files": len(fs), "folders": _outermost({_folder(f) for f in fs})}
                  for lang, fs in sorted(by_lang.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
     found: dict[str, dict] = {}
+    recipes: set[str] = set()   # Dockerfiles a compose service builds with another folder as its context
     for f in files:
         name = f.rsplit("/", 1)[-1]
         if skip(f):
@@ -114,10 +118,14 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         if DOCKERFILE.match(name):
             found.setdefault(_folder(f), {"dockerfiles": [], "compose": []})["dockerfiles"].append(f)
         elif COMPOSE.match(name):
-            for svc, folder in _build_contexts(f, read(f)):
+            for svc, folder, recipe in _build_contexts(f, read(f)):
                 found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, f])
+                if recipe is not None and _folder(recipe) != folder:
+                    recipes.add(recipe)
     deployables, tools = [], []
     for folder, how in sorted(found.items()):
+        if not how["compose"] and how["dockerfiles"] and set(how["dockerfiles"]) <= recipes:
+            continue   # `docker/local.Dockerfile` of a service built from `.`: the context is the deployable
         if tooling(folder):
             tools.append({"folder": folder, **how})
             continue

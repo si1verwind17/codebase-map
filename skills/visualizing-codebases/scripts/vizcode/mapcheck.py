@@ -384,11 +384,15 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
     # a service the scanner cannot read has no code but relations of its own, read from its config (SKILL.md)
     runtime_ends = {e for r in cmap.get("relations", []) if r["kind"] not in ("uses-code", "calls")
                     for e in (r.get("from"), r.get("to"))}
+    said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
     for n in nodes.values():
         if n["kind"] in ("service", "library") and not has_code(n["id"]) and not n.get("twins") \
-                and not (n["kind"] == "service" and n["id"] in runtime_ends):
+                and not (n["kind"] == "service" and n["id"] in runtime_ends) \
+                and not (n["kind"] == "service" and re.search(rf"(?<![\w:-]){re.escape(n['id'])}(?![\w-])", said)):
             out.append({"id": "module.empty", "node": n["id"],
-                        "detail": f"{n['kind']} {n['id']} has no file or package under it"})
+                        "detail": f"{n['kind']} {n['id']} has no file or package under it: give it its module, or "
+                                  "for a service whose image holds no scanned code (generated or unscanned output), "
+                                  "say so in problems naming it"})
     ends = {e for r in cmap.get("relations", []) for e in (r.get("from"), r.get("to"))}
     for n in nodes.values():
         if n["kind"] == "external" and n["id"] not in ends:

@@ -145,3 +145,13 @@ def test_a_version_1_compose_file_names_its_build_contexts(make_repo):
     s = structure.build(make_repo(files), "docs/viz-code")
     assert [(d["folder"], d["compose"]) for d in s["unscanned"]["deployables"]] == [
         ("rates", [["rates", "docker-compose.yml"]])]
+
+
+def test_a_folder_of_dockerfiles_a_compose_service_names_is_no_deployable(make_repo):
+    # `build: {context: ., dockerfile: docker/local.Dockerfile}`: the context is built, `docker/` is its recipe
+    files = {"docker-compose.yml": "services:\n  web:\n    build:\n      context: .\n"
+                                   "      dockerfile: docker/local.Dockerfile\n",
+             "docker/local.Dockerfile": "FROM python\n", "docker/entry.sh": "#!/bin/sh\nexec \"$@\"\n",
+             **{f"x/m{i}.ex": "defmodule M do\nend\n" for i in range(3)}, "app.py": "def main():\n    pass\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert [d["folder"] for d in s["unscanned"]["deployables"]] == ["."]
