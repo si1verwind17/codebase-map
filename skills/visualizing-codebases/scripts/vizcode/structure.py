@@ -1107,8 +1107,12 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
     classes: dict[tuple[str, str], list[str]] = {}       # (module, class name) -> class ids
     any_classes: dict[str, list[str]] = {}               # class name -> class ids in every module
     members: dict[tuple[str, str], list[str]] = {}       # (class id, method name) -> method ids
+    top: set[str] = set()   # classes in no namespace: a folder's package (Ruby names a module's after it), no outer class
     for f, r in results.items():
         for n in r["nodes"]:
+            if n["kind"] == "class" and owner_kind.get(n.get("parent") or "") != "class" \
+                    and not r["package"][:1].isupper() and not re.search(r"\.|::", n["name"]):
+                top.add(n["id"])
             if n["kind"] == "class":
                 # by the name's last segment: Ruby `class Admin::OrdersController` is named `Admin.OrdersController`
                 classes.setdefault((file_mod[f], _segments(n["name"])[-1]), []).append(n["id"])
@@ -1124,7 +1128,7 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                 mine = classes.get((file_mod[f], _segments(cls)[-1]), [])
                 pool = mine if len(_segments(cls)) == 1 else (mine + [c for c in any_classes.get(_segments(cls)[-1], [])
                                                                      if c not in mine])
-            if cls and (found := _conventional_handler(cls, meth, pool, members)):
+            if cls and (found := _conventional_handler(cls, meth, pool, members, top)):
                 route.pop("handler_name", None)
                 route.pop("nested_handler", None)
                 route["handler"] = found
@@ -1251,11 +1255,14 @@ def _segments(name: str) -> list[str]:
     return [x for x in re.split(r"::|[./\\]", name) if x]
 
 
-def _conventional_handler(cls: str, meth: str, cands: list[str], members: dict) -> str | None:
-    """The method `meth` of the one class among cands that `cls` names (see _resolve_handlers), else None."""
+def _conventional_handler(cls: str, meth: str, cands: list[str], members: dict, top: set[str]) -> str | None:
+    """The method `meth` of the one class among cands that `cls` names (see _resolve_handlers), else None. `top`:
+    the classes in no namespace (in a folder's package, not a module's or a class's)."""
     outer = [x.lower() for x in _segments(cls)[:-1]]
     if outer:   # a named namespace: the class id's package and outer-class segments end with cls's own
         cands = [c for c in cands if [x.lower() for x in _segments(c.split("::", 1)[-1])[:-1]][-len(outer):] == outer]
+    elif len(cands) > 1:   # none named: the one in no namespace (`ProfilesController`, not `Api::V1::`'s)
+        cands = [c for c in cands if c in top] or cands
     if len(cands) != 1:
         return None
     hits = members.get((cands[0], meth), [])

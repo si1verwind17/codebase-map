@@ -370,9 +370,22 @@ def test_a_controller_name_shared_by_two_namespaces_is_picked_by_the_route_names
     s = build(make_repo, files)
     rails = [r for r in s["facts"]["config/routes.rb"]["routes"] if r["framework"] == "rails"]
     assert [r["handler"] for r in rails] == [".::Admin.OrdersController#create/0"]
-    # `resources :orders` names no namespace: two OrdersController classes, so the handler stays the file
+    # `resources :orders` names no namespace: the OrdersController in none, not Admin's
     res = [r for r in s["facts"]["config/routes.rb"]["routes"] if r["framework"] == "rails-resources"]
-    assert [r["handler"] for r in res] == [".::config/routes.rb"]
+    assert [r["handler"] for r in res] == [".::app/controllers.OrdersController#index/0"]
+
+
+def test_rails_resources_options_across_lines_and_a_controller_option(make_repo):
+    files = {"Gemfile": "gem \"rails\"\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  resources :downloads,\n    only: [:index],\n"
+                                 "    controller: 'versions/downloads',\n    format: true do\n    collection do\n"
+                                 "      get :search\n    end\n  end\nend\n",
+             "app/controllers/versions/downloads_controller.rb": "module Versions\n  class DownloadsController\n"
+                                                                "    def index\n    end\n  end\nend\n"}
+    s = build(make_repo, files)
+    res = [(r["method"], r["path"], r["handler"]) for r in s["facts"]["config/routes.rb"]["routes"]
+           if r["framework"] == "rails-resources"]
+    assert res == [("GET", "/downloads", ".::Versions.DownloadsController#index/0")]
 
 
 def test_a_route_naming_a_namespace_never_takes_the_top_level_controller(make_repo):

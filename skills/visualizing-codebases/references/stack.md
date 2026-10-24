@@ -134,7 +134,7 @@ scala:
   The Ruby pack's `rails-resources` / `rails-resource` use it.
   `handler_class` and `handler_method` (both or neither) name the handler by
   convention: templates whose `{group}` or `{group|camel}` fields
-  (`line_items` → `LineItems`) are regex groups, or `{action}`, the expanded
+  (`line_items` → `LineItems`; `{a,b}` is the first of the groups with a value) are regex groups, or `{action}`, the expanded
   action (`handler_class: '{path|camel}Controller'`, `handler_method:
   '{action}'`). The handler is that method when the module has one class of
   that name (its last `::`, `.` or `/` segment; the segments before it, when

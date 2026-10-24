@@ -309,7 +309,7 @@ def _add_routes(st: Stack, fname: str, lang: str, entries: list, source: str) ->
                             h_class, h_method))
 
 
-TEMPLATE_FIELD = re.compile(r"\{(\w+)(?:\|(\w+))?\}")
+TEMPLATE_FIELD = re.compile(r"\{(\w+(?:,\w+)*)(?:\|(\w+))?\}")   # `{a,b|camel}`: the first of a, b with a value
 TEMPLATE_FILTERS = {"camel": lambda v: "/".join("".join(w[:1].upper() + w[1:] for w in re.split(r"[_-]", part))
                                                 for part in v.split("/"))}
 
@@ -317,7 +317,8 @@ TEMPLATE_FILTERS = {"camel": lambda v: "/".join("".join(w[:1].upper() + w[1:] fo
 def _handler_templates(fname: str, where: str, name: str, e: dict, regex: re.Pattern, expand: tuple,
                        mount: bool) -> tuple[str | None, str | None]:
     """`handler_class` and `handler_method`, both or neither: templates whose `{group}` / `{group|camel}` fields
-    name regex groups, or `action` (the expanded action) on an entry with `expand`."""
+    (or `{a,b}`: the first with a value) name regex groups, or `action` (the expanded action) on an entry with
+    `expand`."""
     values = [e.get("handler_class"), e.get("handler_method")]
     if values == [None, None]:
         return None, None
@@ -327,10 +328,11 @@ def _handler_templates(fname: str, where: str, name: str, e: dict, regex: re.Pat
         raise _fail(fname, where, name, "handler_class and handler_method go together, each a template string")
     known = set(regex.groupindex) | ({"action"} if expand else set())
     for v in values:
-        for field, filt in TEMPLATE_FIELD.findall(v):
-            if field not in known:
-                raise _fail(fname, where, name, f"template field '{field}' is not a regex group"
-                            + (" or action" if expand else ""))
+        for fields, filt in TEMPLATE_FIELD.findall(v):
+            for field in fields.split(","):
+                if field not in known:
+                    raise _fail(fname, where, name, f"template field '{field}' is not a regex group"
+                                + (" or action" if expand else ""))
             if filt and filt not in TEMPLATE_FILTERS:
                 raise _fail(fname, where, name, f"unknown template filter '{filt}' (one of {', '.join(TEMPLATE_FILTERS)})")
     return values[0].strip(), values[1].strip()
@@ -342,7 +344,7 @@ def _fill(template: str, values: dict) -> str | None:
 
     def one(m: re.Match) -> str:
         nonlocal missing
-        v = (values.get(m.group(1)) or "").strip()
+        v = next((x for k in m.group(1).split(",") if (x := (values.get(k) or "").strip())), "")
         missing = missing or not v
         return TEMPLATE_FILTERS[m.group(2)](v) if m.group(2) else v
     out = TEMPLATE_FIELD.sub(one, template)
