@@ -133,7 +133,7 @@ def test_the_schema_holds_the_pin_contract(shop_repo):
 
 def test_versions_bumped_for_the_new_format(shop_repo):
     from vizcode import SCANNER_VERSION, SCHEMA_VERSION
-    assert (SCHEMA_VERSION, SCANNER_VERSION) == (3, "0.15.0")
+    assert (SCHEMA_VERSION, SCANNER_VERSION) == (3, "0.16.0")
     cmap = assemble(structure.build(shop_repo, "docs/viz-code"), copy.deepcopy(MEANING))
     assert cmap["meta"]["schema_version"] == 3
 

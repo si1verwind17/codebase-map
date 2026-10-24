@@ -3,6 +3,16 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 9 — 2026-10-24
+- Class-based routes (SKILL.md § Stack): a route a class handles (`as_view()`, `::class`, a Resource added to an API) is one route per verb method of the class, each handled by that method; move the route's examples, pins and relations from the class or the file onto them.
+- Route prefixes across files (SKILL.md § Run, the structure pass's lists): Rails `namespace` and `scope` blocks, a router handed to a register function, Django `include()` and Flask blueprint prefixes now join onto their routes, and multi-line Rails `resources` options are read; rewrite `request` keys and example keys that spell such a route without its prefix, and drop those on actions an `only:` leaves out.
+- Job enqueues (`references/interactions.md`): `jobs enqueued` now also lists aliased Celery tasks, namespaced ActiveJob jobs, mailer `deliver_later` and a controller's `$this->dispatch*`, and pairs a job with no marker to `a class of that name`; write their job-queue `event`s.
+- Framework-registered routes (SKILL.md § Stack): a request or probe that reaches a route the framework registers ends at the line that turns it on, `inferred`, named in `problems`.
+- Table-name defaults (SKILL.md § Stack): ActiveRecord, gorm, Flask-SQLAlchemy and Django defaults name the tables of entity-looking classes; write those tables and their reads and writes.
+- Rust impls (SKILL.md § Run): methods of an `impl` in a file that does not declare its type are under the struct the module declares; re-point examples, pins and `via`s written on the per-file class.
+- Credentials in source (SKILL.md § Never read secrets): a credential literal met in source is cited by `file:line`, never repeated; remove one an existing map or its notes quote.
+- Deployables (SKILL.md § Deployables, not folders): a folder of Dockerfiles a compose service builds with another context is no longer listed, and `module.empty` clears for a service a `problems` entry names; a service or relation written only to clear either can go.
+
 ## Rules 8 — 2026-10-24
 - FastAPI prefixes (SKILL.md § Run, the structure pass's lists): the scanner joins `include_router` prefixes onto the included router's routes across files; rewrite `request` keys and example keys that spell such a route without them, and compose only the includes marked `not composed`.
 - Flask routes (SKILL.md § Stack): the Python pack reads `route`, the verb decorators and `add_url_rule`; a `stack.yaml` Flask pattern now listed `duplicates` can go.
