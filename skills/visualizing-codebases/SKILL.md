@@ -53,6 +53,11 @@ repository root) never mark facts stale: after changing them, rescan in full.
 Ask the user for the output directory; default `docs/viz-code` (`OUT` below,
 inside the repo).
 
+Before your first look at the repo: config, compose and env files are never
+`cat`ed, `head`ed or globbed into a listing with source files. Read them only as
+§ Never read secrets says (`config.py`, key names only for `.env`), from the
+very first command.
+
 1. `$PY SKILL_DIR/scripts/extract.py REPO --out-dir OUT` — writes
    `structure.json` and `summary.md`. `--out-dir` is relative to `REPO`,
    not to the current directory. Add `--exclude GLOB` for generated or
@@ -263,7 +268,7 @@ names the language and build. When one folder holds two languages, the
 second one's module is `<path>#<lang>`: claim it under that name
 (`"modules": ["dashboard#typescript"]`), as the heading writes it without `mod:`. Shared code that
 services import is a `library` even when a Dockerfile copies it into their
-image. Only application code that two deployments each run as their own (a
+image or a compose volume mounts it. Only application code that two deployments each run as their own (a
 workflow module registered into two orchestrator projects) is claimed by both
 services: its code sits under the service whose first-listed module it is,
 and the other shows a twin of it, reported in `problems`. So are the roles one
