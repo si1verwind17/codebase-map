@@ -14,6 +14,9 @@ kotlin:
            jakarta.enterprise, jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json,
            jakarta.xml.bind, org.eclipse.microprofile]
   imports:
+  - {prefix: "jakarta.mail", kind: mail}
+  - {prefix: "javax.mail", kind: mail}
+  - {prefix: "org.springframework.mail", kind: mail}
   - {prefix: java.sql, kind: sql-db}
   - {prefix: javax.sql, kind: sql-db}
   - {prefix: org.springframework.jdbc, kind: sql-db}

@@ -20,6 +20,8 @@ ruby:
   ignore: [json, net/http, set, time, date, securerandom, logger, fileutils, yaml, erb, uri, open3, digest,
            base64, csv, optparse]
   imports:
+  - {prefix: "mail", kind: mail}
+  - {prefix: "action_mailer", kind: mail}
   - {prefix: active_record, kind: sql-db}
   - {prefix: pg, kind: sql-db}
   - {prefix: mysql2, kind: sql-db}

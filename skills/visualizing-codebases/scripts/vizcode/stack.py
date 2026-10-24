@@ -13,7 +13,7 @@ import yaml
 from .adapters.langs import ALL, SPECS
 
 LANGS = ("python", "scala", *dict.fromkeys(spec.lang for spec in ALL))
-KINDS = ("sql-db", "doc-db", "cache", "http-in", "http-out", "http", "ws", "event", "grpc", "cloud-sdk", "spark")
+KINDS = ("sql-db", "doc-db", "cache", "http-in", "http-out", "http", "ws", "event", "grpc", "cloud-sdk", "spark", "mail")
 GROUPS = ("imports", "routes", "effects", "ignore", "tables", "queues", "jobs")
 READERS = ("literal", "segments")
 HEADER = ("# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.\n"

@@ -73,7 +73,9 @@ def test_packs_hold_every_old_sink():
     got = [(lang, p, k) for lang, es in st.imports.items() for p, k, src in es
            if src == "pack" and lang in ("python", "scala")]   # the other languages' packs: test_packs_jvm and later
     new = [("python", "google.cloud.pubsub", "event"), ("python", "google.cloud.pubsub_v1", "event"),
-           ("python", "sqlmodel", "sql-db"), ("python", "quart", "http-in")]
+           ("python", "sqlmodel", "sql-db"), ("python", "quart", "http-in"),
+           *[("python", m, "mail") for m in ("smtplib", "flask_mail", "django.core.mail", "fastapi_mail",
+                                             "aiosmtplib", "yagmail")]]
     assert sorted(got) == sorted(OLD_SINKS + new) and len(OLD_SINKS) == 50
 
 

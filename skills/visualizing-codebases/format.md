@@ -161,7 +161,7 @@ declarations within its owner, never lines.
 | Function nested in another that a route names or decorates (any language but Scala) | a method of the outer function's owner, `<owner>#<outer>.<name>/<arity>` — `.::src/server.js#serve.listOrders/2`; the calls and strings inside it are its own, not the outer function's. Other nested functions are not nodes |
 | service / library | `svc:<name>` / `lib:<name>` |
 | datastore / table | `db:<engine>:<config key>` / `<datastore id>/<schema.table>` |
-| external | `ext:http:<config key or host>`, `3p:<vendor>` |
+| external | `ext:http:<config key or host>`, `ext:smtp:<config key or host>` (a `mail` sink's server), `3p:<vendor>` |
 | topic | `topic:<broker>:<name>` |
 
 ## Relations

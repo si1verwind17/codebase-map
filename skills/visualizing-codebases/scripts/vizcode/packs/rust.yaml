@@ -11,6 +11,7 @@
 rust:
   ignore: [std, core, alloc]
   imports:
+  - {prefix: "lettre", kind: mail}
   - {prefix: sqlx, kind: sql-db}
   - {prefix: diesel, kind: sql-db}
   - {prefix: tokio_postgres, kind: sql-db}

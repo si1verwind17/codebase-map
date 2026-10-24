@@ -11,6 +11,10 @@
 php:
   ignore: [Illuminate, Symfony]
   imports:
+  - {prefix: "PHPMailer", kind: mail}
+  - {prefix: "Illuminate\\Support\\Facades\\Mail", kind: mail}
+  - {prefix: "Illuminate\\Mail", kind: mail}
+  - {prefix: "Symfony\\Component\\Mailer", kind: mail}
   - {prefix: PDO, kind: sql-db}
   - {prefix: Doctrine\DBAL, kind: sql-db}
   - {prefix: Doctrine\ORM, kind: sql-db}

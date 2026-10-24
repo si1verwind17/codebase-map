@@ -22,6 +22,11 @@ javascript:
   imports:
   - {prefix: rxjs/ajax, kind: http-out}
   - {prefix: rxjs/webSocket, kind: ws}
+  - {prefix: "nodemailer", kind: mail}
+  - {prefix: "@sendgrid/mail", kind: mail}
+  - {prefix: "resend", kind: mail}
+  - {prefix: "postmark", kind: mail}
+  - {prefix: "mailgun.js", kind: mail}
   - {prefix: "@angular/common/http", kind: http-out}
   - {prefix: pg, kind: sql-db}
   - {prefix: mysql2, kind: sql-db}

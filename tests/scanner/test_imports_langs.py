@@ -43,8 +43,8 @@ def test_group_roots_per_language(lang, target, root):
 
 def test_packs_ignore_standard_libraries():
     st = stack.load(None)
-    for lang, std, lib in [("java", "java.util", "org.slf4j"), ("java", "javax.inject", "jakarta.mail"),
-                           ("java", "jakarta.inject", "jakarta.mail"),
+    for lang, std, lib in [("java", "java.util", "org.slf4j"), ("java", "javax.inject", "org.yaml.snakeyaml"),
+                           ("java", "jakarta.inject", "org.yaml.snakeyaml"),
                            ("kotlin", "kotlin.collections", "kotlinx.coroutines"), ("kotlin", "java.time", "arrow.core"),
                            ("csharp", "System.Linq", "Newtonsoft.Json"),
                            ("typescript", "node:fs", "three"), ("typescript", "path", "pathe"),

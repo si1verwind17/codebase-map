@@ -13,6 +13,10 @@
 csharp:
   ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions]
   imports:
+  - {prefix: "MailKit", kind: mail}
+  - {prefix: "MimeKit", kind: mail}
+  - {prefix: "System.Net.Mail", kind: mail}
+  - {prefix: "FluentEmail", kind: mail}
   - {prefix: Microsoft.EntityFrameworkCore, kind: sql-db}
   - {prefix: Dapper, kind: sql-db}
   - {prefix: Npgsql, kind: sql-db}

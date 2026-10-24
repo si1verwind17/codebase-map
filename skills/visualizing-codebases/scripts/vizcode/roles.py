@@ -7,7 +7,7 @@ from .adapters import without_suffix
 
 ROLES = ("entry", "logic", "outbound", "storage", "model")
 STORAGE_SINKS = {"sql-db", "doc-db", "cache"}
-OUTBOUND_SINKS = {"http-out", "grpc", "event", "cloud-sdk"}
+OUTBOUND_SINKS = {"http-out", "grpc", "event", "cloud-sdk", "mail"}
 GROUP_THRESHOLD = 24
 HUB_FAN_IN = 8
 FAMILY_MIN = 3

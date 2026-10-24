@@ -12,6 +12,12 @@
 python:
   ignore: [airflow, flytekit]
   imports:
+  - {prefix: "smtplib", kind: mail}
+  - {prefix: "flask_mail", kind: mail}
+  - {prefix: "django.core.mail", kind: mail}
+  - {prefix: "fastapi_mail", kind: mail}
+  - {prefix: "aiosmtplib", kind: mail}
+  - {prefix: "yagmail", kind: mail}
   - {prefix: psycopg, kind: sql-db}
   - {prefix: psycopg2, kind: sql-db}
   - {prefix: asyncpg, kind: sql-db}

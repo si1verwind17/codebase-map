@@ -7,7 +7,7 @@ Sort each line into one group of its language:
 
 | Group | When | Effect on the map |
 |---|---|---|
-| `imports` | the library talks to the outside world: `{prefix, kind}`, kind one of `sql-db`, `doc-db`, `cache`, `http-out`, `http-in`, `http`, `ws`, `event`, `grpc`, `cloud-sdk`, `spark`. A vendor SDK that calls its API is `http-out` | the file's `sinks` (listed for you to attach) and the package role |
+| `imports` | the library talks to the outside world: `{prefix, kind}`, kind one of `sql-db`, `doc-db`, `cache`, `http-out`, `http-in`, `http`, `ws`, `event`, `grpc`, `cloud-sdk`, `spark`, `mail` (sends mail: SMTP or a mail provider's SDK). A vendor SDK that calls its API is `http-out` | the file's `sinks` (listed for you to attach) and the package role |
 | `routes` | the library receives requests: a regex or an annotation pattern that finds them (below). A server library usually needs both, `imports` as `http-in` plus a pattern | `routes` facts: matching and the `entry` role |
 | `effects` | Scala only: `val`s of these types hold behaviour (`IO`, `Resource`, `Stream`). It does not clear an import line: the library also goes in `ignore`, or in `imports` if it talks out | such a `val` becomes a method node |
 | `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`) | nothing; the line leaves the section |
