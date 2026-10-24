@@ -2003,6 +2003,16 @@ def _likely_requests(s: dict) -> list[str]:
                 for k in g["keys"]:
                     if k in servers:
                         out.append(f"- {k} ← {g['in']} ({f}:{g['line']}) → {', '.join(servers[k])}")
+    sends: dict[str, list[str]] = {}
+    gets: dict[str, list[str]] = {}
+    for f, ff in sorted(s["facts"].items()):
+        for j in ff.get("jobs", []):
+            if j["side"] == "publish":
+                sends.setdefault(j["job"], []).append(f"{j['in']} ({f}:{j['line']})")
+            elif j["side"] == "consume":
+                gets.setdefault(j["job"], []).append(f"{j.get('node') or f} ({f}:{j['line']})")
+    out += [f"- topic `{t}` ← {', '.join(sends[t])} → {', '.join(gets[t])}" for t in sorted(sends)
+            if t in gets and not t.startswith("$")]   # `$topic`: a value the scan cannot read pairs nothing
     if not out:
         return []
     return [f"## Likely requests — {len(out)}", "",
@@ -2010,7 +2020,9 @@ def _likely_requests(s: dict) -> list[str]:
             "ends with the other, a base or gateway prefix between them) or by proto key. Confirm each against the "
             "code and the address the caller is given, then write the `request` from the calling method to the "
             "handler, keyed by the route or rpc; a call that reaches none of them is an `ext-call`, or say in "
-            "`problems` why it is none:", *out, ""]
+            "`problems` why it is none. A `topic` line pairs the messages sent to a broker topic or queue with the "
+            "code receiving them, by name: an `event` through that topic's node from each sender, and one to each "
+            "receiver:", *out, ""]
 
 
 def summary_md(s: dict) -> str:
@@ -2050,7 +2062,7 @@ def summary_md(s: dict) -> str:
         routes_, clients, sinks, reads, writes, urls, envs = [], [], set(), set(), set(), set(), set()
         tool_envs: set[str] = set()
         implemented: list[str] = []
-        tables, queues, jobs_def, jobs_enq = [], [], [], []
+        tables, queues, jobs_def, jobs_enq, sent, received = [], [], [], [], [], []
         grpc_ends: dict[tuple[str, str], list[str]] = {}
         dags, wfs, refs, mounts = [], [], [], []
         for f in files:
@@ -2063,7 +2075,11 @@ def summary_md(s: dict) -> str:
             queues += [f"{q['delivery']} at {f}:{q['line']} in {names.get(q['in']) or q['in']}"
                        for q in ff.get("queues", [])]
             for j in ff.get("jobs", []):
-                if j["side"] == "enqueue":
+                if j["side"] == "publish":
+                    sent.append(f"{j['pattern']} `{j['job']}` ← {j['in']} ({f}:{j['line']})")
+                elif j["side"] == "consume":
+                    received.append(f"{j['pattern']} `{j['job']}` → {j.get('node') or 'the file'} ({f}:{j['line']})")
+                elif j["side"] == "enqueue":
                     to, same = job_defs.get(j["job"], []), methods_named.get(j["job"], [])
                     kind = classes_named.get(j["job"], [])
                     where = f" → {', '.join(to)}" if to else \
@@ -2110,7 +2126,7 @@ def summary_md(s: dict) -> str:
                             ("flyte workflows", wfs), ("reference tasks", refs), ("sinks", sorted(sinks)),
                             ("sql reads", sorted(reads)), ("sql writes", sorted(writes)),
                             ("tables (patterns)", [_table_line(t, names) for t in sorted(tables)]),
-                            ("in-process queues", queues), ("jobs defined", jobs_def), ("jobs enqueued", jobs_enq),
+                            ("in-process queues", queues), ("jobs defined", jobs_def), ("jobs enqueued", jobs_enq), ("messages published", sent), ("messages consumed", received),
                             ("url literals", sorted(urls)), ("env keys", sorted(envs)),
                             ("env keys of test, CI, dev and release files", sorted(tool_envs - envs))):
             for i in range(0, len(vals), SUMMARY_CHUNK):   # a long list on several lines, each with its label

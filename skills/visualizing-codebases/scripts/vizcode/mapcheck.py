@@ -229,7 +229,7 @@ ENV_LINE = re.compile(r"^- \*\*env keys:\*\* (.*)$", re.M)   # as structure.summ
 QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
 QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
 # a `Likely requests` line of summary.md: the client end's method id
-LIKELY_LINE = re.compile(r"^- (?:[A-Z]+ \S+|grpc \S+) ← (\S+) \(([^)]+)\) → ", re.M)
+LIKELY_LINE = re.compile(r"^- (?:[A-Z]+ \S+|grpc \S+) ← (\S+) \(([^)]+)\) → ", re.M)   # topic lines: no `request`
 DEPLOY_LINE = re.compile(r"^- deployable `([^`]+)` \((.*)\) — (.*)$", re.M)
 
 

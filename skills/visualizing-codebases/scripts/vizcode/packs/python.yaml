@@ -131,6 +131,15 @@ python:
     - {name: asyncio-queue, when: asyncio, delivery: queue, regex: '\b(?:asyncio\.)?(?:Priority|Lifo)?Queue\s*\('}
     - {name: thread-queue, when: queue, delivery: queue, regex: '\b(?:queue\.)?(?:Simple|Priority|Lifo)?Queue\s*\('}
   jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: kafka-send, when: kafka, side: publish, regex: '\.send(?:_and_wait)?\(\s*(?:topic\s*=\s*)?["''](?P<job>[\w.\-]+)["'']'}
+    - {name: aiokafka-send, when: aiokafka, side: publish, regex: '\.send(?:_and_wait)?\(\s*(?:topic\s*=\s*)?["''](?P<job>[\w.\-]+)["'']'}
+    - {name: kafka-consumer, when: kafka, side: consume, regex: 'KafkaConsumer\(\s*["''](?P<job>[\w.\-]+)["'']'}
+    - {name: aiokafka-consumer, when: aiokafka, side: consume, regex: 'AIOKafkaConsumer\(\s*["''](?P<job>[\w.\-]+)["'']'}
+    - {name: confluent-produce, when: confluent_kafka, side: publish, regex: '\.produce\(\s*(?:topic\s*=\s*)?["'']?(?P<job>[\w.\-]+)'}
+    - {name: confluent-subscribe, when: confluent_kafka, side: consume, regex: '\.subscribe\(\s*\[\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: pika-publish, when: pika, side: publish, regex: 'basic_publish\([^)]*?\brouting_key\s*=\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: pika-consume, when: pika, side: consume, regex: 'basic_consume\([^)]*?\bqueue\s*=\s*["'']?(?P<job>[\w.\-]+)'}
     # Celery: `@app.task` on the project's own app (no celery import in the file), `@shared_task`; `.delay`/`.apply_async`
     # on the task, `send_task("name")`, a beat entry's `"task": "name"`. RQ: `queue.enqueue(fn)`, `@job(..)` (often an app's own
     # wrapper, so no `when`). Dramatiq.

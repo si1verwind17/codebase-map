@@ -154,6 +154,12 @@ javascript:
     - {name: event-emitter, when: events, delivery: fan-out, regex: '\bnew\s+EventEmitter\s*\('}
     - {name: event-emitter-node, when: node:events, delivery: fan-out, regex: '\bnew\s+EventEmitter\s*\('}
   jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: kafkajs-send, when: kafkajs, side: publish, regex: '\.send\(\s*\{[^}]*?\btopic\s*:\s*["''`]?(?P<job>[\w.\-]+)'}
+    - {name: kafkajs-subscribe, when: kafkajs, side: consume, regex: '\.subscribe\(\s*\{[^}]*?\btopics?\s*:\s*\[?\s*["''`]?(?P<job>[\w.\-]+)'}
+    - {name: amqplib-send, when: amqplib, side: publish, regex: '\.sendToQueue\(\s*["''`]?(?P<job>[\w.\-]+)'}
+    - {name: amqplib-publish, when: amqplib, side: publish, regex: '\.publish\(\s*["''`](?P<job>[\w.\-]+)["''`]'}
+    - {name: amqplib-consume, when: amqplib, side: consume, regex: '\.consume\(\s*["''`]?(?P<job>[\w.\-]+)'}
     # Bull and BullMQ: a worker or processor names its queue or job; `queue.add("job", ..)` on a value named like a
     # queue enqueues one
     - {name: bullmq-worker, when: bullmq, side: define, regex: '\bnew\s+Worker\s*\(\s*["''`](?P<job>[^"''`]+)["''`]'}

@@ -74,6 +74,11 @@ csharp:
     - {name: dotnet-channel, when: System.Threading.Channels, delivery: queue, regex: '\bChannel\.Create(?:Bounded|Unbounded)\b'}
     - {name: blocking-collection, when: System.Collections.Concurrent, delivery: queue, regex: '\bnew\s+BlockingCollection\s*<'}
   jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: confluent-produce, when: Confluent.Kafka, side: publish, regex: '\.Produce(?:Async)?\(\s*"?(?P<job>[\w.\-]+)"?\s*,'}
+    - {name: confluent-subscribe, when: Confluent.Kafka, side: consume, regex: '\.Subscribe\(\s*(?:new\s*(?:\[\]|List<string>)?\s*\{\s*)?"?(?P<job>[\w.\-]+)'}
+    - {name: rabbitmq-publish, when: RabbitMQ.Client, side: publish, regex: '\.BasicPublish(?:Async)?\(\s*(?:exchange\s*:\s*)?"?(?P<job>[\w.\-]+)'}
+    - {name: rabbitmq-consume, when: RabbitMQ.Client, side: consume, regex: '\.BasicConsume(?:Async)?\(\s*(?:queue\s*:\s*)?"?(?P<job>[\w.\-]+)'}
     # Hangfire: `BackgroundJob.Enqueue(() => svc.Method(..))` and `.Schedule`; `RecurringJob.AddOrUpdate(.., () => svc.M())`
     - {name: hangfire-enqueue, when: Hangfire, side: enqueue, regex: '\bBackgroundJob\.(?:Enqueue|Schedule)\s*(?:<[^<>()]*>)?\s*\(\s*\(?\s*\w*\s*\)?\s*=>\s*(?:[\w.]+\.)?(?P<job>\w+)\s*\('}
     - {name: hangfire-recurring, when: Hangfire, side: schedule, regex: '\bRecurringJob\.AddOrUpdate\s*(?:<[^<>()]*>)?\s*\([^;]*?=>\s*(?:[\w.]+\.)?(?P<job>\w+)\s*\('}

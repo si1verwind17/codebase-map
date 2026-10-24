@@ -517,7 +517,10 @@ put and looks complete. When `summary.md` lists `in-process queues`, `jobs defin
 packs' job systems: Celery, RQ, Dramatiq, Sidekiq and ActiveJob, Laravel queues, Bull, Hangfire, Spring
 `@Scheduled`/`@Async`; a `stack.yaml` `jobs` entry adds one), or the repo enqueues jobs another way,
 pushes to a list or stream in a store, or uses a table as a queue: read `references/interactions.md`
-(the `in-process-queue` node and its `hand-off`s; a store's or job system's queue as a `topic`).
+(the `in-process-queue` node and its `hand-off`s; a store's or job system's queue as a `topic`). A broker's topics and
+queues come from `messages published` and `messages consumed` in `summary.md`, paired by name in § Likely requests:
+a `topic` node per topic or queue, an `event` to it from each sender and from it to each receiver; a `$name` is a
+value the scan cannot read (a setting, an argument): find it in config through `config.py`.
 
 ## Package roles
 

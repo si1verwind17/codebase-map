@@ -48,3 +48,8 @@ scala:
     - {name: fs2-topic, when: fs2.concurrent, delivery: fan-out, regex: '\bTopic\[\w+\s*,'}
     - {name: akka-source-queue, when: akka.stream, delivery: queue, regex: '\bSource\.queue\b'}
     - {name: pekko-source-queue, when: org.apache.pekko.stream, delivery: queue, regex: '\bSource\.queue\b'}
+  jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: kafka-producer-record, when: org.apache.kafka, side: publish, regex: 'new\s+ProducerRecord\s*(?:\[[^()]*?\])?\s*\(\s*"?(?P<job>[\w.\-]+)'}
+    - {name: alpakka-subscriptions, when: akka.kafka, side: consume, regex: 'Subscriptions\.topics\(\s*"?(?P<job>[\w.\-]+)'}
+    - {name: pekko-subscriptions, when: org.apache.pekko.kafka, side: consume, regex: 'Subscriptions\.topics\(\s*"?(?P<job>[\w.\-]+)'}

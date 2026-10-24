@@ -141,6 +141,13 @@ kotlin:
     - {name: shared-flow, when: kotlinx.coroutines.flow, delivery: fan-out, regex: '\bMutableSharedFlow\s*(?:<[^>]*>)?\s*\('}
     - {name: blocking-queue, when: java.util.concurrent, delivery: queue, regex: '\b(?:LinkedBlocking|ArrayBlocking|PriorityBlocking|LinkedTransfer|Synchronous|Delay)(?:Queue|Deque)\s*(?:<[^>]*>)?\s*\('}
   jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: spring-kafka-send, when: org.springframework.kafka, side: publish, regex: '\b\w*[kK]afka\w*\s*\.\s*send\(\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: kafka-producer-record, when: org.apache.kafka, side: publish, regex: 'new\s+ProducerRecord\s*(?:<[^>]*>)?\s*\(\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: spring-kafka-listener, when: org.springframework.kafka, side: consume, regex: '@KafkaListener\s*\([^)]*?\btopics\s*=\s*[{\[]?\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: kafka-consumer-subscribe, when: org.apache.kafka, side: consume, regex: '\.subscribe\(\s*(?:(?:List\.of|listOf|Arrays\.asList|Collections\.singletonList)\s*\(\s*)?["'']?(?P<job>[\w.\-]+)'}
+    - {name: spring-rabbit-send, when: org.springframework.amqp, side: publish, regex: '\b\w*[rR]abbit\w*\s*\.\s*convertAndSend\(\s*["'']?(?P<job>[\w.\-]+)'}
+    - {name: spring-rabbit-listener, when: org.springframework.amqp, side: consume, regex: '@RabbitListener\s*\([^)]*?\bqueues\s*=\s*[{\[]?\s*["'']?(?P<job>[\w.\-]+)'}
     # Spring: `@Scheduled` runs the method below on a timer; `@Async` makes a call to it run on an executor
     - {name: spring-scheduled, when: org.springframework.scheduling, side: schedule, regex: '^[ \t]*@Scheduled\b'}
     - {name: spring-async, when: org.springframework.scheduling, side: define, regex: '^[ \t]*@Async\b'}

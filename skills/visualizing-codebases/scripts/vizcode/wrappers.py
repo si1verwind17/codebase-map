@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .stack import in_function
+
 VERBS = ("get", "post", "put", "patch", "delete", "head")
 # a client object's methods that send a request
 CLIENT_CALLS = {*VERBS, "request", "fetch", "send", "exchange", "execute", "retrieve", "getForObject", "getForEntity",
@@ -175,7 +177,6 @@ CONSTANT_NAME = re.compile(r"[A-Z][A-Z0-9_]*$")   # `BASE_URL`, `TOPIC`: a class
 
 
 def _constants(lines: list[str]) -> dict[str, str]:
-    from .stack import in_function
     """A file's names bound once to a string literal at its top, as a declared field (`private readonly string
     baseUrl = "x"`) or as a constant-cased name (`BASE = "/api"` in a class, Kotlin `const val TOPIC`): a name bound
     to two different ones, or a function's local (`final String base = ..` in a method), is left out."""

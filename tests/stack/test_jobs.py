@@ -86,3 +86,114 @@ def test_aliased_tasks_namespaced_jobs_mailers_and_controller_dispatch(make_repo
                                            ("enqueue", "UpdateReply", "laravel-dispatch-new")]
     assert "laravel-dispatch-new `UpdateReply` ← " in (md := structure.summary_md(s))
     assert "→ a class of that name: " in md.split("laravel-dispatch-new `UpdateReply`")[1].split("\n")[0]
+
+
+def test_broker_messages_are_published_and_consumed_by_topic_and_paired(make_repo):
+    """A Spring Kafka send and listener, a pika publish read through a constant, a Go amqp consume, a C# topic with
+    a literal default, and a topic only a runtime value names (`$topic`, listed, never paired)."""
+    files = {
+        "pom.xml": "<project/>\n",
+        "orders/src/main/java/a/Orders.java": "package a;\nimport org.springframework.kafka.core.KafkaTemplate;\n"
+                                              "public class Orders {\n    private KafkaTemplate<String, String> kafkaTemplate;\n"
+                                              "    public void place() { kafkaTemplate.send(\"order.created\", \"x\"); }\n}\n",
+        "billing/src/main/java/b/Listener.java": "package b;\nimport org.springframework.kafka.annotation.KafkaListener;\n"
+                                                 "public class Listener {\n    @KafkaListener(topics = \"order.created\")\n"
+                                                 "    public void on(String m) {}\n}\n",
+        "pay/requirements.txt": "pika\n", "pay/app/__init__.py": "",
+        "pay/app/mq.py": "import pika\n\nROUTING_KEY = 'payments'\n\n\nclass P:\n    def send(self, ch, body):\n"
+                         "        ch.basic_publish(exchange='', routing_key=ROUTING_KEY, body=body)\n",
+        "go.mod": "module shop\n",
+        "dispatch/main.go": "package main\n\nimport \"github.com/rabbitmq/amqp091-go\"\n\nfunc run(ch *amqp091.Channel, topic string) {\n"
+                            "\tch.Consume(\"payments\", \"\", true, false, false, false, nil)\n\tch.Consume(topic, \"\", true, false, false, false, nil)\n}\n",
+    }
+    s = structure.build(make_repo(files))
+    assert jobs(s, "orders/src/main/java/a/Orders.java") == [("publish", "order.created", "spring-kafka-send")]
+    assert jobs(s, "billing/src/main/java/b/Listener.java") == [("consume", "order.created", "spring-kafka-listener")]
+    assert jobs(s, "pay/app/mq.py") == [("publish", "payments", "pika-publish")]
+    assert jobs(s, "dispatch/main.go") == [("consume", "$topic", "amqp091-consume"), ("consume", "payments", "amqp091-consume")]
+    md = structure.summary_md(s)
+    topics = sorted(l.split("`")[1] for l in md.split("\n") if l.startswith("- topic `"))
+    assert topics == ["order.created", "payments"]
+    assert "messages published" in md and "messages consumed" in md
+
+
+def test_a_topic_name_comes_from_its_own_function_or_the_files_top(make_repo):
+    files = {"requirements.txt": "confluent-kafka\n", "app/__init__.py": "",
+             "app/k.py": "import confluent_kafka\n\nTOPIC = 'audit'\n\n\ndef orders(p, d):\n    topic = 'orders'\n"
+                         "    p.produce(topic, d)\n\n\ndef payments(p, d):\n    topic = 'payments'\n    p.produce(topic, d)\n\n\n"
+                         "def audit(p, d):\n    p.produce(TOPIC, d)\n\n\ndef given(p, topic, d):\n    p.produce(topic, d)\n\n\n"
+                         "def name(user):\n    topic = user.get('name', 'anonymous')\n    return topic\n",
+             "pom.xml": "<project/>\n",
+             "src/main/java/a/Notify.java": "package a;\nimport org.springframework.scheduling.annotation.Scheduled;\n"
+                                            "public class Notify {\n    @Override\n    @Scheduled(cron = \"0 0 * * *\")\n"
+                                            "    public void send() {}\n}\n"}
+    s = structure.build(make_repo(files))
+    assert sorted(j[1] for j in jobs(s, "app/k.py")) == ["$topic", "audit", "orders", "payments"]
+    nodes = [j.get("node") for j in s["facts"]["src/main/java/a/Notify.java"].get("jobs", [])]
+    assert nodes and all(n.endswith("#send/0") for n in nodes), nodes
+
+
+def test_a_topic_constant_of_a_class_and_no_java_method_local(make_repo):
+    files = {"requirements.txt": "pika\n", "app/__init__.py": "",
+             "app/mq.py": "import pika\n\n\nclass P:\n    ROUTING_KEY = 'orders'\n\n    def send(self, ch, b):\n"
+                          "        ch.basic_publish(exchange='', routing_key=self.ROUTING_KEY, body=b)\n",
+             "pom.xml": "<project/>\n",
+             "src/main/java/a/P.java": "package a;\nimport org.springframework.kafka.core.KafkaTemplate;\npublic class P {\n"
+                                       "    private KafkaTemplate<String, String> kafkaTemplate;\n"
+                                       "    void b() {\n        final String topic = \"local-b\";\n"
+                                       "        kafkaTemplate.send(topic, \"x\");\n    }\n"
+                                       "    void c(String topic) { kafkaTemplate.send(topic, \"x\"); }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert jobs(s, "app/mq.py") == [("publish", "orders", "pika-publish")]
+    assert sorted(j[1] for j in jobs(s, "src/main/java/a/P.java")) == ["$topic", "local-b"]
+
+
+def test_a_constant_cased_local_stays_local_and_a_one_line_body_keeps_its_binding(make_repo):
+    files = {"requirements.txt": "confluent-kafka\n", "app/__init__.py": "",
+             "app/k.py": "import confluent_kafka\n\n\ndef a(p):\n    TOPIC = 'local-a'\n    p.produce(TOPIC, 1)\n\n\n"
+                         "def b(p, TOPIC):\n    p.produce(TOPIC, 1)\n\n\ndef c(p):\n    log(\n        topic='debug')\n"
+                         "    p.produce(topic, 1)\n",
+             "build.gradle.kts": "dependencies {}\n",
+             "src/main/kotlin/a/P.kt": "package a\nimport org.springframework.kafka.core.KafkaTemplate\nclass P(val kafkaTemplate: "
+                                       "KafkaTemplate<String, String>) {\n    fun a() { val topic = \"oneline\"; "
+                                       "kafkaTemplate.send(topic, \"x\") }\n}\n"}
+    s = structure.build(make_repo(files))
+    assert sorted(j[1] for j in jobs(s, "app/k.py")) == ["$TOPIC", "$topic", "local-a"]
+    assert [j[1] for j in jobs(s, "src/main/kotlin/a/P.kt")] == ["oneline"]
+
+
+def test_a_class_head_or_a_control_statement_is_no_function_head():
+    from vizcode.stack import FUNCTION_HEAD
+    for head in ("open class P(val t: String) {", "data class P(val t: String) {", "abstract class P(x: Int) {",
+                 "public record P(String t) {", "public class Orders(IBus bus) {", "if ready(x):", "while (go(x)) {",
+                 "for (x in xs) {"):
+        assert not FUNCTION_HEAD.match(head), head
+    for head in ("def send(self):", "public void send(String t) {", "fun send(t: String): Unit {", "send(t) {"):
+        assert FUNCTION_HEAD.match(head), head
+
+
+def test_a_method_named_like_a_keyword_and_a_block_inside_a_function():
+    from vizcode.stack import FUNCTION_HEAD, file_literals
+    for head in ("public void record(Event e) {", "record(event) {", "object(x) {", "match(path) {", "catch(onRejected) {"):
+        assert FUNCTION_HEAD.match(head), head
+    # a block inside a method or a function holds the method's locals, not the file's
+    assert file_literals('class A {\n    void m() {\n        if (x) {\n            String BASE = "/api/local";\n'
+                         '        }\n    }\n}\n') == {}
+    assert file_literals('def f(x):\n    with open(x):\n        TOPIC = "local"\n') == {}
+    assert file_literals('if ready():\n    TOPIC = "orders"\n') == {"TOPIC": "orders"}
+
+
+def test_a_class_extending_a_call_and_a_loop_over_a_keyword_named_value():
+    from vizcode.stack import file_literals
+    assert file_literals('export class Foo extends mixin(Base) {\n  static readonly TOPIC = "orders"\n}\n') == {
+        "TOPIC": "orders"}
+    assert file_literals('class Foo extends Bar(x) {\n  val TOPIC = "orders"\n}\n') == {"TOPIC": "orders"}
+    assert file_literals('def f(mods):\n    for module in mods:\n        TOPIC = "l"\n') == {}
+
+
+def test_more_class_modifiers_and_a_kotlin_fun_interface():
+    from vizcode.stack import CLASS_HEAD, FUNCTION_HEAD
+    for head in ("public readonly record struct P(int X) {", "declare class X {", "const enum E {", "expect class P {",
+                 "public readonly struct P {"):
+        assert CLASS_HEAD.match(head), head
+    assert not FUNCTION_HEAD.match("fun interface Handler {") and FUNCTION_HEAD.match("fun interfaceFor(x) {")

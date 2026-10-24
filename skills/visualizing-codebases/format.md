@@ -654,7 +654,12 @@ the method or class starting within 3 lines below it; else the class around the 
 the node's name; an enqueue through an import alias (`send_task.delay()` after `import send as send_task`) names the
 imported job. `summary.md` lists them per module as `jobs defined` and `jobs enqueued`, each enqueue followed by
 the nodes defining a job of that name anywhere in the repo, else up to 3 classes of that name (a command-bus job
-with no marker), else up to 3 methods of that name.
+with no marker), else up to 3 methods of that name. A broker message is a `publish` (placed like an enqueue) or a
+`consume` (placed like a definition, or in the method around a call such as `consumer.subscribe("x")`); its `job`
+is the topic or queue whole (`order.created`); when the group names a value, the literal it is bound to in the
+function around, else a file-level constant's (bound once at the file's top or as a declared field, a setting's
+literal default too), else `$<name>` (a value the scan cannot read). `summary.md` lists them as `messages published` and
+`messages consumed`, and § Likely requests pairs a topic's senders with its receivers by name (`$` names never).
 
 A file a table pattern matched carries a `tables` fact in `structure.json`
 (the key is absent when nothing matched): `[{table, line, in, kind, pattern,

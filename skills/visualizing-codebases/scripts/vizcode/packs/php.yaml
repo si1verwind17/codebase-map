@@ -78,6 +78,9 @@ php:
     - {name: doctrine-table, when: Doctrine\ORM,
        regex: '\b(?:ORM|Mapping)\\Table\(\s*[^()]*?\bname\s*[:=]\s*["''](?P<table>[^"'']+)["'']'}
   jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: php-amqplib-publish, when: PhpAmqpLib, side: publish, regex: '->basic_publish\(\s*\$\w+\s*,\s*["''](?P<job>[\w.\-]+)["'']'}
+    - {name: php-amqplib-consume, when: PhpAmqpLib, side: consume, regex: '->basic_consume\(\s*["''](?P<job>[\w.\-]+)["'']'}
     # Laravel queues: a class implementing ShouldQueue; `Job::dispatch(..)`, `dispatch(new Job)`, `Bus::chain`; the
     # scheduler's `->job(new Job)`
     - {name: laravel-job, side: define, regex: '^[ \t]*(?:final\s+)?class\s+(?P<job>[A-Z]\w*)[^{]*\bimplements\b[^{]*\bShouldQueue\b'}

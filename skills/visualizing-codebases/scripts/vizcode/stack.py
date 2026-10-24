@@ -93,10 +93,73 @@ class JobPattern:
     regex: re.Pattern
     when: str | None
     side: str              # define (the code a job runs) | enqueue (a call that queues one) | schedule (a timed run)
+                           # | publish (a message sent to a broker topic or queue) | consume (code that receives them)
     source: str
 
 
-JOB_SIDES = ("define", "enqueue", "schedule")
+JOB_SIDES = ("define", "enqueue", "schedule", "publish", "consume")
+MESSAGE_SIDES = ("publish", "consume")   # a broker's topics and queues: named whole (`orders.created`), never split
+# a file-level name bound to one string literal, for a topic written as a constant (`TOPIC = "orders"`)
+_NAMED_LITERAL = re.compile(r"""^[ \t]*(?:export[ \t]+)?(?:(?:const|let|var|val|final|static|private|public|protected|readonly|"""
+                            r"""internal)[ \t]+)*(?:[\w<>\[\],?]+[ \t]+)?([A-Za-z_$][\w$]*)[ \t]*(?::[ \t]*[\w<>\[\]|]+[ \t]*)?:?=[ \t]*"""
+                            r"""(?:[^\n]*?(?:\?\?|\|\||\bor\b|,)[ \t]*)?["'`]([^"'`\n]+)["'`][ \t]*\)?[ \t]*;?[ \t]*$""", re.M)
+# (also a setting's literal default: `env("TOPIC") ?? "orders"`, `os.getenv("TOPIC", "orders")`, `x || "orders"`)
+FIELD_WORDS = re.compile(r"\b(?:private|public|protected|internal|static|readonly)\b")
+CONSTANT_NAME = re.compile(r"[A-Z][A-Z0-9_]*$")   # `ROUTING_KEY = 'orders'` in a class, Kotlin `const val TOPIC`
+
+
+CLASS_HEAD = re.compile(r"^\s*(?:(?:@[\w.]+(?:\([^)]*\))?|public|private|protected|internal|abstract|final|sealed|"
+                        r"data|open|inner|static|export|default|case|pub(?:\([\w ]+\))?|partial|annotation|"
+                        r"implicit|value|unsafe|readonly|ref|file|new|declare|const|fileprivate|indirect|expect|"
+                        r"actual|inline|external|strictfp|transparent|override)\s+)*(?:class|object|interface|enum|struct|record|trait|impl|namespace|"
+                        r"module|companion)\s+[\w$]")
+FUNCTION_HEAD = re.compile(r"^\s*(?:(?:async\s+)?def\s|(?:fun(?!\s+interface\b)|func|function)\b|(?![^(]*\b(?:class|object|interface|enum|"
+                           r"companion|struct|record|namespace|trait)\s+[\w$])(?!(?:if|elif|else|for|while|switch|with|"
+                           r"try|except|case)\b)(?!(?:catch|when|match)\s)(?:[\w<>\[\],?.]+\s+)*[\w$]+\s*\([^)]*\)\s*"
+                           r"(?:->\s*[^:{]+|:\s*[\w<>\[\]?, .]+)?\s*[:{]\s*$)")
+
+
+def in_function(lines: list[str], i: int) -> bool:
+    """Line i (0-based) sits inside a function: walking out through the lines above it with less indent, a
+    function's head (`def a(p):`, `void a() {`, `fun a() {`) comes before a class's or an object's or the file's top;
+    a block between (`if (x) {`, `with lock:`, `try:`) is passed through."""
+    indent = len(lines[i]) - len(lines[i].lstrip())
+    for j in range(i - 1, -1, -1):
+        line = lines[j]
+        if line.strip() and (lead := len(line) - len(line.lstrip())) < indent:
+            if FUNCTION_HEAD.match(line):
+                return True
+            if lead == 0 or CLASS_HEAD.match(line):
+                return False
+            indent = lead
+    return False
+
+
+def file_literals(src: str) -> dict[str, str]:
+    """A file's names bound once to a string literal at its top, as a declared field (`private static final String
+    TOPIC = "x"`) or as a constant-cased name (`ROUTING_KEY = 'orders'` in a class): a name bound to two different
+    ones, or a function's local (`final String topic = "x"` in a method), is left out."""
+    seen: dict[str, set[str]] = {}
+    lines = src.split("\n")
+    for m in _NAMED_LITERAL.finditer(src):
+        i = src.count("\n", 0, m.start())
+        line = lines[i]
+        if not line[:1].isspace() or ((CONSTANT_NAME.match(m.group(1)) or FIELD_WORDS.search(line.split("=", 1)[0]))
+                                      and not in_function(lines, i)):
+            seen.setdefault(m.group(1), set()).add(m.group(2))
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+
+
+def _local_literal(src: str, name: str, start: int, end: int) -> str | None:
+    """The literal a name was last bound to in lines start..end-1 of src (1-based), the function around a call."""
+    lines = src.split("\n")[max(start - 1, 0):max(end - 1, 0)]
+    if lines:   # the function's own line from its body on (`fun a() { val t = "x"; ..`): its parameters are none
+        lines[0] = lines[0].split("{", 1)[1] if "{" in lines[0] else ""
+    # a statement binding the name (`topic = 'x'`, `val topic = "x"`; `;`-separated ones too), never a keyword argument
+    # or a parameter default (`topic='x')`, `topic='x',`)
+    pat = re.compile(rf"(?:^|;)\s*(?:(?:const|let|var|val|final|[\w<>\[\]?]+)\s+)*{re.escape(name)}\s*"
+                     rf"(?::\s*[\w<>\[\]|?]+\s*)?:?=(?!=)\s*[\"'`]([^\"'`\n]+)[\"'`]\s*(?=;|$)")
+    return next((m.group(1) for line in reversed(lines) if (m := pat.search(line))), None)
 
 
 @dataclass(frozen=True)
@@ -453,8 +516,9 @@ def _add_jobs(st: Stack, fname: str, lang: str, entries: list, source: str) -> N
             regex = re.compile(e["regex"], re.M)
         except re.error as err:
             raise _fail(fname, where, name, f"regex does not compile: {err}") from None
-        if e["side"] == "enqueue" and "job" not in regex.groupindex:
-            raise _fail(fname, where, name, "an enqueue regex needs a `job` group naming the job")
+        if e["side"] in ("enqueue", *MESSAGE_SIDES) and "job" not in regex.groupindex:
+            raise _fail(fname, where, name, f"a {e['side']} regex needs a `job` group naming the "
+                        + ("job" if e["side"] == "enqueue" else "topic or queue"))
         _place(st, st.jobs, "jobs", fname, where, name,
                JobPattern(lang, name, regex, _trim(e.get("when"), lang), e["side"], source))
 
@@ -1046,24 +1110,46 @@ def find_jobs(st: Stack, lang: str, src: str, imports: list[str], spans: list[tu
     schedule's `node` is, for a decorator or annotation (`@app.task`, `@Scheduled`), the method or class starting
     within 3 lines below it; for any other match (`include Sidekiq::Job`, a class header implementing
     `ShouldQueue`), the class around it; its
-    `job` is the pattern's `job` group, else that node's name. `names`: node id -> name."""
+    `job` is the pattern's `job` group, else that node's name. A broker message's `publish` is placed like an
+    enqueue, its `consume` like a definition but in the method around a call (`consumer.subscribe("x")`); its
+    name, the topic or queue, is kept whole: a file constant's value when the group names one, else `$<name>` for a
+    value the scan cannot read. `names`: node id -> name."""
     out = []
+    constants: dict[str, str] | None = None
     for pat in st.jobs:
         if pat.lang != lang or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
             continue
         for m in pat.regex.finditer(src):
             line = src.count("\n", 0, m.start()) + 1
             named = (m.group("job") or "").strip() if "job" in pat.regex.groupindex else ""
-            job = re.split(r"\.|::|\\", named)[-1] if named else ""
+            if pat.side in MESSAGE_SIDES:
+                if constants is None:
+                    constants = file_literals(src)
+                quoted = m.start("job") > 0 and src[m.start("job") - 1] in "\"'`"
+                if quoted or not re.fullmatch(r"[A-Za-z_$][\w$.]*", named):
+                    job = named
+                elif named in ("new", "this", "self", "it", "await"):
+                    continue   # `kafkaTemplate.send(new ProducerRecord<>(..))`: the record's own pattern names it
+                else:   # a name: its literal in the function around, a file constant's, else `$name` (never paired)
+                    around = [s for s in spans if s[0] <= line <= s[1]]
+                    local = _local_literal(src, named, max(around, key=lambda s: s[0])[0], line + 1) if around else None
+                    job = local or constants.get(named.split(".")[-1]) or f"${named}"
+            else:
+                job = re.split(r"\.|::|\\", named)[-1] if named else ""
             fact = {"side": pat.side, "job": job, "line": line, "pattern": pat.name, "source": pat.source}
-            if pat.side == "enqueue":
+            if pat.side == "consume" and not m.group(0).lstrip().startswith("@") \
+                    and (method := [s for s in spans if s[0] <= line <= s[1]]):
+                fact["node"] = max(method, key=lambda s: s[0])[2]   # `consumer.subscribe("x")` in a method
+            elif pat.side in ("enqueue", "publish"):
                 method = [s for s in spans if s[0] <= line <= s[1]]
                 fact["in"] = max(method, key=lambda s: s[0])[2] if method else file_id
             else:
                 around = [s for s in class_spans if s[0] <= line <= s[1]]
                 below = sorted(s for s in spans + class_spans if line <= s[0] <= line + 3)
                 if m.group(0).lstrip().startswith("@") or not around:   # a decorator or annotation: what it marks
-                    node = below[0][2] if below else None
+                    # (a class whose span opens at an earlier annotation, `@Component` above it, holds this one)
+                    holding = [s for s in spans if s[0] <= line <= s[1]] or around   # `@Override` above `@Scheduled`
+                    node = below[0][2] if below else (max(holding, key=lambda s: s[0])[2] if holding else None)
                 else:   # a marker inside a class (`include Sidekiq::Job`) or its header: the class
                     node = max(around, key=lambda s: s[0])[2]
                 if node is not None:

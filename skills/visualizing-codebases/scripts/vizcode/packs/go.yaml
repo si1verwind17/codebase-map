@@ -89,3 +89,17 @@ go:
        regex: '\bfunc\s*\([^()]*\)\s*TableName\(\s*\)\s*string\s*\{\s*return\s+"(?P<table>[^"]+)"'}
   queues:
     - {name: go-channel, delivery: queue, regex: '\bmake\s*\(\s*chan\s+(?!struct\s*\{\s*\}|bool\b)'}
+  jobs:
+    # broker messages: a publish names the topic or queue it sends to, a consume the one it receives from (gated on the client library)
+    - {name: sarama-message, when: github.com/IBM/sarama, side: publish, regex: 'ProducerMessage\s*\{[^}]*?\bTopic\s*:\s*"?(?P<job>[\w.\-]+)'}
+    - {name: sarama-message-shopify, when: github.com/Shopify/sarama, side: publish, regex: 'ProducerMessage\s*\{[^}]*?\bTopic\s*:\s*"?(?P<job>[\w.\-]+)'}
+    - {name: sarama-consume, when: github.com/IBM/sarama, side: consume, regex: '\.Consume(?:Partition)?\(\s*(?:ctx\s*,\s*)?(?:\[\]string\{\s*)?"?(?P<job>[\w.\-]+)'}
+    - {name: sarama-consume-shopify, when: github.com/Shopify/sarama, side: consume, regex: '\.Consume(?:Partition)?\(\s*(?:ctx\s*,\s*)?(?:\[\]string\{\s*)?"?(?P<job>[\w.\-]+)'}
+    - {name: kafka-go-writer, when: github.com/segmentio/kafka-go, side: publish, regex: 'kafka\.Writer\s*\{[^}]*?\bTopic\s*:\s*"?(?P<job>[\w.\-]+)'}
+    - {name: kafka-go-reader, when: github.com/segmentio/kafka-go, side: consume, regex: 'kafka\.ReaderConfig\s*\{[^}]*?\bTopic\s*:\s*"?(?P<job>[\w.\-]+)'}
+    - {name: amqp091-publish, when: github.com/rabbitmq/amqp091-go, side: publish, regex: '\.Publish(?:WithContext)?\(\s*(?:\w+\s*,\s*)?""\s*,\s*"?(?P<job>[\w.\-]+)'}
+    - {name: amqp091-publish-exchange, when: github.com/rabbitmq/amqp091-go, side: publish, regex: '\.Publish(?:WithContext)?\(\s*(?:\w+\s*,\s*)?"(?P<job>[\w.\-]+)"'}
+    - {name: amqp091-consume, when: github.com/rabbitmq/amqp091-go, side: consume, regex: '\.Consume\(\s*"?(?P<job>[\w.\-]+)'}
+    - {name: streadway-amqp-publish, when: github.com/streadway/amqp, side: publish, regex: '\.Publish(?:WithContext)?\(\s*(?:\w+\s*,\s*)?""\s*,\s*"?(?P<job>[\w.\-]+)'}
+    - {name: streadway-amqp-publish-exchange, when: github.com/streadway/amqp, side: publish, regex: '\.Publish(?:WithContext)?\(\s*(?:\w+\s*,\s*)?"(?P<job>[\w.\-]+)"'}
+    - {name: streadway-amqp-consume, when: github.com/streadway/amqp, side: consume, regex: '\.Consume\(\s*"?(?P<job>[\w.\-]+)'}
