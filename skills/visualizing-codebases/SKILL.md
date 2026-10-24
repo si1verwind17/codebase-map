@@ -273,7 +273,19 @@ one role makes to another starts at the service of the role making it, with
 `via` naming the method in the shared code, and ends at the method that
 handles it when the receiving role is the one the code sits under, else at
 the receiving role's service. Why: a relation from a method under the first
-service would credit that role with what another one does.
+service would credit that role with what another one does. When several roles
+list the module first, its code sits under the one with the lowest id (stable
+across rescans): give the role that serves the traffic the id that sorts first
+(`svc:app` before `svc:worker`).
+
+A browser app (an SPA, a WASM frontend) is a `service` even when the backend
+builds it into its image or serves its files: it runs elsewhere, in the
+browser. It cites the line that builds or serves it (the build step, the
+static route), claims its modules, and its requests start from it.
+
+When a library's code reads or writes a table for a service, that is one
+relation per (service, table, direction): one `via` (the library method that
+does most of it) and the call sites of the others in its `evidence`.
 Every service cites the line that deploys it in `evidence` (validation
 fails without it). Unclaimed modules are defaulted to libraries and reported. Why: drawing a
 shared library as a service invents traffic that never crosses a network.

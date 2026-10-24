@@ -11,6 +11,7 @@ Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; pru
 - ORM access (SKILL.md § Side effects): `tables (patterns)` now lists ORM calls on an entity, per method, ending `, read` or `, write`; attach the `db-read`/`db-write` from those methods and check scripted or hand-written table relations against them.
 - Job systems (SKILL.md § Queues, `references/interactions.md`): `summary.md` lists `jobs defined` and `jobs enqueued` for the packs' job systems (Celery, RQ, Dramatiq, Sidekiq/ActiveJob, Laravel queues, Bull, Hangfire, Spring); write the job-queue `event`s and schedules' `batch`es from those lines and check hand-written ones against them.
 - Roles of one module (SKILL.md § Deployables, not folders): a package or jar run as several roles (web, worker, scheduler; master and workers) is one service per role, and a relation between two roles starts at the service of the role making it with `via` naming the shared method; move relations that start at a method under another role's service.
+- Browser apps (SKILL.md § Deployables, not folders): an SPA or WASM frontend built into or served by the backend is a service of its own, its requests starting from it; move requests written from the backend service.
 - Deployables (SKILL.md § Deployables, not folders): a deployable holding many unscanned files beside scanned ones is listed now (give it its service); one in a test, CI, docs or dev folder is no longer listed, and a service or `problems` entry written only to clear it can go.
 
 ## Rules 7 — 2026-10-24

@@ -168,7 +168,8 @@ def test_rules_two_to_eight_follow_the_baseline():
     assert [x.split(" (")[0] for x in parsed[7]] == ["Outbound requests", "SQL kept outside the code", "Inline handlers"]
     assert [x.split(" (")[0] for x in parsed[8]] == ["FastAPI prefixes", "Flask routes", "Request objects",
                                                     "Tables from schemas and migrations", "ORM access",
-                                                    "Job systems", "Roles of one module", "Deployables"]
+                                                    "Job systems", "Roles of one module", "Browser apps",
+                                                    "Deployables"]
 
 
 def test_a_map_at_rules_one_gets_the_queue_recheck(shop_repo):
