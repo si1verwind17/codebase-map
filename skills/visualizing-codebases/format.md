@@ -79,7 +79,7 @@ declared fields has no `fields` key. A name quoted in the source loses its quote
 | Language | Fields |
 |---|---|
 | Scala | a case class's parameters (its first parameter list) |
-| Python | class-level annotated attributes (dataclass, pydantic, TypedDict, NamedTuple, SQLModel); not `ClassVar[...]` |
+| Python | class-level annotated attributes (dataclass, pydantic, TypedDict, NamedTuple, SQLModel); not `ClassVar[...]`; ORM and serializer field declarations (`models.CharField()`, `serializers.X()`, `fields.Str()`, `Column(String)`), typed with the related model for a relation (`ForeignKey(User)`, `relationship("User")`, `fields.Nested(S)`), with a `Column`'s first argument, else with the call's name |
 | Java | record components; non-static fields |
 | Kotlin | `val`/`var` primary-constructor parameters; class properties |
 | TypeScript | interface members; members of an object type alias (`type Quote = {…}` is a class node, `type Id = string` is not); class properties and constructor parameter properties, not static, not bound functions |

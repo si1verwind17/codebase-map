@@ -68,16 +68,45 @@ def scala(cls) -> list[dict]:
             if p.type == "class_parameter" and p.child_by_field_name("name") is not None]
 
 
+# a declared ORM or serializer field: Django and DRF `models.CharField()`, `serializers.IntegerField()`, marshmallow
+# `fields.Str()`, SQLAlchemy `Column(String)`, `mapped_column()`, `relationship("User")`
+DECLARED_FIELD = re.compile(r"(?:\w+\.)*(?:\w*Field|Column|mapped_column|relationship|column_property|"
+                            r"(?:fields|ma)\.[A-Z]\w*|ForeignKey|Nested)$")
+RELATED = re.compile(r"(?:\w+\.)*(?:ForeignKey|OneToOneField|ManyToManyField|relationship|Nested)$")
+
+
+def _declared(call) -> str | None:
+    """The type a field call declares: the related model a relation names (`ForeignKey(User)`,
+    `relationship("User")`), a `Column`'s first argument (`db.String(80)` -> `db.String`), else the call's name."""
+    fn = text(call.child_by_field_name("function"))
+    args = [a for a in (call.child_by_field_name("arguments").named_children
+                        if call.child_by_field_name("arguments") is not None else []) if a.type != "keyword_argument"]
+    first = args[0] if args else None
+    if first is not None and RELATED.match(fn) and first.type in ("identifier", "attribute", "string"):
+        return text(first).strip("\"'").rsplit(".", 1)[-1] if first.type == "string" else text(first)
+    if first is not None and re.search(r"(?:^|\.)(?:Column|mapped_column)$", fn) and first.type in ("identifier", "attribute", "call"):
+        return text(first.child_by_field_name("function") if first.type == "call" else first)
+    return fn
+
+
 def python(cls) -> list[dict]:
-    """Class-level annotated attributes (`x: int`, `x: int = 0`); `ClassVar[...]` ones are not fields."""
+    """Class-level annotated attributes (`x: int`, `x: int = 0`) and ORM or serializer field declarations
+    (`name = models.CharField()`, typed as `_declared` says); `ClassVar[...]` ones are not fields."""
     body = cls.child_by_field_name("body")
     out = []
     for c in (body.named_children if body is not None else []):
         a = c.named_children[0] if c.type == "expression_statement" and c.named_children else c
         if a.type != "assignment":
             continue
-        left, typ = a.child_by_field_name("left"), a.child_by_field_name("type")
-        if left is None or typ is None or left.type != "identifier" or re.match(r"(typing\.)?ClassVar\b", text(typ)):
+        left, typ, right = a.child_by_field_name("left"), a.child_by_field_name("type"), a.child_by_field_name("right")
+        if left is None or left.type != "identifier":
+            continue
+        if typ is None:
+            if right is not None and right.type == "call" and DECLARED_FIELD.match(
+                    text(right.child_by_field_name("function"))):
+                out.append({"name": text(left), "type": _declared(right)})
+            continue
+        if re.match(r"(typing\.)?ClassVar\b", text(typ)):
             continue
         out.append(_field(text(left), typ))
     return out

@@ -51,6 +51,20 @@ def test_python_class_level_annotated_attributes_are_fields():
     assert got == {"Quote": f(("bay", "str"), ("total", "int"), ("note", '"Note"')), "Service": None}
 
 
+def test_python_orm_and_serializer_declarations_are_fields():
+    src = ("class Post(models.Model):\n    title = models.CharField(max_length=10)\n"
+           "    author = models.ForeignKey(User, on_delete=models.CASCADE)\n    tags = models.ManyToManyField(\"blog.Tag\")\n"
+           "    objects = PostManager()\n\n\nclass Account(db.Model):\n    id = db.Column(db.Integer, primary_key=True)\n"
+           "    name = db.Column(db.String(80))\n    posts = db.relationship(\"Post\", backref=\"account\")\n\n\n"
+           "class PostSchema(Schema):\n    title = fields.Str(required=True)\n    author = fields.Nested(UserSchema)\n")
+    mod = {"id": "mod:app", "path": "app", "lang": "python", "build": "python-package"}
+    got = fields_by_name(py.parse(src.encode(), "app/models.py", mod, ids.IdRegistry()))
+    # a relation is typed with the model it names; a manager is no field
+    assert got == {"Post": f(("title", "models.CharField"), ("author", "User"), ("tags", "Tag")),
+                   "Account": f(("id", "db.Integer"), ("name", "db.String"), ("posts", "Post")),
+                   "PostSchema": f(("title", "fields.Str"), ("author", "UserSchema"))}
+
+
 def test_cut_off_scala_and_python_sources_never_raise():
     """A file cut anywhere (a parse error, ERROR nodes inside a class) still parses: a reader that raised would
     drop the whole file from the scan."""
