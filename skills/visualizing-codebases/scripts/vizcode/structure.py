@@ -1136,6 +1136,9 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
             into = {file_mod.get(m, m) for m in into}   # a relative import names a file: its module
             far = [c for c in anywhere.get(parts[-1], []) if c not in cands and file_mod[c[0]] in into]
             cands = hinted(cands) or hinted(far) or cands
+            if len(parts) > 1 and len(cands) > 1:   # `articles::list`: the file the qualifier names (`articles/mod.rs`)
+                cands = [c for c in cands if (Path(c[0]).parent.name if Path(c[0]).stem in ("mod", "index", "__init__")
+                                              else Path(c[0]).stem) == parts[-2]] or cands
             if len(parts) == 1:
                 cands = [c for c in cands if owner_kind.get(parent.get(c[2]) or "") == "file"] or cands
             found = None

@@ -266,6 +266,20 @@ def test_actix_builder_routes():
         ("GET", "/api/v4/search", "search"), ("POST", "/api/v4/search", "search_post")]
 
 
+def test_actix_to_async_a_resource_handler_and_a_handler_in_a_mod_file(make_repo):
+    """actix-web 1.x `.to_async(h)`, a resource's own `.to(h)` (every method), and `articles::list` beside another
+    `list`: the one in `articles/mod.rs`."""
+    files = {"Cargo.toml": "[package]\nname = \"app\"\n",
+             "src/main.rs": "mod articles;\nuse actix_web::web;\n\nfn config(cfg: &mut web::ServiceConfig) {\n"
+                            "    cfg.service(web::resource(\"/articles\").route(web::get().to_async(articles::list)))\n"
+                            "       .service(web::resource(\"/\").to(index));\n}\nfn index() {}\n",
+             "src/articles/mod.rs": "pub mod comments;\npub fn list() {}\n",
+             "src/articles/comments.rs": "pub fn list() {}\n"}
+    s = build(make_repo, files)
+    assert sorted((r["method"], r["path"], r["handler"]) for r in s["facts"]["src/main.rs"]["routes"]) == [
+        ("ANY", "/", ".::src/main.rs#index/0"), ("GET", "/articles", ".::src/articles/mod.rs#list/0")]
+
+
 def test_an_actix_resource_route_needs_a_resource_path(make_repo):
     files = {"Cargo.toml": "[package]\nname = \"app\"\n",
              "src/main.rs": "use actix_web::web;\n\nfn config(cfg: &mut web::ServiceConfig) {\n"

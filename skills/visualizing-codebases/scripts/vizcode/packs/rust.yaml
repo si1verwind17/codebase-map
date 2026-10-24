@@ -6,7 +6,8 @@
 # routes (regex, gated on the import): Axum `.route("/x", get(h))` (the handler group is the method router's
 # argument when it is a name; a chained router `get(a).put(b).delete(c)` gives one route per call, its 2nd to 4th
 # calls from `axum-chain-2` to `axum-chain-4`, while the calls before it name their handlers) and `.nest` (a mount);
-# actix-web attributes `#[get("/x")]` (the function below), `.route("/x", get().to(h))`, and `scope` /
+# actix-web attributes `#[get("/x")]` (the function below), `.route("/x", get().to(h))` (or `.to_async`), a
+# resource's own `.to(h)` (every method), and `scope` /
 # `resource` (mounts; a resource's `.route(get().to(h))` is on its path).
 # queues: in-process queue creation sites (tokio `mpsc`/`broadcast`, std `mpsc`): candidates the agent confirms (references/interactions.md).
 rust:
@@ -64,12 +65,18 @@ rust:
     - name: actix-route
       when: actix_web
       path: literal
-      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to\(\s*(?P<handler>[\w:]+)'
+      regex: '\.route\(\s*"(?P<path>[^"]*)"\s*,\s*(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to(?:_async)?\(\s*(?P<handler>[\w:]+)'
     # `resource("/x").route(web::get().to(h))`: the route takes the resource's path (a mount)
     - name: actix-resource-route
       when: actix_web
       path: literal
-      regex: '\.route\(\s*(?P<path>)(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to\(\s*(?P<handler>[\w:]+)'
+      regex: '\.route\(\s*(?P<path>)(?:web::)?(?P<method>get|post|put|delete|patch|head)\(\)\s*\.to(?:_async)?\(\s*(?P<handler>[\w:]+)'
+    # `resource("/x").to(h)`: every method of the resource's path
+    - name: actix-resource-to
+      when: actix_web
+      path: literal
+      method: ANY
+      regex: '\bresource\(\s*"[^"]*"\s*\)\s*\.to(?:_async)?\(\s*(?P<path>)(?P<handler>[\w:]+)'
     - name: actix-scope
       when: actix_web
       path: literal
