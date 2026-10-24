@@ -148,7 +148,7 @@ very first command.
    but the page was not written (the message says why): report it, do not
    touch `meaning.json`.
 5. `assemble.py` prints the audit line last and writes `OUT/audit.md`. Fix
-   each `ext.missing`, `external.unused`, `deployable.unscanned`, `queue.missing`, `data.two-way-call`, `module.empty`, `example.missing`,
+   each `ext.missing`, `external.unused`, `deployable.unscanned`, `queue.missing`, `request.unmatched`, `data.two-way-call`, `module.empty`, `example.missing`,
    `route.file-handler`, `route.setup-handler` and `pin.few` content warning
    in `meaning.json` and rerun `assemble.py`. An `ext.missing` key that names no
    outside endpoint (a test helper's, a tool's own setting such as `DOCKER_HOST`)
@@ -355,7 +355,10 @@ routes like a URL): tapir client endpoints, calls through the code's own HTTP
 helpers (a function passing its parameter on as a client call's address, so
 `http.get(`albums/${id}`)` is `GET /albums/{id}`), client calls with a path, and
 request objects holding a `method` and a `url`/`path`/`endpoint` (a generated client's
-`request(cfg, {..})`, a query definition's `({method, url})`);
+`request(cfg, {..})`, a query definition's `({method, url})`); § Likely requests pairs each such call, and each
+gRPC client call, with the repo routes or rpc servers it likely reaches (by method and path, or proto key), every
+match listed: the scanner never writes the `request`, you confirm each pair against the code and the address the
+caller is given and write it (the audit's `request.unmatched` names a paired call that starts none);
 SQL kept outside the code (a mapper XML's statements, as SQL facts of the interface
 method each names; the tables `.sql` files and ORM schemas and migrations create (Rails `create_table`, Laravel
 `Schema::create`, Knex/Sequelize, EF Core, Liquibase, Django `CreateModel`), in § Tables defined in SQL, schema and
@@ -648,7 +651,7 @@ The audit (`audit.py`, run by `assemble.py` and on `none`) never blocks the
 map. Map limits are drawing-check failures the viewer cannot draw well yet:
 report them, never fix them, never put them on the map. Findings are what the
 map shows about the code; the only one is a cycle between services (events
-through a topic do not count). Content warnings `ext.missing`, `external.unused`, `deployable.unscanned`, `queue.missing`,
+through a topic do not count). Content warnings `ext.missing`, `external.unused`, `deployable.unscanned`, `queue.missing`, `request.unmatched`,
 `data.two-way-call`, `module.empty`, `example.missing`, `route.file-handler`, `route.setup-handler` and `pin.few`
 you fix in `meaning.json` (the route ones in `stack.yaml`, or a `problems` entry);
 `name.container` is a labelling gap in the scanner or viewer,

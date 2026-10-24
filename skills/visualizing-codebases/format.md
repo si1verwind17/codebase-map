@@ -766,7 +766,9 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
 - **Content warnings:** `ext.missing` (a config key that looks like an
   outside endpoint names nothing on the map; keys only test, CI, dev, release or scripts files read have a line of
   their own and are not checked), `external.unused` (an `external` node that no relation starts or
-  ends at), `deployable.unscanned` (a deployable folder in `summary.md` § Not scanned, a Dockerfile's or a compose
+  ends at), `request.unmatched` (a client call `summary.md` § Likely requests pairs with a repo route or rpc,
+  whose method starts no `request`, `ext-call` or `stream` (nor is one's `via`) and no `problems` entry names
+  the method or its `file:line`), `deployable.unscanned` (a deployable folder in `summary.md` § Not scanned, a Dockerfile's or a compose
   service's build context whose source is mostly or wholly unscanned, or holds 100 unscanned files or more that
   come to a fifth of its scanned ones, that no service cites a file inside of or is named like the compose service
   of, and no `problems` entry names; images in a CI or `dev` folder, or one whose name holds `test`, `e2e`, `docs`,

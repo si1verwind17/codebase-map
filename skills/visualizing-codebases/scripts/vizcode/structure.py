@@ -1962,6 +1962,57 @@ def _table_line(t: tuple, names: dict[str, str]) -> str:
     return f"{table} ({f}:{line} {'defined on' if kind == 'defined' else 'in'} {name}{', ' + op[0] if op and op[0] else ''})"
 
 
+def _route_shape(path: str) -> tuple[str, ...]:
+    """A route's segments with every parameter alike: `/api/cart/{id}/` -> ('api', 'cart', '{}')."""
+    return tuple(re.sub(r"\{[^}]*\}", "{}", x) for x in path.split("/") if x)
+
+
+def _reaches(client: tuple[str, ...], route: tuple[str, ...]) -> str | None:
+    """`exact` when a client path is the route's, `suffix` when one ends with the other by two or more segments
+    holding a word (a base or gateway prefix the other side adds or strips), else None."""
+    if client == route:
+        return "exact"
+    short, long_ = sorted((client, route), key=len)
+    if len(short) >= 2 and any(x != "{}" for x in short) and long_[-len(short):] == short:
+        return "suffix"
+    return None
+
+
+def _likely_requests(s: dict) -> list[str]:
+    """Each client call (`http clients`, `grpc clients`) with the repo routes or rpc servers it likely reaches:
+    by method (ANY on either side fits) and path, or by proto key. Every match is listed, none chosen."""
+    routes, servers = [], {}
+    for f, ff in s["facts"].items():
+        routes += [(r["method"], r["path"], _route_shape(r["path"]), r["handler"], f, r["line"]) for r in ff["routes"]]
+        for g in ff.get("grpc", []):
+            if g["side"] == "server":
+                for k in g["keys"]:
+                    servers.setdefault(k, []).append(f"{g['in']} ({f}:{g['line']})")
+    out = []
+    for f, ff in sorted(s["facts"].items()):
+        for c in ff.get("clients", []):
+            shape = _route_shape(c["path"])
+            hits = [(how, m, p, h, rf, rl) for m, p, sh, h, rf, rl in routes
+                    if (how := _reaches(shape, sh)) and (c["method"] == m or "ANY" in (c["method"], m))]
+            if hits:
+                to = "; ".join(f"`{m} {p}` → {h} ({rf}:{rl}){'' if how == 'exact' else ', by suffix'}"
+                               for how, m, p, h, rf, rl in sorted(hits, key=lambda x: x[0] != "exact"))
+                out.append(f"- {c['method']} {c['path']} ← {c['in']} ({f}:{c['line']}) → {to}")
+        for g in ff.get("grpc", []):
+            if g["side"] == "client":
+                for k in g["keys"]:
+                    if k in servers:
+                        out.append(f"- {k} ← {g['in']} ({f}:{g['line']}) → {', '.join(servers[k])}")
+    if not out:
+        return []
+    return [f"## Likely requests — {len(out)}", "",
+            "A client call and the route or rpc server it likely reaches, by method and path (by suffix: one path "
+            "ends with the other, a base or gateway prefix between them) or by proto key. Confirm each against the "
+            "code and the address the caller is given, then write the `request` from the calling method to the "
+            "handler, keyed by the route or rpc; a call that reaches none of them is an `ext-call`, or say in "
+            "`problems` why it is none:", *out, ""]
+
+
 def summary_md(s: dict) -> str:
     """Per-module digest the agent reads instead of the full structure.json."""
     root = s["meta"].get("root")
@@ -1979,6 +2030,7 @@ def summary_md(s: dict) -> str:
                   "whatever the code shows; "
                   "name them in the map where code reads or writes them:"]
         lines += [f"- {d['table']} ({d['file']}:{d['line']})" for d in defined] + [""]
+    lines += _likely_requests(s)
     names = {n["id"]: n["name"] for n in s["nodes"]}
     job_defs: dict[str, list[str]] = {}   # a job's name -> the nodes that define it, anywhere in the repo
     methods_named: dict[str, list[str]] = {}   # for a job that is a plain method (Hangfire `() => svc.Run()`)

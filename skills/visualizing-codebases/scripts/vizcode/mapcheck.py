@@ -228,6 +228,8 @@ CREDENTIAL_WORDS = {"access", "refresh", "secret", "client", "app", "private", "
 ENV_LINE = re.compile(r"^- \*\*env keys:\*\* (.*)$", re.M)   # as structure.summary_md writes it
 QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
 QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
+# a `Likely requests` line of summary.md: the client end's method id
+LIKELY_LINE = re.compile(r"^- (?:[A-Z]+ \S+|grpc \S+) ← (\S+) \(([^)]+)\) → ", re.M)
 DEPLOY_LINE = re.compile(r"^- deployable `([^`]+)` \((.*)\) — (.*)$", re.M)
 
 
@@ -250,6 +252,28 @@ def _queues_missing(cmap: dict, summary_md: str) -> list[dict]:
                             "detail": f"in-process queue created at {hit[1]}:{hit[2]} is in no in-process-queue "
                                       "node's evidence: add the node and its hand-offs where a trace stops at it, "
                                       "or say in problems why it is none"})
+    return out
+
+
+def _requests_unmatched(cmap: dict, summary_md: str) -> list[dict]:
+    """A client call summary.md pairs with a repo route or rpc is accounted for when a request, ext-call or stream
+    starts at its method (or names it as `via`), or a `problems` entry names the method or its file:line."""
+    if "## Likely requests" not in summary_md:
+        return []
+    starts = {r.get(k) for r in cmap.get("relations", []) if r.get("kind") in ("request", "ext-call", "stream")
+              for k in ("from", "via")}
+    said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
+    section = summary_md.split("## Likely requests", 1)[1].split("\n## ", 1)[0]
+    out, seen = [], set()
+    for mid, at in LIKELY_LINE.findall(section):
+        if mid in starts or mid in seen or re.search(rf"(?<![\w:#/.]){re.escape(mid)}(?![\w/~])", said) \
+                or re.search(rf"(?<![\w/.]){re.escape(at)}(?!\d)", said):
+            continue
+        seen.add(mid)
+        out.append({"id": "request.unmatched", "node": mid,
+                    "detail": f"{mid} ({at}) calls a route or rpc of this repo (summary.md § Likely requests) and "
+                              "starts no request: write the request to the handler it reaches, an ext-call if it "
+                              "goes elsewhere, or say in problems why it is none"})
     return out
 
 
@@ -358,6 +382,7 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
                                 "detail": f"config key {key} looks like an outside endpoint but nothing in the map names {key}"})
         out += _queues_missing(cmap, summary_md)
         out += _deployables_unscanned(cmap, summary_md)
+        out += _requests_unmatched(cmap, summary_md)
     for r in cmap.get("relations", []):
         if r.get("kind") in ("request", "ext-call") and r.get("data") == "both":
             out.append({"id": "data.two-way-call", "node": r.get("from"),
