@@ -67,15 +67,24 @@ def _outermost(folders: set[str]) -> list[str]:
     return sorted(f for f in folders if not any(o != f and _inside(f, o) for o in folders))
 
 
+def compose_services(doc) -> dict:
+    """The services of a parsed compose file: its `services` map, or for a version 1 file (no `services` key) each
+    top-level entry that names an `image` or a `build`."""
+    if not isinstance(doc, dict):
+        return {}
+    if "services" in doc:
+        return doc["services"] if isinstance(doc["services"], dict) else {}
+    return {k: v for k, v in doc.items() if isinstance(v, dict) and ("image" in v or "build" in v)}
+
+
 def _build_contexts(path: str, text: str) -> list[tuple[str, str]]:
     """(compose service, its build context folder) for each service a compose file builds from this repo."""
     try:
         doc = yaml.safe_load(text)
     except yaml.YAMLError:
         return []
-    services = doc.get("services") if isinstance(doc, dict) else None
     out = []
-    for name, svc in (services if isinstance(services, dict) else {}).items():
+    for name, svc in compose_services(doc).items():
         build = svc.get("build") if isinstance(svc, dict) else None
         context = build.get("context", ".") if isinstance(build, dict) else build
         if isinstance(context, str) and "://" not in context and not context.startswith("git@"):

@@ -136,3 +136,12 @@ def test_rake_tasks_are_listed_but_never_make_a_deployable_unscanned(make_repo):
     s = structure.build(make_repo(files), "docs/viz-code")
     assert {x["lang"]: x["files"] for x in s["unscanned"]["languages"]} == {"Rake": 4}
     assert s["unscanned"]["deployables"] == []
+
+
+def test_a_version_1_compose_file_names_its_build_contexts(make_repo):
+    # no `services:` key: each top-level entry with a build or an image is a service
+    files = {"docker-compose.yml": "rates:\n  build: ./rates\ndb:\n  image: postgres\n",
+             "rates/src/main.cpp": "int main() { return 0; }\n", "app.py": "def main():\n    pass\n"}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert [(d["folder"], d["compose"]) for d in s["unscanned"]["deployables"]] == [
+        ("rates", [["rates", "docker-compose.yml"]])]

@@ -12,6 +12,7 @@ from . import SCANNER_VERSION, SCHEMA_VERSION, examples, gitsrc, rules
 from .adapters import SOURCE_SUFFIXES  # noqa: F401  (diff.py reads it from here)
 from .assemble import SEMANTIC_KINDS, languages
 from .modules import BUILD_FILES
+from .unscanned import compose_services
 
 # build files of packs/modules.yaml too: a `*` stays within the file name
 DEPLOYABLE_FILES = re.compile(
@@ -31,9 +32,8 @@ def _compose_services(text: str | None) -> dict | None:
         doc = yaml.safe_load(text or "")
     except yaml.YAMLError:
         return None
-    services = doc.get("services") if isinstance(doc, dict) else None
     out = {}
-    for name, svc in (services if isinstance(services, dict) else {}).items():
+    for name, svc in compose_services(doc).items():
         svc = svc if isinstance(svc, dict) else {}
         image, build = svc.get("image"), svc.get("build")
         if isinstance(image, str):
