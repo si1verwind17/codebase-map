@@ -138,7 +138,9 @@ inside the repo).
    lays out every floor; items keep their positions from the previous map so
    the reviewer's mental map survives. Pass `--relayout` only when the user
    asks for a fresh arrangement. On exit 0 it also writes `OUT/index.html`:
-   the prebuilt viewer with this map built in. Exit 3 means the map is valid
+   the prebuilt viewer with this map built in, when the map is 8 MB or less
+   minified; a larger map is left out and the reader opens `code-map.json`
+   from the page (the printed path says so: repeat it in the report). Exit 3 means the map is valid
    but the page was not written (the message says why): report it, do not
    touch `meaning.json`.
 5. `assemble.py` prints the audit line last and writes `OUT/audit.md`. Fix
@@ -167,7 +169,8 @@ inside the repo).
    the path of `index.html`, a line pointing to the field guide at
    https://si1verwind17.github.io/codebase-map/, and remind the user to commit
    `OUT/code-map.json`, `OUT/stack.yaml`, `OUT/README.md`, `OUT/.gitignore`
-   and `OUT/.gitattributes`. `README.md` is the skill's, rewritten each run;
+   and `OUT/.gitattributes` (a `code-map.json` over 100 MB is more than GitHub
+   takes in one file: give its size and leave the choice, such as Git LFS, to the user). `README.md` is the skill's, rewritten each run;
    `.gitignore` and `.gitattributes` are the skill's too but keep any line
    the user adds; `map-notes.md` is the user's; all are committed. The skill
    writes nothing outside `OUT`. Other files in `OUT` (`structure.json`, `summary.md`,
@@ -575,7 +578,20 @@ example keys under a mount are expected and get no problem.
 
 When `summary.md` lists more modules than one pass can read carefully, run
 the meaning pass per service (one sub-agent each, all following this
-skill), then one pass that matches interactions between services.
+skill), then one pass that matches interactions between services. Without
+sub-agents, make the same passes one after another, each service's part of
+`meaning.json` written before the next. Either way:
+
+- Write a script for what repeats across hundreds of items (route prefixes,
+  matching requests to routes, example values from field names), check a
+  sample of its output against the code, and say in the report what it made.
+- While fixing `meaning.json`, run `assemble.py` with `VIZ_AUDIT=0`: no
+  drawing checks, which take minutes on a large map. Run it once without for
+  the audit line you report; on a large map that line counts the floors the
+  budget left unchecked: report the count, never "the audit is clean".
+- What you leave out (a subsystem, a protocol the scanner does not read, a
+  share of the routes) goes into `problems` with the nodes it concerns and how
+  much it covers.
 
 ## Review comments and map notes
 

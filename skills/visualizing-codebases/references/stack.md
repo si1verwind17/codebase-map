@@ -18,7 +18,11 @@ Sort each line into one group of its language:
    what the repo shows: each pattern is checked against at least one real
    route line, and a library goes into `ignore` only after you looked at how
    it is used. Why: the file is committed and silences the section; a guess
-   hides a real side effect for good.
+   hides a real side effect for good. A long list (a hundred lines and more):
+   read every marked line (looks like a server, datastore, queue or client)
+   and each unmarked line's two examples; an unmarked line whose examples
+   show only types, UI, test or build tooling goes into `ignore` with the
+   others like it in one edit. Report how many lines went in that way.
 2. Re-run `extract.py` after each edit. Repeat until the section reads
    `nothing unrecognised`, or until each remaining line is one you cannot
    resolve; report those with the reason (SKILL.md § Run step 7).
@@ -48,7 +52,9 @@ Sort each line into one group of its language:
   routes defined in another module (a shared module serving tapir
   endpoints) goes into `ignore`; that clears the line. So does a framework
   whose routes the scanner cannot read (Django `urls.py`): say so in the
-  report.
+  report. Only when the library is not also in `imports`: `imports` wins (below),
+  so a server library used only for a type (a cookie class, a status constant)
+  stays out of `imports`.
 - Prefixes match on the language's separator boundaries, in every group and
   in `when`: `.` (Python, Scala, Java, Kotlin, C#), `/` (TypeScript,
   JavaScript, Go, Ruby), `::` (Rust), `\` (PHP). Write a prefix without a
