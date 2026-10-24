@@ -830,6 +830,7 @@ BINDING = re.compile(r"(?<![\w.$])(\$?[A-Za-z_]\w*)\s*(?::\s*[\w.<>\[\], ]+?\s*)
 BOUND_TO = re.compile(r"\s*(?:(?:new\s+)?[\w.$:]+\s*\(\s*\{?\s*)?")
 
 
+PASSED_TO = re.compile(r"([A-Za-z_][\w.]*)\(\s*$")   # the call a mount is the first argument of
 RUBY_TOKENS = re.compile(r"\bdo\b|^[ \t]*(?:if|unless|case|while|until|begin|def|class|module)\b|\bend\b", re.M)
 RUBY_DO = re.compile(r"\bdo\b(?:\s*\|[^|\n]*\|)?[ \t]*(?:#[^\n]*)?$", re.M)
 
@@ -973,6 +974,14 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
                 r["handler_class"] = "::".join(_camel(x) for x in mods) + "::" + r["handler_class"]
             for k in chain:
                 mounts[k]["composed"] = mounts[k].get("composed", 0) + 1
+    for k, mt in enumerate(mounts):
+        # a mount handed to a function (`users.Register(v1.Group("/users"))`): its full prefix and that function, for
+        # structure to join onto the routes the function registers on its parameter
+        if "at" in mt and mt["target"] is None and (passed := PASSED_TO.search(src, max(0, mt["at"] - 200), mt["at"])):
+            chain = prefix(mt["at"], _head(src, mt["at"]))
+            mt["passed_to"] = passed.group(1)
+            mt["full"] = normalise("/".join(x.strip("/") for x in [*(mounts[j]["path"] for j in chain), mt["path"]]
+                                            if x.strip("/")))
     for mt in mounts:
         mt.pop("module", None)
         if "at" in mt and (on := _head(src, mt["at"])):

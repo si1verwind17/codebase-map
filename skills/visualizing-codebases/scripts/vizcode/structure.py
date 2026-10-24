@@ -727,11 +727,45 @@ def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, s
     return None
 
 
+def _passed_mounts(results: dict[str, dict]) -> None:
+    """A mount handed to a function (`users.UsersRegister(v1.Group("/users"))`, gin, echo, chi): the routes that
+    function registers on its first parameter get the mount's full prefix. The function is the one of that name
+    whose folder ends in the call's qualifier (`users`), else the only one of that name; its routes are those in its
+    span whose router is the parameter. The mount counts them in `composed`."""
+    by_name: dict[str, list[tuple[str, dict]]] = {}
+    for f, r in results.items():
+        for n in r["nodes"]:
+            if n["kind"] == "method":
+                by_name.setdefault(n["name"], []).append((f, n))
+    for f, r in results.items():
+        for mt in r.get("mounts", []):
+            name, full = mt.pop("passed_to", None), mt.pop("full", None)
+            if not name or full is None:
+                continue
+            *qual, last = name.split(".")
+            cands = by_name.get(last, [])
+            if qual and len(cands) > 1:
+                cands = [(g, n) for g, n in cands if Path(g).parent.name == qual[-1]]
+            if len(cands) != 1:
+                continue
+            g, fn = cands[0]
+            params = (fn.get("signature") or {}).get("params") or []
+            if not params or not params[0].get("name"):
+                continue
+            param, end = params[0]["name"], fn["line"] + fn["metrics"]["loc"] - 1
+            for route in results[g]["routes"]:
+                if route.get("on") == param and fn["line"] <= route["line"] <= end:
+                    route["path"] = stack.normalise(full + "/" + route["path"].lstrip("/"))
+                    route.pop("on", None)
+                    mt["composed"] = mt.get("composed", 0) + 1
+
+
 def _compose_mounts(results: dict[str, dict]) -> None:
     """Join the prefix of a mount whose router comes from another file (`app.use('/users', usersRouter)`) onto that
     file's routes registered on the router it exports: its named export, or for the default export the file's one
     router. Mount chains compose outward across files; a router mounted in two places gives its routes once per
     place. The mount counts its routes in `composed`."""
+    _passed_mounts(results)
     parents: dict[tuple[str, str], list[tuple[tuple[str, str] | None, str, dict]]] = {}
     for f, r in results.items():
         for mt in r.get("mounts", []):
