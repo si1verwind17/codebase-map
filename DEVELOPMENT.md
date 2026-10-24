@@ -140,7 +140,9 @@ and `node scripts/motion-shots.mjs <dir>`.
    why. Fold review fixes and other follow-ups into the change they fix. A branch with one change lands as one squashed
    commit; one with several (say, a worker and a cache) lands as several, so a later bisect or revert can single one
    out. Messages and docs name the change itself, never the branch or a plan's task numbers: neither outlives the
-   merge. Delete the branch after checking it holds nothing the merge left out (`git diff <branch> main` is empty);
+   merge. Nor the outside repositories a trial scanned: comments, tests, docs and commit messages describe the code shape
+   in general ("an app's own `celery.py`", "a trial repo: 25 -> 244 routes"), so no rule reads as tuned to one
+   project. Delete the branch after checking it holds nothing the merge left out (`git diff <branch> main` is empty);
    it needs `git branch -D`, as the rebuilt commits do not mark it merged.
 5. **Release.** On a clean `main`, bump the version by what the release brings (semver):
 
