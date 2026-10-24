@@ -1170,3 +1170,68 @@ def test_a_singleton_chain_a_rust_module_function_and_a_generic_value_name():
     assert ("Svc#run/0", "Database#query/0") in _targets(nodes, ("Svc#run", "Database.getInstance().query"))
     assert _targets(nodes, ("util#work", "helper")) == [("util#work/0", "util#helper/0")]
     assert sorted(t for _, t in _targets(nodes, ("Svc#run", "list.get"))) == ["Cache#get/0", "PagedList#get/0"]
+
+
+def test_a_values_method_never_reaches_a_free_function_of_that_name(make_repo):
+    # `row.get(k)` is the value's own method; `store.get(k)` goes through a module the file imports
+    got = _calls(make_repo, {
+        "app/__init__.py": "",
+        "app/store.py": "def get(key):\n    return key\n",
+        "app/api.py": "from app import store\n\n\ndef read(row):\n    return row.get(\"a\")\n\n\n"
+                      "def load():\n    return store.get(\"b\")\n",
+        "src/lib.rs": "pub fn get(k: &str) -> u8 { 0 }\n\npub fn run(m: &Map) -> u8 { m.get(\"a\") }\n\n"
+                      "pub fn via() -> u8 { crate::get(\"b\") }\n",
+        "Cargo.toml": "[package]\nname = \"app\"\nversion = \"0.1.0\"\n",
+    }, ["."])
+    assert any(k[0].endswith("#load/0") and k[1].endswith("#get/1") for k in got), got
+    assert not any(k[0].endswith("#read/1") for k in got), got
+    assert any(k[0].endswith("#via/0") and k[1].endswith("#get/1") for k in got), got
+    assert not any(k[0].endswith("#run/1") for k in got), got
+
+
+
+def test_a_go_package_named_unlike_its_folder_and_a_common_name_on_a_value(make_repo):
+    # `store.Fetch` through `.../userstore` (`package store`) keeps its call; `seen.add()` on a set, a name five
+    # methods share, is not drawn to the two class methods left once the free functions drop out
+    got = _calls(make_repo, {
+        "go.mod": "module github.com/acme/app\n\ngo 1.21\n",
+        "internal/userstore/store.go": "package store\n\nfunc Fetch(id string) string {\n\treturn id\n}\n",
+        "api/api.go": "package api\n\nimport \"github.com/acme/app/internal/userstore\"\n\n"
+                      "func Handle() string {\n\treturn store.Fetch(\"x\")\n}\n",
+        "app/__init__.py": "",
+        "app/a.py": "def add(r, c):\n    return 1\n", "app/b.py": "def add(r, c):\n    return 2\n",
+        "app/c.py": "def add(r, c):\n    return 3\n",
+        "app/k.py": "class Fields:\n    def add(self, r):\n        return 1\n\n\nclass Recorder:\n"
+                    "    def add(self, r, c):\n        return 2\n",
+        "app/use.py": "def run(items, recorder):\n    seen = set()\n    for i in items:\n        seen.add(i, 1)\n"
+                      "        recorder.add(i, 1)\n        seen.add(i)\n",
+        "app/fill.py": "class Filler:\n    def add(self, r, c):\n        return 0\n\n    def fill(self, items):\n"
+                       "        seen = set()\n        for i in items:\n            seen.add(i, 1)\n",
+        "app/users.py": "class User:\n    def add(self, r, c):\n        return 1\n\n\nclass AdminUser:\n"
+                        "    def add(self, r, c):\n        return 2\n\n\nclass InMemoryListState:\n"
+                        "    def add(self, r, c):\n        return 3\n",
+        "app/who.py": "def who(user, admin_user, list_state, s):\n    user.add(1, 2)\n    admin_user.add(1, 2)\n"
+                      "    list_state.add(1, 2)\n    s.add(1, 2)\n",
+    }, ["."])
+    # a name naming a class exactly wins over one ending in it; whole words end a name; one letter is no name
+    assert sorted(k[1].rsplit(".", 1)[-1] for k in got if k[0].endswith("#who/4")) == [
+        "AdminUser#add/2", "InMemoryListState#add/2", "User#add/2"], got
+    # no guess by arity or by elimination of the caller's own class
+    assert not any(k[0].endswith("#fill/1") for k in got), got
+    assert any(k[0].endswith("#Handle/0") and k[1].endswith("#Fetch/1") for k in got), got
+    # the value named after a class still narrows to it
+    assert [k[1].rsplit(".", 1)[-1] for k in got if k[0].endswith("#run/2")] == ["Recorder#add/2"], got
+
+
+def test_a_common_name_with_no_free_function_still_narrows_by_its_receiver(make_repo):
+    # Java has no free functions: five `deserialize` methods are narrowed by the value's name as before
+    got = _calls(make_repo, {
+        "pom.xml": "<project/>\n",
+        "src/main/java/a/TypeSerializer.java": "package a;\npublic class TypeSerializer {\n"
+                                               "    public Object deserialize(int x, int y) { return null; }\n}\n",
+        **{f"src/main/java/a/Reader{i}.java": f"package a;\npublic class Reader{i} {{\n"
+           f"    public Object deserialize(int x, int y) {{ return null; }}\n}}\n" for i in range(4)},
+        "src/main/java/a/Pojo.java": "package a;\npublic class Pojo {\n    public Object read(int x) {\n"
+                                     "        var serializer = pick();\n        return serializer.deserialize(x, 1);\n    }\n}\n",
+    }, ["."])
+    assert any(k[0].endswith("Pojo#read/1") and k[1].endswith("TypeSerializer#deserialize/2") for k in got), got

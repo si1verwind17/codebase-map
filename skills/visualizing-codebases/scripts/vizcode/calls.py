@@ -20,6 +20,9 @@ OBJECT_METHODS = {"equals", "hashCode", "toString", "compareTo", "clone", "getCl
 OPEN_LINEAGE = {"go", "ruby", "rust"}
 OPEN_SELF = OPEN_LINEAGE | {"scala"}
 # languages where a bare call (`helper()`) is never a method of a class: no implicit `this`
+# languages whose free functions never take a value as receiver (Kotlin, Scala: extension functions; Ruby: a mixin
+# module's methods sit on its file; JS/TS: a `require()` binding the scan may not record)
+VALUE_METHODS = {"python", "go", "rust", "java", "csharp", "php"}
 NO_IMPLICIT_THIS = {"php", "python", "javascript", "typescript", "go"}   # Rust: a `mod`'s functions are class-like
 # value names too generic to name a class by their tail (`list.get` is no PagedList)
 GENERIC_VALUES = {"list", "map", "set", "data", "item", "items", "result", "results", "value", "values", "obj",
@@ -176,6 +179,12 @@ def _narrowed(cands: list[str], context: set[str], by_id: dict[str, dict]) -> li
     shared = set.intersection(*ancestry.values())
     keep = [m for m in cands if (ancestry[m] - shared) & context]
     return keep if 0 < len(keep) < len(cands) else cands
+
+
+def _name_tails(name: str) -> set[str]:
+    """The lower-cased runs of whole words that end a class name: `InMemoryListState` -> state, liststate, ..."""
+    words = re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+", without_suffix(name).rstrip("$"))
+    return {"".join(words[i:]).lower() for i in range(len(words))}
 
 
 def _owner_names(node: dict, nodes: dict[str, dict]) -> set[str]:
@@ -386,6 +395,28 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             caller_owner = by_id[caller].get("parent")
             owner = by_id.get(caller_owner or "", {})
             lang = owner.get("lang") or by_id[caller].get("lang")
+            if lang in VALUE_METHODS and receiver is not None and receiver not in SELF_RECEIVERS | {"super", "?"} \
+                    and not receiver[:1].isupper() and receiver not in ff.get("bound", ()) \
+                    and (len(parts) == 2 or (len(parts) == 3 and parts[0] in SELF_RECEIVERS)) \
+                    and (lang != "rust" or re.search(rf"\.\s*{re.escape(name)}\s*$", re.sub(r"\([^()]*\)", "", c["callee"]))):
+                # `row.get(...)`: a method of a value, never a free function, which goes bare or through a name an
+                # import binds (Rust `::`)
+                kept = [m for m in cands if by_id.get(by_id[m].get("parent") or "", {}).get("kind") not in ("file", "package")]
+                if not kept:
+                    continue
+                if len(kept) < len(cands) and len(cands) > MAX_CANDIDATES and len(kept) > 1:
+                    # a name too common to draw before: only the class the value is named after (`recorder` ->
+                    # Recorder, `validator` -> ArticleModelValidator), never a guess by arity or by elimination
+                    word = receiver.lower().replace("_", "").strip("$")   # `data_source` -> DataSource
+                    exact = [m for m in kept if word in {o.replace("_", "") for o in _owner_names(by_id[m], by_id)}]
+                    # else whole words ending the class name (`list_state` -> InMemoryListState), three letters on
+                    kept = exact or [m for m in kept if len(word) >= 3 and word in _name_tails(
+                        by_id.get(by_id[m].get("parent") or "", {}).get("name", ""))]
+                    if len(kept) != 1:
+                        if not CHAINED.search(c["callee"]):
+                            dropped[rt] = dropped.get(rt, 0) + 1
+                        continue
+                cands = kept
             if receiver is None and lang in NO_IMPLICIT_THIS:
                 # `trim($s)`: a free function or a built-in, never another class's method
                 cands = [m for m in cands if by_id.get(by_id[m].get("parent") or "", {}).get("kind") != "class"]

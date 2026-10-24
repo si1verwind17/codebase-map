@@ -205,6 +205,9 @@ def _family(lang: str) -> str:
     return FAMILIES.get(lang, lang)
 
 
+GO_PACKAGE = re.compile(r"^package\s+(\w+)", re.M)
+
+
 def _attach(nodes: list[dict], results: dict[str, dict]) -> None:
     """Methods a file attached to a type it does not declare (Go receivers, Rust `impl`): counted on that type's
     class node, made from the first such file when no file declares the type."""
@@ -289,6 +292,19 @@ def _grpc_text(text: str, r: dict, lang: str) -> list[dict]:
 
 def _bases(r: dict) -> list[tuple[str, list[str]]]:
     return list(r.get("bases", [])) + list(r.get("supers", []))
+
+
+def _bound_names(imports: list[dict]) -> list[str]:
+    """Every name an import may bind in its file: each segment of the target (`import a.b` binds `a`, Go binds the
+    last path segment), its alias, the names it lists and their renames."""
+    out: set[str] = set()
+    for imp in imports:
+        out |= {s for s in re.split(r"[^\w$]+", imp["target"]) if s}
+        out |= {v for v in (imp.get("as"), imp.get("default")) if isinstance(v, str)}
+        out |= {v for v in imp.get("names") or [] if isinstance(v, str)}
+        out |= {k for k in imp.get("renames") or {} if isinstance(k, str)}
+        out |= {v for v in (imp.get("renames") or {}).values() if isinstance(v, str)}
+    return sorted(out)
 
 
 def _grpc_impls(results: dict[str, dict], keys: dict[str, list[str]]) -> dict[str, str]:
@@ -1284,6 +1300,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
                 sources[f] = decode(data)
                 r["grpc_text"] = _grpc_text(decode(data), r, lang)
+                if lang == "go" and (clause := GO_PACKAGE.search(decode(data))):
+                    r["go_package"] = clause.group(1)   # the name its importers call it by, whatever its folder
                 if lang in SPECS:
                     lines[f] = decode(data).count("\n") + 1
             except Exception as err:
@@ -1389,6 +1407,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
 
     uses: dict[tuple[str, str], dict] = {}
     file_facts: dict[str, dict] = {}
+    go_names = {Path(f).parent.as_posix(): r["go_package"] for f, r in results.items() if r.get("go_package")}
     for f, r in results.items():
         lang = LANGS[Path(f).suffix][0]
         mid = file_mod[f]
@@ -1421,6 +1440,12 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                          "includes": r.get("includes", []), "clients": r.get("clients", []),
                          "grpc": _grpc_ends(r, grpc_keys, impls), "dags": r.get("dags", []),
                          "workflows": r.get("workflows", []), "reference_tasks": r.get("reference_tasks", [])}
+        bound = _bound_names(r["imports"])
+        if lang == "go":   # `import ".../userstore"` binds `store` when that folder's files say `package store`
+            bound = sorted(set(bound) | {go_names[d] for imp in r["imports"] for d in go_names
+                                         if imp["target"] == d or imp["target"].endswith("/" + d)})
+        if bound:   # the names a file's imports bind, for calls through them
+            file_facts[f]["bound"] = bound
         if r["mounts"]:   # likewise for mount entries
             file_facts[f]["mounts"] = r["mounts"]
         if implemented := _implemented(r, sinks):
