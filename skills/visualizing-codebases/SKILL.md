@@ -435,7 +435,8 @@ It never lists the standard library (the packs' `ignore` lists, Go paths
 without a host, Python's own list) or the repo's own code: relative imports,
 module folders and package names, Python sibling modules and `<stem>_pb2`
 stubs, Scala imports that start uppercase or name something declared in the
-file, workspace and `go.mod`/Cargo package names (Cargo `[lib] name` first), tsconfig `paths` aliases,
+file, workspace and `go.mod`/Cargo package names (Cargo `[lib] name` first), tsconfig `paths` aliases (`"*"` too),
+a JS/TS module root's own folders imported bare (`src/x`) when `package.json` names no such dependency,
 Rust `crate::`/`self::`/`super::` and `mod` names. Nor what the packs' code
 rules read (tapir, FastAPI, Airflow, Flyte, ZIO). The packs cover the common
 frameworks, ORMs and clients of every language (`format.md` → Stack lists

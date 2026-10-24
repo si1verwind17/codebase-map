@@ -650,3 +650,17 @@ def test_build_tool_configs_bundler_aliases_and_baseurl_imports_are_no_libraries
                            "import { x } from '$lib/x'\nimport dayjs from 'dayjs'\nexport const y = [Button, page, x, dayjs]\n"}
     s = structure.build(make_repo(files))
     assert [u["prefix"] for u in s["stack"]["unrecognised"]] == ["dayjs"]
+
+
+def test_own_folders_imported_bare_are_not_libraries(make_repo):
+    """tsconfig `"*"` paths, a folder of the module root a bundler resolves from (`src/x`), and a paths key mapped
+    into node_modules (a library's own files, so the library stays a library)."""
+    files = {"package.json": '{"name": "ui", "dependencies": {"echarts": "5", "react": "18"}}\n',
+             "tsconfig.json": '{"compilerOptions": {"paths": {"*": ["./web/src/*"], '
+                              '"echarts/types/src/*": ["./node_modules/echarts/types/src/*"]}}}\n',
+             "web/src/shop-lib/q.ts": "export const q = 1\n",
+             "web/src/app.ts": "import { q } from 'shop-lib/q'\nimport { v } from 'src/views'\n"
+                               "import * as e from 'echarts/types/src/x'\nimport React from 'react'\n",
+             "src/views.ts": "export const v = 2\n"}
+    s = structure.build(make_repo(files))
+    assert unrecognised(s) == {"echarts", "react"}

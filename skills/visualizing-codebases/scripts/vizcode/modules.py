@@ -297,11 +297,36 @@ def path_aliases(root: Path, modules: list[dict]) -> set[str]:
                 doc = None
             opts = doc.get("compilerOptions") if isinstance(doc, dict) else None
             paths = opts.get("paths") if isinstance(opts, dict) else None
-            if isinstance(paths, dict):
-                out.update(k.removesuffix("*").rstrip("/") for k in paths if isinstance(k, str))
+            for key, targets in (paths.items() if isinstance(paths, dict) else ()):
+                targets = [x for x in (targets if isinstance(targets, list) else [targets]) if isinstance(x, str)]
+                if not isinstance(key, str) or not targets or all("node_modules" in x for x in targets):
+                    continue   # a key mapped into node_modules names a library's own files
+                if key == "*":   # every folder a target names is a root of bare imports
+                    for x in targets:
+                        if (at := p.parent / x.removesuffix("*")).is_dir() and "node_modules" not in x:
+                            out.update(_children(at))
+                else:
+                    out.add(key.removesuffix("*").rstrip("/"))
             base = opts.get("baseUrl") if isinstance(opts, dict) else None
             if isinstance(base, str) and (at := (p.parent / base)).is_dir():   # bare imports resolve from there
-                out.update(x.stem if x.is_file() else x.name for x in at.iterdir()
-                           if not x.name.startswith(".") and x.name != "node_modules")
+                out.update(_children(at))
+        # a bundler resolving from the module root (webpack `resolve.modules`): `src/x`, `spec/y` are the module's
+        # own folders when its package.json names no dependency of that name
+        if (pkg := root / m["path"] / "package.json").is_file():
+            try:
+                doc = json.loads(_read(pkg))
+            except ValueError:
+                doc = {}
+            deps = {d for k in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
+                    for d in ((doc.get(k) or {}) if isinstance(doc, dict) else {})}
+            out.update(x.name for x in (root / m["path"]).iterdir()
+                       if x.is_dir() and not x.name.startswith(".") and x.name != "node_modules" and x.name not in deps)
     out.discard("")
     return out
+
+
+def _children(folder: Path) -> set[str]:
+    """The names bare imports resolve to in `folder`: its files' stems and its folders, hidden ones and
+    node_modules left out."""
+    return {x.stem if x.is_file() else x.name for x in folder.iterdir()
+            if not x.name.startswith(".") and x.name != "node_modules"}
