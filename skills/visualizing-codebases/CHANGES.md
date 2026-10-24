@@ -3,6 +3,12 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 8 — 2026-10-24
+- FastAPI prefixes (SKILL.md § Run, the structure pass's lists): the scanner joins `include_router` prefixes onto the included router's routes across files; rewrite `request` keys and example keys that spell such a route without them, and compose only the includes marked `not composed`.
+- Flask routes (SKILL.md § Stack): the Python pack reads `route`, the verb decorators and `add_url_rule`; a `stack.yaml` Flask pattern now listed `duplicates` can go.
+- Request objects (SKILL.md § Matching interactions): `http clients` also lists request descriptors (`{method, url}` objects) and calls on the app's own `*Client` class; match each to its route as a `request`, and drop hand-written requests the list now gives as facts.
+- Deployables (SKILL.md § Deployables, not folders): a deployable holding many unscanned files beside scanned ones is listed now (give it its service); one in a test, CI, docs or dev folder is no longer listed, and a service or `problems` entry written only to clear it can go.
+
 ## Rules 7 — 2026-10-24
 - Outbound requests (SKILL.md § Matching interactions): `http clients` now lists calls through the code's own HTTP helpers and client calls with a path; match each to its route as a `request`, and drop hand-written requests the list now gives as facts.
 - SQL kept outside the code (SKILL.md § Matching interactions): a mapper XML's statements are SQL facts of the interface methods they name, and § Tables defined in SQL files lists the tables `.sql` files create; attach their reads and writes.
