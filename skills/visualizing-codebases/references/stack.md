@@ -153,9 +153,9 @@ scala:
   nested function (a route in an app factory) is that function's, made a node
   the same way. A pattern with a `handler` group never takes the function below the
   match (that rule is for decorators): an inline handler
-  (`app.get("/x", (req, res) => …)`) leaves the group empty; inside a function
-  its lambda becomes a node of its own named after the route (`get_x`, holding
-  the lambda's calls), at a file's top level the file is its handler. An empty
+  (`app.get("/x", (req, res) => …)`) leaves the group empty; its lambda, inside a
+  function or at a file's top level, becomes a node of its own named after the
+  route (`get_x`; `get` for `GET /`), holding the lambda's calls. An empty
   group `(?P<handler>)` at the end of the regex is how a route written as a
   block (`get "/x" do`) gets the same rule.
 - A mount (`mount: true`): the route entry's regex has a `path` group and an
