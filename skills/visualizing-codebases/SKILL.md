@@ -266,7 +266,14 @@ services import is a `library` even when a Dockerfile copies it into their
 image. Only application code that two deployments each run as their own (a
 workflow module registered into two orchestrator projects) is claimed by both
 services: its code sits under the service whose first-listed module it is,
-and the other shows a twin of it, reported in `problems`.
+and the other shows a twin of it, reported in `problems`. So are the roles one
+package or jar runs as (a web server, its job worker and scheduler; a master
+and its workers): one service per role, each citing its start line. A relation
+one role makes to another starts at the service of the role making it, with
+`via` naming the method in the shared code, and ends at the method that
+handles it when the receiving role is the one the code sits under, else at
+the receiving role's service. Why: a relation from a method under the first
+service would credit that role with what another one does.
 Every service cites the line that deploys it in `evidence` (validation
 fails without it). Unclaimed modules are defaulted to libraries and reported. Why: drawing a
 shared library as a service invents traffic that never crosses a network.

@@ -7,6 +7,7 @@ Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; pru
 - FastAPI prefixes (SKILL.md § Run, the structure pass's lists): the scanner joins `include_router` prefixes onto the included router's routes across files; rewrite `request` keys and example keys that spell such a route without them, and compose only the includes marked `not composed`.
 - Flask routes (SKILL.md § Stack): the Python pack reads `route`, the verb decorators and `add_url_rule`; a `stack.yaml` Flask pattern now listed `duplicates` can go.
 - Request objects (SKILL.md § Matching interactions): `http clients` also lists request descriptors (`{method, url}` objects) and calls on the app's own `*Client` class; match each to its route as a `request`, and drop hand-written requests the list now gives as facts.
+- Roles of one module (SKILL.md § Deployables, not folders): a package or jar run as several roles (web, worker, scheduler; master and workers) is one service per role, and a relation between two roles starts at the service of the role making it with `via` naming the shared method; move relations that start at a method under another role's service.
 - Deployables (SKILL.md § Deployables, not folders): a deployable holding many unscanned files beside scanned ones is listed now (give it its service); one in a test, CI, docs or dev folder is no longer listed, and a service or `problems` entry written only to clear it can go.
 
 ## Rules 7 — 2026-10-24
