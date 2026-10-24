@@ -1367,8 +1367,9 @@ def summary_md(s: dict) -> str:
     lines += _stack_lines(s.get("stack", {}))
     lines += _unscanned_lines(s.get("unscanned") or {})
     if defined := s.get("sql_files"):
-        lines += [f"## Tables defined in SQL files — {len(defined)}", "",
-                  "`CREATE TABLE` in `.sql` files (migrations, schemas): tables that exist whatever the code shows; "
+        lines += [f"## Tables defined in SQL, schema and migration files — {len(defined)}", "",
+                  "`CREATE TABLE` in `.sql` files and the create-table calls of ORM schemas and migrations: tables that exist "
+                  "whatever the code shows; "
                   "name them in the map where code reads or writes them:"]
         lines += [f"- {d['table']} ({d['file']}:{d['line']})" for d in defined] + [""]
     names = {n["id"]: n["name"] for n in s["nodes"]}

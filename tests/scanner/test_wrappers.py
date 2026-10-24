@@ -94,7 +94,7 @@ def test_sql_in_mapper_xml_and_tables_defined_in_sql_files(make_repo):
     assert s["sql_files"] == [{"file": "db/migrations/V1__init.sql", "line": 2, "table": "sessions"},
                               {"file": "db/migrations/V1__init.sql", "line": 5, "table": "votes"}]
     md = structure.summary_md(s)
-    assert "## Tables defined in SQL files — 2" in md and "- sessions (db/migrations/V1__init.sql:2)" in md
+    assert "## Tables defined in SQL, schema and migration files — 2" in md and "- sessions (db/migrations/V1__init.sql:2)" in md
 
 
 def test_look_alikes_in_a_client_file_are_no_requests(make_repo):
@@ -235,3 +235,28 @@ def test_a_literal_inside_the_address_expression_is_no_path(make_repo):
                          "  axios.put(f ? 'always_invoice' : 'none')\n  axios.get(base + '/users')\n}\n"}
     s = structure.build(make_repo(files))
     assert clients(s, "src/a.ts") == [("GET", "/users", "src/a.ts#go/2")]
+
+
+def test_tables_created_by_orm_schemas_and_migrations(make_repo):
+    """Rails schema.rb, Laravel, Knex/Sequelize, EF Core, Liquibase and Django migrations list the tables they
+    create, once each; the same call outside a schema or migration path is not read."""
+    files = {"Gemfile": "gem 'rails'\n",
+             "db/schema.rb": 'ActiveRecord::Schema.define do\n  create_table "accounts", id: :uuid do |t|\n  end\nend\n',
+             "composer.json": "{}\n",
+             "database/migrations/2014_create_users.php": "<?php\nSchema::create('contacts', function ($t) {});\n",
+             "package.json": '{"name": "s"}\n',
+             "server/migrations/2026-create.js": "module.exports = { up: (q) => q.createTable('access_requests', {}) }\n",
+             "server/util.js": "export const f = (q) => q.createTable('not_a_migration', {})\n",
+             "Db/Db.csproj": "<Project/>\n",
+             "Db/Migrations/2020_AddUser.cs": "class AddUser { void Up(M b) { b.CreateTable(\n    name: \"Users\",\n"
+                                              "    columns: t => null); } }\n",
+             "src/main/resources/config/liquibase/changelog/0_initial.xml":
+                 '<databaseChangeLog>\n  <createTable tableName="jhi_user">\n  </createTable>\n</databaseChangeLog>\n',
+             "shop/__init__.py": "", "shop/orders/__init__.py": "", "shop/orders/migrations/__init__.py": "",
+             "shop/orders/migrations/0001_initial.py":
+                 "from django.db import migrations\n\nclass Migration(migrations.Migration):\n    operations = [\n"
+                 "        migrations.CreateModel(name='Order', fields=[]),\n"
+                 "        migrations.CreateModel(name='Line', fields=[], options={'db_table': 'order_lines'}),\n    ]\n"}
+    s = structure.build(make_repo(files))
+    assert sorted(d["table"] for d in s["sql_files"]) == ["Users", "access_requests", "accounts", "contacts", "jhi_user",
+                                                         "order_lines", "orders_order"]

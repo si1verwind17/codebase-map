@@ -338,7 +338,9 @@ helpers (a function passing its parameter on as a client call's address, so
 request objects holding a `method` and a `url`/`path`/`endpoint` (a generated client's
 `request(cfg, {..})`, a query definition's `({method, url})`);
 SQL kept outside the code (a mapper XML's statements, as SQL facts of the interface
-method each names; the tables `.sql` files create, in § Tables defined in SQL files), framework-implemented interfaces (a repository or a
+method each names; the tables `.sql` files and ORM schemas and migrations create (Rails `create_table`, Laravel
+`Schema::create`, Knex/Sequelize, EF Core, Liquibase, Django `CreateModel`), in § Tables defined in SQL, schema and
+migration files), framework-implemented interfaces (a repository or a
 declarative HTTP client: every method bodyless, in a file importing a database or
 HTTP client library) with their bases, annotation and methods: each method is
 where a `db-read`/`db-write` (the table from the entity type the base names) or a

@@ -19,6 +19,21 @@ CDATA = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.S)
 ENTITIES = {"&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&apos;": "'"}
 SQL_COMMENT = re.compile(r"/\*.*?\*/|--[^\n]*", re.S)
 PARAM = re.compile(r"[#$]\{[^}]*\}")
+# a schema or migration file of an ORM, by its path, and the table-creating calls in it: Rails and Alembic
+# `create_table`, Laravel `Schema::create`, Knex and Sequelize `createTable`, EF Core `CreateTable(name: ..)`,
+# Liquibase `<createTable tableName=..>`
+SCHEMA_PATH = re.compile(r"(?i)(?:^|/)(?:[^/]*migrat[^/]*|schema\.rb|[^/]*changelog[^/]*|liquibase)(?:/|$)|(?:^|/)schema\.rb$")
+# a Django migration's `CreateModel(name="Task", ..)`: table `<app>_<model>` (the app is the folder holding
+# `migrations/`), or the model's `db_table` option
+DJANGO_MODEL = re.compile(r"""\bCreateModel\(\s*name\s*=\s*["'](?P<model>\w+)["']""")
+DB_TABLE = re.compile(r"""["']db_table["']\s*:\s*["'](?P<table>[\w.]+)["']""")
+SCHEMA_SUFFIXES = (".rb", ".php", ".py", ".cs", ".js", ".ts", ".xml")
+CREATES = re.compile(
+    r"""\bcreate_table\s*\(?\s*[:"'](?P<a>\w+)"""
+    r"""|\bSchema::create\s*\(\s*["'](?P<b>\w+)"""
+    r"""|\bcreateTable\s*\(\s*["'`](?P<c>\w+)"""
+    r'|\bCreateTable\s*\(\s*name\s*:\s*"(?P<d>\w+)"'
+    r'|<createTable\b[^>]*\btableName\s*=\s*"(?P<e>\w+)"')
 CREATE = re.compile(r"(?im)^\s*create\s+(?:or\s+replace\s+)?(?:(?:global|local)\s+)?(?:(?:temporary|temp|unlogged)\s+)?"
                     r"table\s+(?:if\s+not\s+exists\s+)?((?:[`\"\[]?\w+[`\"\]]?\.)?[`\"\[]?\w+[`\"\]]?)")
 
@@ -39,16 +54,36 @@ def _statement_text(raw: str) -> str:
 
 
 def read(root: Path, tree: list[str], skip) -> tuple[list[dict], list[dict]]:
-    """(mapper statements, tables defined in .sql files) of the files in `tree` that `skip(path)` keeps."""
+    """(mapper statements, tables defined in .sql files and in ORM schema or migration files) of the files in `tree`
+    that `skip(path)` keeps; a table is listed once, where it is first created."""
     statements, defined = [], []
+    seen_tables: set[str] = set()
     for f in tree:
-        if skip(f) or not f.endswith((".xml", ".sql")):
+        if skip(f) or not f.endswith((".xml", ".sql", *SCHEMA_SUFFIXES)):
             continue
         text = (root / f).read_text(encoding="utf-8", errors="replace")
+        if not f.endswith(".sql") and SCHEMA_PATH.search(f) and not MAPPER.search(text):
+            found = [(m.start(), next(g for g in m.groups() if g)) for m in CREATES.finditer(text)]
+            if f.endswith(".py") and "/migrations/" in f:
+                app = f.rsplit("/migrations/", 1)[0].rsplit("/", 1)[-1]
+                for i, m in enumerate(models := list(DJANGO_MODEL.finditer(text))):
+                    end = models[i + 1].start() if i + 1 < len(models) else len(text)
+                    opt = DB_TABLE.search(text, m.end(), end)
+                    found.append((m.start(), opt.group("table") if opt else f"{app}_{m.group('model').lower()}"))
+            for at, name in sorted(found):
+                if name.lower() not in seen_tables:
+                    seen_tables.add(name.lower())
+                    defined.append({"file": f, "line": text.count("\n", 0, at) + 1, "table": name})
+            continue
+        if not f.endswith((".xml", ".sql")):
+            continue
         if f.endswith(".sql"):
             plain = SQL_COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)   # same offsets, no comments
-            defined += [{"file": f, "line": plain.count("\n", 0, m.start(1)) + 1,
-                         "table": re.sub(r'[`"\[\]]', "", m.group(1))} for m in CREATE.finditer(plain)]
+            for m in CREATE.finditer(plain):
+                name = re.sub(r'[`"\[\]]', "", m.group(1))
+                if name.lower() not in seen_tables:
+                    seen_tables.add(name.lower())
+                    defined.append({"file": f, "line": plain.count("\n", 0, m.start(1)) + 1, "table": name})
             continue
         if not (ns := MAPPER.search(text)):
             continue
