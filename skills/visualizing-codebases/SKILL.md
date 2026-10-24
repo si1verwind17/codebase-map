@@ -481,12 +481,17 @@ messaging or client module), add it to `imports`.
 
 - Entity-looking classes with no table usually take their table from the ORM's
   naming default (JPA the entity name, snake_case under Spring Boot's default
-  naming; Eloquent the snake-case plural; Spring Data Mongo the class name, first
-  letter lower-cased): write those tables into `meaning.json` by that rule, citing the
+  naming; Eloquent, ActiveRecord and gorm the snake-case plural; Flask-SQLAlchemy the
+  snake-case class name, singular; Django `<app label>_<model name lower-cased>`; Spring
+  Data Mongo the class name, first letter lower-cased): write those tables into `meaning.json` by that rule, citing the
   class line, or add a table pattern when the name is written in another style.
 - Route-looking lines with no route are a route style no pattern reads: add a
   `stack.yaml` route pattern for that style, rescan, and check the lines are gone;
   lines that are no routes (an outbound call with a path) go into `problems`.
+- Routes a framework registers have no line of their own (Spring Actuator turned on in config,
+  ASP.NET `MapIdentityApi<T>()`, health-check and OpenAPI endpoints): when a request or a probe
+  (a k8s `livenessProbe`) reaches one, end it at the method or config line that turns them on,
+  `inferred`, keyed by the route it calls, and name that line in `problems`.
 
 To sort the lines, write or fix patterns, and for the `stack.yaml` format (groups, route,
 mount, annotation, table and queue entries, prefixes, effects): read `references/stack.md`.
