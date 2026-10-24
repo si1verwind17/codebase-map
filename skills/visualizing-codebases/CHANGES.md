@@ -3,6 +3,14 @@
 Only changes that can make facts on an existing map wrong or incomplete go here: a meaning rule in SKILL.md, or a new kind of fact to look for. Viewer, scanner and schema changes do not (the page refresh and the full rescan cover them).
 Bump `RULES_VERSION` in `scripts/vizcode/__init__.py` with each new section; prune old sections from the bottom when the file passes about 10. The oldest section left is the floor: a map older than it gets a full meaning re-check.
 
+## Rules 10 — 2026-10-24
+- Likely requests (SKILL.md § Matching interactions, `summary.md` § Likely requests): client calls are paired with the repo routes and rpc servers they likely reach; write the `request` for each pair the code confirms, and clear each `request.unmatched` content warning.
+- Outbound requests (SKILL.md § Matching interactions): `http clients` now also lists calls whose address is built (format calls, a held name, a path constant, a placeholder host) and C# HttpClient, Go net/http, WebClient/RestClient and Locust calls; match each to its route as a `request`, and drop hand-written requests the list now gives as facts.
+- gRPC requests (SKILL.md § Matching interactions): a gRPC client end is now each call of an rpc on a stub, with that rpc's key alone; move `request`s written from the method that builds a stub, or from an `AddGrpcClient` registration, onto the calling methods, and drop requests for rpcs nothing calls.
+- Broker messages (SKILL.md § Queues): `messages published` and `messages consumed` list the Kafka and RabbitMQ sends and receivers by topic or queue, paired in § Likely requests; give each a `topic` node and its `event`s, and check hand-written broker events against them.
+- Spring Data repositories (SKILL.md § Side effects): a call on a repository interface now reads or writes its entity's table (`tables (patterns)`); attach the `db-read`/`db-write` from those methods.
+- Infrastructure images (SKILL.md § Deployables, not folders): a folder whose Dockerfiles only extend a stock database, broker or monitoring image is no deployable; a service or `problems` entry written only to clear its `deployable.unscanned` can go.
+
 ## Rules 9 — 2026-10-24
 - Class-based routes (SKILL.md § Stack): a route a class handles (`as_view()`, `::class`, a Resource added to an API) is one route per verb method of the class, each handled by that method; move the route's examples, pins and relations from the class or the file onto them.
 - Route prefixes across files (SKILL.md § Run, the structure pass's lists): Rails `namespace` and `scope` blocks, a router handed to a register function, Django `include()` and Flask blueprint prefixes now join onto their routes, and multi-line Rails `resources` options are read; rewrite `request` keys and example keys that spell such a route without its prefix, and drop those on actions an `only:` leaves out.
