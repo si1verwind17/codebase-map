@@ -1,6 +1,7 @@
 """Method-to-method `calls` relations, resolved by name from the structure pass's call sites."""
 from __future__ import annotations
 
+import functools
 import re
 
 from . import ids
@@ -280,19 +281,24 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
     for name, cids in classes.items():
         by_lower.setdefault(name.lower(), []).extend(cids)
 
-    def lineage(cid: str) -> set[str]:
+    @functools.cache
+    def lineage(cid: str) -> frozenset[str]:
         """A class, every repo class it extends, every repo class extending it, and what those extend (a mixin's
-        `self.save()` is the model's that a class using the mixin also extends)."""
+        `self.save()` is the model's that a class using the mixin also extends). Cached: a deep hierarchy is
+        walked once, not once per call."""
         out: set[str] = set()
-        for part in split.get(PART.sub("", cid), [cid]):
+        parts = split.get(PART.sub("", cid), [cid])
+        for part in parts:
             out |= _ancestors(part, by_id)
-        todo = list(out)
+        below, todo = set(parts), list(parts)   # the classes extending it, at any depth (never a base's others)
         while todo:
             for sub in subclasses.get(todo.pop(), []):
-                if sub not in out:
-                    out |= _ancestors(sub, by_id)
+                if sub not in below:
+                    below.add(sub)
                     todo.append(sub)
-        return out
+        for sub in below:
+            out |= _ancestors(sub, by_id)
+        return frozenset(out)
 
     def outside(m: str, held: list[str]) -> bool:
         """A method of a class unrelated to the held ones: not a top-level or extension function (its first

@@ -1117,6 +1117,16 @@ def test_a_self_call_reaches_a_sibling_base_of_a_subclass_and_an_outer_class():
         ("Inner#go/0", "Outer#refresh/0"), ("TimestampMixin#touch/0", "Model#save/0")]
 
 
+def test_a_self_call_never_reaches_a_sibling_under_a_shared_base():
+    """`self.get_credentials()` in a hook whose bases define none is no call to another hook extending the same
+    base: the lineage is the class, its bases, the classes extending it and their bases, whatever the order."""
+    nodes = _classes(("BaseHook", ["log"], [], "python"), ("AwsHook", ["get_credentials"], ["BaseHook"], "python"),
+                     ("GcpBase", ["project"], ["BaseHook"], "python"),
+                     ("GkeHook", ["get_conn"], ["GcpBase", "BaseHook"], "python"),
+                     ("GcsHook", ["get_credentials"], ["GcpBase"], "python"))
+    assert _targets(nodes, ("GkeHook#get_conn", "self.get_credentials")) == []
+
+
 def test_a_self_call_reaches_the_other_part_of_a_split_class_and_a_scala_self_type():
     """C# `partial class Foo` in two files is two nodes (`Foo`, `Foo~2`) of one class; a Scala trait's self-type
     (`self: Repo =>`) is not in its header."""
