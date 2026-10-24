@@ -181,3 +181,70 @@ def test_rust_cfg_test_items_are_left_out():
     assert [n["name"] for n in r["nodes"]] == ["repo.rs", "place"]
     assert [i["target"] for i in r["imports"]] == ["crate::db::Pool"]
     assert r["calls"] == [] and r["strings"] == []
+
+
+def test_rust_impl_in_another_file_joins_the_declared_struct(make_repo):
+    # `impl Handler<A> for Executor` in a submodule: methods of the struct `db/mod.rs` declares, no class per file
+    s = structure.build(make_repo({
+        "Cargo.toml": '[package]\nname = "app"\nversion = "0.1.0"\n',
+        "src/main.rs": "mod db;\nfn main() {}\n",
+        "src/db/mod.rs": "mod users;\npub struct Executor { pub pool: u8 }\n",
+        "src/db/users.rs": "use super::Executor;\npub struct A;\npub struct B;\n"
+                           "impl Handler<A> for Executor {\n    fn handle(&mut self, m: A, c: &mut u8) -> u8 { 0 }\n}\n"
+                           "impl Handler<B> for Executor {\n    fn handle(&mut self, m: B, c: &mut u8) -> u8 { self.run() }\n}\n"
+                           "impl Executor {\n    fn run(&self) -> u8 { 1 }\n}\n",
+    }), "docs/viz-code")
+    execs = [n for n in s["nodes"] if n["kind"] == "class" and n["name"] == "Executor"]
+    assert [n["file"] for n in execs] == ["src/db/mod.rs"]
+    methods = sorted(n["id"] for n in s["nodes"] if n["kind"] == "method" and n.get("parent") == execs[0]["id"])
+    assert methods == [execs[0]["id"] + m for m in ("#handle/2", "#handle/2~2", "#run/0")]
+    calls = [c for c in s["facts"]["src/db/users.rs"]["calls"] if c["callee"] == "self.run"]
+    assert [c["in"] for c in calls] == [execs[0]["id"] + "#handle/2~2"]
+
+
+def test_rust_impl_joins_the_struct_its_use_names_and_keeps_ids_per_file(make_repo):
+    # two `Record`s: the impl's `use` names db::model's; a type no `use` names keeps its own class; a method two
+    # files give the struct carries its file's name, so one file's impls never renumber another's
+    s = structure.build(make_repo({
+        "Cargo.toml": '[package]\nname = "app"\nversion = "0.1.0"\n',
+        "src/main.rs": "mod model;\nmod db;\nmod api;\nfn main() {}\n",
+        "src/model.rs": "pub struct Record;\n",
+        "src/db/mod.rs": "pub mod model;\npub mod a;\npub mod b;\npub struct Exec;\n",
+        "src/db/model.rs": "pub struct Record;\n",
+        "src/api/conv.rs": "use crate::db::model::Record;\nimpl Record {\n    fn to_json(&self) -> u8 { 0 }\n}\n"
+                           "impl Related for Entity {\n    fn to() -> u8 { 0 }\n}\n",
+        "src/db/a.rs": "use super::Exec;\nimpl Handler<A> for Exec {\n    fn handle(&mut self, m: A) -> u8 { 0 }\n}\n",
+        "src/db/b.rs": "use super::*;\nimpl Handler<B> for Exec {\n    fn handle(&mut self, m: B) -> u8 { 0 }\n}\n",
+    }), "docs/viz-code")
+    methods = {n["id"].split("::", 1)[1] for n in s["nodes"] if n["kind"] == "method"}
+    assert "src/db.model.Record#to_json/0" in methods
+    assert "src/api.conv.Entity#to/0" in methods
+    assert {"src/db.mod.Exec#handle/1~a", "src/db.mod.Exec#handle/1~b"} <= methods
+
+
+def test_rust_impl_follows_a_pub_use_and_an_unprefixed_use(make_repo):
+    s = structure.build(make_repo({
+        "Cargo.toml": '[package]\nname = "app"\nversion = "0.1.0"\n',
+        "src/main.rs": "mod db;\nmod api;\nmod settings;\nfn main() {}\n",
+        "src/db/mod.rs": "mod model;\npub use self::model::Record;\n",
+        "src/db/model.rs": "pub struct Record;\n",
+        "src/api/conv.rs": "use crate::db::Record;\nimpl Record {\n    fn to_json(&self) -> u8 { 0 }\n}\n",
+        "src/settings/mod.rs": "mod structs;\nuse structs::Settings;\nimpl Settings {\n    fn init() -> u8 { 0 }\n}\n",
+        "src/settings/structs.rs": "pub struct Settings;\n",
+    }), "docs/viz-code")
+    methods = {n["id"].split("::", 1)[1] for n in s["nodes"] if n["kind"] == "method"}
+    assert {"src/db.model.Record#to_json/0", "src/settings.structs.Settings#init/0"} <= methods
+
+
+def test_rust_impl_through_a_glob_cycle_joins_the_struct(make_repo):
+    # db/mod.rs and db/models.rs glob each other: the lookup from models.rs still finds schema's X
+    s = structure.build(make_repo({
+        "Cargo.toml": '[package]\nname = "app"\nversion = "0.1.0"\n',
+        "src/main.rs": "mod schema;\nmod db;\nfn main() {}\n",
+        "src/schema.rs": "pub struct X;\n",
+        "src/db/mod.rs": "mod models;\nuse crate::schema::*;\npub use self::models::*;\n"
+                         "impl Show for X {\n    fn show(&self) -> u8 { 0 }\n}\n",
+        "src/db/models.rs": "use super::*;\nimpl Load for X {\n    fn load(&self) -> u8 { 0 }\n}\n",
+    }), "docs/viz-code")
+    methods = {n["id"].split("::", 1)[1] for n in s["nodes"] if n["kind"] == "method"}
+    assert {"src.schema.X#show/0", "src.schema.X#load/0"} <= methods

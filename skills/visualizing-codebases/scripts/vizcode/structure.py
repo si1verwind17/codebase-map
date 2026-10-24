@@ -208,6 +208,128 @@ def _family(lang: str) -> str:
 GO_PACKAGE = re.compile(r"^package\s+(\w+)", re.M)
 
 
+def _rust_module(f: str) -> tuple[str, ...]:
+    """A Rust file's module path in its crate: `src/db/users.rs` -> (db, users); `mod.rs`, `lib.rs`, `main.rs` are
+    their folder's module."""
+    parts = f.split("/")
+    parts = parts[len(parts) - 1 - parts[::-1].index("src") + 1:] if "src" in parts else parts
+    parts[-1] = parts[-1].removesuffix(".rs")
+    return tuple(parts[:-1] if parts[-1] in ("mod", "lib", "main") else parts)
+
+
+def _rust_use_path(target: str, here: tuple[str, ...]) -> tuple[str, ...]:
+    """The crate module path a `use` path names: `crate::a::b`, `super::b`, `self::b`, and an unprefixed `a::b` as a
+    child module of `here` (when it is another crate, nothing there matches)."""
+    segs = target.split("::")
+    if segs[0] == "crate":
+        return tuple(segs[1:])
+    base = list(here)
+    while segs and segs[0] in ("super", "self"):
+        if segs.pop(0) == "super":
+            base = base[:-1]
+    return tuple(base + segs)
+
+
+def _rehome_impls(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry) -> None:
+    """A Rust `impl X for T` in a file that does not declare `T` joins the `T` its `use` lines name (`use
+    super::T`, `use crate::db::T`, else a module or glob import holding one `T`); with none, it keeps its own class.
+    Its methods are re-identified under that class, every id the file's facts hold with them; a method whose
+    name and arity another file also gives that class takes the file's name (`#handle/2~users`), so one file's
+    impls never renumber another's."""
+    declared: dict[tuple[str, tuple[str, ...], str], dict] = {}   # (module id, rust module, name) -> class
+    for f, r in results.items():
+        if Path(f).suffix == ".rs":
+            for n in r["nodes"]:
+                if n["kind"] == "class" and n.get("parent") and not n["name"].startswith("new "):
+                    declared.setdefault((file_mod[f], _rust_module(f), n["name"]), n)
+    module_files: dict[tuple[str, tuple[str, ...]], list[str]] = {}
+    for f in results:
+        if Path(f).suffix == ".rs":
+            module_files.setdefault((file_mod[f], _rust_module(f)), []).append(f)
+
+    def found(mid: str, here: tuple[str, ...], imports: list[dict], name: str, seen: set) -> dict | None:
+        """The struct `name` the `use` lines of module `here` bring in: a named one, else through a module or glob
+        `use`; a module that only re-exports it (`pub use self::model::Record`) is followed, each module once per
+        lookup (`seen`), so a cycle or a wide glob prelude ends."""
+        named, held = [], []
+        for imp in imports:
+            path = _rust_use_path(imp["target"], here)
+            if path and path[-1] == name:
+                named.append(path[:-1])
+            elif not path or path[-1][:1].islower():
+                held.append(path)
+        for paths in (named, held):
+            hits: dict[str, dict] = {}
+            for p in paths:
+                if (c := declared.get((mid, p, name))) is not None:
+                    hits[c["id"]] = c
+                elif p not in seen:
+                    seen.add(p)
+                    for g in module_files.get((mid, p), []):
+                        if (c := found(mid, p, results[g]["imports"], name, seen)) is not None:
+                            hits[c["id"]] = c
+            if hits:
+                return next(iter(hits.values())) if len(hits) == 1 else None
+        return None
+
+    plans: dict[str, list[tuple[dict, dict]]] = {}   # file -> (attached class, target class)
+    for f, r in sorted(results.items()):
+        if Path(f).suffix != ".rs" or not r.get("attached"):
+            continue
+        for a in r["attached"]:
+            if (target := found(file_mod[f], _rust_module(f), r["imports"], a["name"], {_rust_module(f)})) is not None:
+                plans.setdefault(f, []).append((a, target))
+    # (target, name/arity) given by more than one file: those methods carry their file's name
+    givers: dict[tuple[str, str], set[str]] = {}
+    for f, r in results.items():
+        if Path(f).suffix == ".rs":
+            for n in r["nodes"]:
+                if n["kind"] == "method" and n.get("parent"):
+                    givers.setdefault((n["parent"], re.sub(r"~\d+$", "", n["id"]).rsplit("#", 1)[-1]), set()).add(f)
+    for f, pairs in plans.items():
+        for a, target in pairs:
+            for n in results[f]["nodes"]:
+                if n.get("parent") == a["id"] and n["kind"] == "method":
+                    givers.setdefault((target["id"], re.sub(r"~\d+$", "", n["id"]).rsplit("#", 1)[-1]), set()).add(f)
+    renames: dict[str, dict[str, str]] = {}   # every class's count first: a walk below copies a file's dicts
+    for f, pairs in plans.items():
+        r = results[f]
+        moved = renames.setdefault(f, {})
+        stem = Path(f).parent.name if Path(f).stem in ("mod", "lib", "main") else Path(f).stem
+        for a, target in pairs:
+            target["metrics"]["methods"] = target["metrics"].get("methods", 0) + a["metrics"]["methods"]
+            r["attached"].remove(a)
+            moved[a["id"]] = target["id"]
+            for n in r["nodes"]:   # its methods in source order, each claiming its id under the class
+                if n.get("parent") == a["id"] and n["kind"] == "method":
+                    base = re.sub(r"~\d+$", "", n["id"])[len(a["id"]):]
+                    shared = len(givers.get((target["id"], base.lstrip("#")), ())) > 1
+                    moved[n["id"]] = reg.claim(target["id"] + base + (f"~{stem}" if shared else ""))
+    for f, moved in renames.items():
+        r = results[f]
+        olds = sorted(moved, key=len, reverse=True)
+
+        def swap(s: str) -> str:
+            for o in olds:
+                if s == o or (s.startswith(o) and s[len(o)] in ".#/:"):
+                    return moved[o] + s[len(o):]
+            return s
+
+        def walk(v):
+            if isinstance(v, str):
+                return swap(v)
+            if isinstance(v, list):
+                return [walk(x) for x in v]
+            if isinstance(v, tuple):
+                return tuple(walk(x) for x in v)
+            if isinstance(v, dict):
+                return {walk(k): walk(x) for k, x in v.items()}
+            return v
+
+        for k in list(r):
+            r[k] = walk(r[k])
+
+
 def _attach(nodes: list[dict], results: dict[str, dict]) -> None:
     """Methods a file attached to a type it does not declare (Go receivers, Rust `impl`): counted on that type's
     class node, made from the first such file when no file declares the type."""
@@ -1313,6 +1435,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 gen_files.append(f)
             if f.endswith(".scala"):   # kept only for `_declared`
                 texts[f] = decode(data)
+        _rehome_impls(results, file_mod, reg)
         hop = _imported_libraries(results, pending)
         for f, (lang, names) in list(pending.items()):
             r = results[f]
