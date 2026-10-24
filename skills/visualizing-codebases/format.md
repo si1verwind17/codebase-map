@@ -598,7 +598,9 @@ sets (a servlet context path, a URI version), joined onto every route of the lon
 file. A route entry is one of:
 
 - `form: regex` (the default): `name`, `regex` (with a `path` group, empty as `(?P<path>)` for a route on its
-  mount's own path such as actix `resource("/x").route(get().to(h))`, optional
+  mount's own path such as actix `resource("/x").route(get().to(h))`: such a match with no mount pattern matching
+  around it in its file is dropped, its path unknown; a route on the root, or one a mount in another file prefixes,
+  matches its path instead (`(?P<path>/?)` for `path("", view)`), optional
   `method`, `methods` and `handler` groups), `path` reader `literal` (the
   default) or `segments`, optional `when` and `method`; with `mount: true` the regex has
   a `path` and an optional `target` group, and its matches are mounts. Optional `expand`
