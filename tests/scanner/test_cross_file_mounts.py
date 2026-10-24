@@ -33,3 +33,34 @@ def test_a_file_with_two_routers_and_a_default_import_is_left_alone(make_repo):
              "src/main.ts": "import express from 'express'\nimport r from './r'\nconst app = express()\napp.use('/x', r)\n"}
     s = structure.build(make_repo(files))
     assert paths(s, "src/r.ts") == [("GET", "/a"), ("GET", "/b")]
+
+
+def test_django_includes_and_flask_blueprints(make_repo):
+    files = {"requirements.txt": "django\nflask\n", "site/__init__.py": "", "site/api/__init__.py": "",
+             "site/urls.py": "from django.urls import path, include\n\nurlpatterns = [path('api/', include('site.api.urls'))]\n",
+             "site/api/urls.py": "from django.urls import path, include\nfrom site.api import views\n\n"
+                                 "urlpatterns = [\n    path('ping/', views.ping),\n    path('users/', include(('site.api.users', 'users'))),\n]\n",
+             "site/api/users.py": "from django.urls import path\nfrom site.api import views\n\nurlpatterns = [path('<int:pk>/', views.user)]\n",
+             "site/api/views.py": "def ping(request):\n    return 1\n\n\ndef user(request, pk):\n    return pk\n",
+             "web/__init__.py": "",
+             "web/app.py": "from flask import Flask\nfrom web.auth import bp\n\napp = Flask(__name__)\n"
+                           "app.register_blueprint(bp, url_prefix='/auth')\n",
+             "web/auth.py": "from flask import Blueprint\n\nbp = Blueprint('auth', __name__)\n\n\n@bp.route('/login', methods=['POST'])\n"
+                            "def login():\n    return 1\n",
+             "web/admin.py": "from flask import Blueprint\n\nadmin = Blueprint('admin', __name__, url_prefix='/admin')\n\n\n"
+                             "@admin.route('/stats')\ndef stats():\n    return 1\n"}
+    s = structure.build(make_repo(files))
+    assert paths(s, "site/api/urls.py") == [("ANY", "/api/ping")]
+    assert paths(s, "site/api/users.py") == [("ANY", "/api/users/{pk}")]
+    assert paths(s, "web/auth.py") == [("POST", "/auth/login")]
+    assert paths(s, "web/admin.py") == [("GET", "/admin/stats")]
+
+
+def test_a_register_prefix_replaces_the_blueprints_own(make_repo):
+    files = {"requirements.txt": "flask\n", "web/__init__.py": "",
+             "web/app.py": "from flask import Flask\nfrom web.admin import admin\n\napp = Flask(__name__)\n"
+                           "app.register_blueprint(admin, url_prefix='/v2')\n",
+             "web/admin.py": "from flask import Blueprint\n\nadmin = Blueprint('admin', __name__, url_prefix='/admin')\n\n\n"
+                             "@admin.route('/stats')\ndef stats():\n    return 1\n"}
+    s = structure.build(make_repo(files))
+    assert [r["path"] for r in s["facts"]["web/admin.py"]["routes"]] == ["/v2/stats"]

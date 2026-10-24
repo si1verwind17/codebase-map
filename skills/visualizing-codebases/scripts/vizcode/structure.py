@@ -711,7 +711,14 @@ def _compose_includes(results: dict[str, dict]) -> None:
 
 def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, str | None] | None:
     """(file, exported name or None for its default export) of the router a mount in file f names through f's
-    imports: `import users from './users'` + `use('/u', users)`, `{ adminRouter }`, `* as api` + `api.router`."""
+    imports: `import users from './users'` + `use('/u', users)`, `{ adminRouter }`, `* as api` + `api.router`. In
+    Python, a name f imports (`register_blueprint(bp, ..)`), or a dotted module (`include("shop.api.urls")`: name
+    `*`, every route of that module)."""
+    if f.endswith(".py"):
+        if (hit := _router_of(f, target, results)) is not None:
+            return hit
+        g = _python_file(f, target, results) if "." in target else None
+        return (g, "*") if g else None
     head, *rest = target.split(".")
     for imp in results[f]["imports"]:
         if not imp["relative"] or (g := _relative_file(f, imp["target"], results)) is None:
@@ -774,9 +781,10 @@ def _compose_mounts(results: dict[str, dict]) -> None:
             g, name = hit
             ons = {x["on"] for x in results[g]["routes"] if x.get("on")} | \
                   {m["on"] for m in results[g].get("mounts", []) if m.get("on") and m.get("target")}
-            var = name if name in ons else (next(iter(ons)) if name is None and len(ons) == 1 else None)
+            var = "*" if name == "*" else name if name in ons else (
+                next(iter(ons)) if name is None and len(ons) == 1 else None)
             if var is not None:
-                parents.setdefault((g, var), []).append(((f, mt["on"]) if mt.get("on") else None, mt["path"], mt))
+                parents.setdefault((g, var), []).append(((f, mt["on"]) if mt.get("on") else (f, "*"), mt["path"], mt))
 
     def chains(node: tuple[str, str], seen: frozenset) -> list[tuple[str, list[dict]]]:
         ups = [(p, pre, mt) for p, pre, mt in parents.get(node, []) if p not in seen]
@@ -791,11 +799,16 @@ def _compose_mounts(results: dict[str, dict]) -> None:
     for f, r in results.items():
         out = []
         for route in r["routes"]:
-            on = route.pop("on", None)
-            ways = chains((f, on), frozenset({(f, on)})) if on and (f, on) in parents else [("", [])]
+            on, own = route.pop("on", None), route.pop("own_prefix", None)
+            node = (f, on) if on and (f, on) in parents else (f, "*") if (f, "*") in parents else None
+            ways = chains(node, frozenset({node})) if node else [("", [])]
             for above, mts in ways:
-                out.append({**route, "path": stack.normalise(above + "/" + route["path"].lstrip("/"))} if above
-                           else dict(route))
+                path = route["path"]
+                if own and mts and mts[-1].get("framework") == "flask-register-blueprint":
+                    # `register_blueprint(bp, url_prefix="/v2")` replaces the blueprint's own `url_prefix`
+                    path = stack.normalise(path[len(stack.normalise(own)):] if path.startswith(stack.normalise(own)) else path)
+                out.append({**route, "path": stack.normalise(above + "/" + path.lstrip("/"))} if above
+                           else {**route, "path": path})
                 for mt in mts:
                     mt["composed"] = mt.get("composed", 0) + 1
         r["routes"] = out

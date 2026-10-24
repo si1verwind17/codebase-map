@@ -89,6 +89,23 @@ python:
       path: literal
       method: ANY
       regex: '\bpath\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']\s*,\s*(?!include\b)(?P<handler>[A-Za-z_][\w.]*?(?:\.as_view)?)\s*[(,)]'
+    # Django `path("api/", include("shop.api.urls"))`: the included module's routes under the prefix
+    - name: django-include
+      when: django.urls
+      path: literal
+      mount: true
+      regex: '\bpath\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']\s*,\s*include\(\s*\(?\s*["''](?P<target>[\w.]+)["'']'
+    # Flask `app.register_blueprint(bp, url_prefix="/api")`; `Blueprint(.., url_prefix="/x")` prefixes its own routes
+    - name: flask-register-blueprint
+      when: flask
+      path: literal
+      mount: true
+      regex: '\.register_blueprint\(\s*(?P<target>[\w.]+)\s*,[^()]*?\burl_prefix\s*=\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
+    - name: flask-blueprint-prefix
+      when: flask
+      path: literal
+      mount: true
+      regex: '\bBlueprint\([^()]*?\burl_prefix\s*=\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
     # `bp.add_url_rule("/x", view_func=h, methods=[..])`, keywords in any order; `h.as_view("name")` is h
     - name: flask-url-rule
       when: flask

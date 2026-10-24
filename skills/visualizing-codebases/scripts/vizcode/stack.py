@@ -929,6 +929,9 @@ def pattern_text(src: str, lang: str) -> str:
     return out
 
 
+OWN_PREFIX = {"flask-blueprint-prefix"}   # mounts that set a router's own prefix where it is made
+
+
 def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") -> None:
     """Join each mount's prefix onto the routes registered on it in the same file: inside its call or block, chained
     on it, or called on a variable bound to it (`v1 := r.Group("/v1")`), nested mounts composing outward. Each
@@ -966,6 +969,9 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
             r["on"] = on   # the router it is registered on: a mount in another file may name it (structure)
         if chain and r.get("on_mount"):
             r["composed_on"] = True
+        if chain and mounts[chain[0]]["framework"] in OWN_PREFIX and (on := _head(src, at)):
+            # `Blueprint(.., url_prefix="/x")` is the router's own prefix: a register call elsewhere may replace it
+            r["on"], r["own_prefix"] = on, mounts[chain[0]]["path"]
         if chain:
             r["path"] = normalise("/".join(x.strip("/") for x in [*(mounts[k]["path"] for k in chain), r["path"]]
                                            if x.strip("/")))
