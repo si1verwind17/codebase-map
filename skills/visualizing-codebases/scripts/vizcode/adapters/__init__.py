@@ -12,7 +12,8 @@ calls     [{callee, in, line}]
 strings   [{text, line, in}]           literal contents, interpolations as {..}
 env_keys  [{key, line}]
 routes    [{method, path, handler, line, framework}]
-includes  [{app, router, prefix, line}]   FastAPI include_router calls (Python only)
+includes  [{app, router, prefix, line}]   FastAPI include_router calls (Python only; structure composes them)
+routers   {variable: own prefix}           FastAPI routers and apps the file makes; a route on one has `router`
 tapir     {"vals": {qualname: {...}}, "bodies": [(method_id, line, body_text)], "root": imports sttp.tapir,
            "client": imports sttp.tapir.client, "named": {body index: qualified val name},
            "binds": [(method_id, endpoint as written, line)] server logic bound to an endpoint,

@@ -61,7 +61,7 @@ def test_python_routes_nested_in_app_factory():
            b"    async def invoke(event):\n        return event\n\n    return app\n")
     res = py.parse(src, "worker/app.py", WORKER, ids.IdRegistry())
     assert res["routes"] == [{"method": "POST", "path": "/v1/invoke", "handler": "worker::worker.app#create_app/1",
-                              "line": 8, "framework": "fastapi", "nested_handler": "invoke"}]
+                              "line": 8, "framework": "fastapi", "router": "app", "nested_handler": "invoke"}]
 
 
 def test_a_latin1_file_keeps_its_accented_identifiers():

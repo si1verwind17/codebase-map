@@ -340,13 +340,14 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None)
     src_text = decode(src)
     prefixes = routes.fastapi_prefixes(src_text)
     res["includes"] = routes.fastapi_includes(src_text)
+    res["routers"] = prefixes
     for fid, decos, line, nested in decorated:
         for d in decos:
             hit = routes.fastapi_decorator(d)
             if hit and hit[0] in prefixes:
                 obj, method, path = hit
                 route = {"method": method, "path": prefixes[obj] + path, "handler": fid,
-                         "line": line, "framework": "fastapi"}
+                         "line": line, "framework": "fastapi", "router": obj}
                 if nested:
                     route["nested_handler"] = nested
                 res["routes"].append(route)

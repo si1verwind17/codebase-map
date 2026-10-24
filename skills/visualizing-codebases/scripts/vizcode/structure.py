@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import fnmatch
 import posixpath
+import os
 import re
 import tempfile
 import time
@@ -513,6 +514,84 @@ def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
     return nid
 
 
+def _python_file(f: str, target: str, results: dict[str, dict]) -> str | None:
+    """The scanned file a Python import target names: `.x`/`..x` from f's folder, else the one file whose path ends
+    in the dotted name (`a.b` -> `.../a/b.py` or `.../a/b/__init__.py`), the closest to f when several do."""
+    if target.startswith("."):
+        dots = len(target) - len(target.lstrip("."))
+        base = Path(f).parent
+        for _ in range(dots - 1):
+            base = base.parent
+        rest = [x for x in target.lstrip(".").split(".") if x]
+        stems = [(base / Path(*rest)).as_posix()] if rest else [base.as_posix()]
+        found = [g for s in stems for g in (s + ".py", s + "/__init__.py") if g in results]
+        return found[0] if found else None
+    tail = "/" + target.replace(".", "/")
+    found = [g for g in results if g.endswith(".py") and ("/" + g[:-3]).removesuffix("/__init__").endswith(tail)]
+    if len(found) > 1:
+        found.sort(key=lambda g: -len(os.path.commonpath([g, f])))
+    return found[0] if found else None
+
+
+def _router_of(f: str, expr: str, results: dict[str, dict]) -> tuple[str, str] | None:
+    """(file, variable) of the router an include_router argument names: one of f's own, or one f imports
+    (`from m import router`, `from pkg import m` + `m.router`, `import pkg.m as m` + `m.router`)."""
+    head, *rest = expr.split(".")
+    r = results[f]
+    if not rest and head in r.get("routers", {}):
+        return f, head
+    for imp in r["imports"]:
+        names = imp.get("names") or []
+        local = {**{n: n for n in names}, **{a: m for a, m in (imp.get("renames") or {}).items()}}
+        if head in local:
+            member = local[head]
+            target = imp["target"].rstrip(".") + "." + member if imp["target"].strip(".") else imp["target"] + member
+            if rest and (g := _python_file(f, target, results)) is not None:
+                return g, rest[-1]
+            if not rest and (g := _python_file(f, imp["target"], results)) is not None:
+                return g, member
+        elif not names and rest and (imp.get("as") == head or ".".join([head, *rest[:-1]]) == imp["target"]):
+            if (g := _python_file(f, imp["target"], results)) is not None:   # `import a.m as m`, `import a.m`
+                return g, rest[-1]
+    return None
+
+
+def _compose_includes(results: dict[str, dict]) -> None:
+    """Join include_router prefixes onto the routes of the routers they include, across files: a route's path
+    gets every including router's own prefix and include prefix, up to a router nothing includes. A router
+    included in two places gives its routes once per place. An include that names a router counts its routes
+    in `composed`."""
+    parents: dict[tuple[str, str], list[tuple[tuple[str, str], str, dict]]] = {}
+    for f, r in results.items():
+        for inc in r.get("includes", []):
+            if (child := _router_of(f, inc["router"], results)) is not None:   # the app may be a parameter
+                parents.setdefault(child, []).append(((f, inc["app"]), inc["prefix"], inc))
+
+    def chains(node: tuple[str, str], seen: frozenset) -> list[tuple[str, list[dict]]]:
+        """(prefix above the router's own, includes passed) for each way down to `node`."""
+        ups = [(p, pre, inc) for p, pre, inc in parents.get(node, []) if p not in seen]
+        if not ups:
+            return [("", [])]
+        out = []
+        for p, pre, inc in ups:
+            own = results[p[0]].get("routers", {}).get(p[1], "")
+            out += [(above + own + pre, incs + [inc]) for above, incs in chains(p, seen | {p})]
+        return out
+
+    for f, r in results.items():
+        if not any(route.get("router") for route in r["routes"]):
+            continue
+        out = []
+        for route in r["routes"]:
+            obj = route.pop("router", None)
+            ways = chains((f, obj), frozenset({(f, obj)})) if obj else [("", [])]
+            for above, incs in ways:
+                out.append({**route, "path": stack.normalise(above + route["path"])} if above else dict(route))
+                for inc in incs:
+                    inc["composed"] = inc.get("composed", 0) + 1
+        r["routes"] = out
+
+
 def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry,
                       names: dict[str, dict[str, str]]) -> None:
     """Replace the span-rule handler of a route that names one (`handler_name`) with the method or function of
@@ -904,6 +983,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     for f, r in results.items():
         _unalias(f, r, results, names)
     _resolve_handlers(results, file_mod, reg, names)
+    _compose_includes(results)
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)
@@ -1200,7 +1280,9 @@ def summary_md(s: dict) -> str:
                 wfs.append(f"{w['id']}{lps} → {w['node'] or 'defined elsewhere'} ({f}:{w['line']})")
             refs += [f"{t['kind']} project={t['project']} domain={t['domain']} name={t['name']} → {t['node']} "
                      f"({f}:{t['line']})" for t in ff.get("reference_tasks", [])]
-            routes_ += [f"include_router({i['router']}, prefix={i['prefix']!r}) on {i['app']} ({f}:{i['line']})"
+            routes_ += [f"include_router({i['router']}, prefix={i['prefix']!r}) on {i['app']} ({f}:{i['line']}"
+                        + (f", composed onto {_plural(i['composed'], 'route', 'routes')})" if i.get("composed")
+                           else ", not composed: compose it yourself)")
                         for i in ff.get("includes", [])]
         grpc_s = [f"{svc} ← {', '.join(at)}" for (side, svc), at in grpc_ends.items() if side == "server"]
         grpc_c = [f"{svc} ← {', '.join(at)}" for (side, svc), at in grpc_ends.items() if side == "client"]

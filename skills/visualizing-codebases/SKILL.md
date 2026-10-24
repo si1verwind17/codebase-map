@@ -195,8 +195,9 @@ without an error.
 `summary.md` also lists excluded files (tests, docs, vendored code), what it
 did not scan (§ Not scanned near the top: source in languages without a
 reader, by language and folder, and the deployables made mostly of it), and
-FastAPI `include_router` prefixes, which you compose onto the included
-router's routes yourself.
+FastAPI `include_router` calls: the scanner joins their prefixes onto the
+included router's routes (`composed onto N routes`); compose only those
+marked `not composed` yourself.
 
 ## Committed code only
 

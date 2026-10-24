@@ -5,12 +5,31 @@ import re
 
 # --- FastAPI -------------------------------------------------------------
 FASTAPI_DECORATOR = re.compile(
-    r"^@(\w+)\.(get|post|put|delete|patch|websocket)\(\s*[rRuU]?[\"']([^\"']*)[\"']")
-FASTAPI_OWNER = re.compile(r"^[ \t]*(\w+)[ \t]*(?::[ \t]*[\w.\[\]]+[ \t]*)?=\s*(?:APIRouter|FastAPI)\(([^)]*)\)",
-                           re.S | re.M)
-FASTAPI_INCLUDE = re.compile(
-    r"(\w+)\.include_router\(\s*([\w.]+)\s*(?:,[^)]*?prefix\s*=\s*[\"']([^\"']*)[\"'])?")
-PREFIX_KW = re.compile(r"prefix\s*=\s*[\"']([^\"']*)[\"']")
+    r"^@(\w+)\.(get|post|put|delete|patch|websocket)\(\s*(?:path\s*=\s*)?[rRuU]?[\"']([^\"']*)[\"']")
+# a router or app: FastAPI's own, or a router class of the repo's (`AppRouter(APIRouter)`), named `*Router`
+FASTAPI_OWNER = re.compile(r"^[ \t]*(\w+)[ \t]*(?::[ \t]*[\w.\[\]]+[ \t]*)?=\s*(?:[\w.]*\.)?(?:FastAPI|\w*Router)\(", re.M)
+FASTAPI_INCLUDE = re.compile(r"(\w+)\.include_router\(\s*([\w.]+)")
+PREFIX_KW = re.compile(r"\bprefix\s*=\s*[rRuU]?[\"']([^\"']*)[\"']")
+
+
+def _call_args(src: str, at: int) -> str:
+    """The text inside the call whose `(` is at `at`, brackets balanced (arguments may hold calls; a bracket in a
+    string does not count)."""
+    depth, quote, i = 0, None, at
+    while i < len(src):
+        ch = src[i]
+        if quote:
+            i += 2 if ch == "\\" else 1
+            quote = None if ch == quote else quote
+            continue
+        if ch in "\"'":
+            quote = ch
+        depth += ch in "([{"
+        depth -= ch in ")]}"
+        if depth == 0:
+            return src[at + 1:i]
+        i += 1
+    return src[at + 1:]
 
 
 def fastapi_decorator(text: str) -> tuple[str, str, str] | None:
@@ -22,15 +41,20 @@ def fastapi_decorator(text: str) -> tuple[str, str, str] | None:
 
 
 def fastapi_includes(src: str) -> list[dict]:
-    """include_router calls; the prefix they add is composed by the agent across files."""
-    return [{"app": m.group(1), "router": m.group(2), "prefix": m.group(3) or "",
-             "line": src.count("\n", 0, m.start()) + 1} for m in FASTAPI_INCLUDE.finditer(src)]
+    """include_router calls: the app or router including, the router expression included, and the prefix added."""
+    out = []
+    for m in FASTAPI_INCLUDE.finditer(src):
+        p = PREFIX_KW.search(_call_args(src, src.index("(", m.start())))
+        out.append({"app": m.group(1), "router": m.group(2), "prefix": p.group(1) if p else "",
+                    "line": src.count("\n", 0, m.start()) + 1})
+    return out
 
 
 def fastapi_prefixes(src: str) -> dict[str, str]:
+    """Router or app variable -> the prefix its constructor sets ("" when none)."""
     out = {}
     for m in FASTAPI_OWNER.finditer(src):
-        p = PREFIX_KW.search(m.group(2))
+        p = PREFIX_KW.search(_call_args(src, m.end() - 1))
         out[m.group(1)] = p.group(1) if p else ""
     return out
 
