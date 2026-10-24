@@ -22,6 +22,8 @@ COMPOSE_FILE = re.compile(r"(^|/)(docker-)?compose[^/]*\.ya?ml$")
 DOCKERFILE = re.compile(r"(^|/)Dockerfile[^/]*$")
 RUN_LINE = re.compile(r"\s*(ENTRYPOINT|CMD)\b", re.I)
 FULL_RATIO = 0.3
+# a build file inside a test folder, or of a project named as tests (`Orders.UnitTests.csproj`)
+TEST_BUILD = re.compile(r"(^|/)(tests?|__tests__|src/test)/|(^|/)[^/]*\.(?:Unit|Integration|Functional)?Tests?\.csproj$")
 
 
 def _compose_services(text: str | None) -> dict | None:
@@ -61,6 +63,8 @@ def deployables_changed(repo: Path, old: str, new: str, changed: list[dict]) -> 
         path = c["path"]
         if not (DEPLOYABLE_FILES.search(path) or DEPLOYABLE_FILES.search(c.get("old_path", ""))):
             continue
+        if all(TEST_BUILD.search(p) for p in (path, c.get("old_path") or path)):
+            continue   # a test project's build file (`tests/Basket.UnitTests/*.csproj`): the scan reads none of it
         if c["status"] in "ADR":
             what = {"A": "added", "D": "removed"}.get(c["status"], f"renamed from {c.get('old_path')}")
             reasons.append(f"{path} {what}")
@@ -118,7 +122,7 @@ def plan(repo: Path, cmap: dict, structure: dict, out_dir: str) -> tuple[dict, d
     old, new = cmap["meta"]["commit"], structure["meta"]["commit"]
     report = {"mode": "incremental", "reason": None, "from_commit": old, "to_commit": new,
               "changed": [], "stale_relations": [], "stale_nodes": [], "stale_examples": [], "removed_nodes": [],
-              "why": {}, "moved_evidence": 0}
+              "why": {}, "causes": [], "moved_evidence": 0}
     same_root = cmap["meta"].get("root") == structure["meta"].get("root")
     changes = Changes(None, {})   # what changed is unknown until git says: every evidence line counts as changed
     if same_root and gitsrc.commit_exists(repo, old):
@@ -135,6 +139,12 @@ def plan(repo: Path, cmap: dict, structure: dict, out_dir: str) -> tuple[dict, d
         report["stale_nodes"] = stale["nodes"]
         report["stale_examples"] = stale["examples"]
         report["why"] = stale["why"]
+        # the reasons by how many facts each explains: one deleted file is one thing to look at, not 13
+        counts: dict[str, int] = {}
+        for reasons in stale["why"].values():
+            for x in reasons:
+                counts[x] = counts.get(x, 0) + 1
+        report["causes"] = [{"reason": x, "facts": n} for x, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
         report["moved_evidence"] = stale["moved"]
         return meaning
 
@@ -216,7 +226,10 @@ def project(cmap: dict, structure: dict, changes: Changes) -> tuple[dict, dict]:
         if nid not in by_id:
             return None
         if nid not in new_nodes:
-            return f"{nid} is not in the new structure"
+            # the same method with other parameters (`processUpdateForm/1` -> `/2`): the one node it likely became
+            heirs = [m for m in new_nodes if "#" in nid and m.rsplit("/", 1)[0] == nid.rsplit("/", 1)[0]
+                     and re.sub(r"~\d+$", "", m) != re.sub(r"~\d+$", "", nid)]
+            return f"{nid} is not in the new structure" + (f"; now {heirs[0]}?" if len(heirs) == 1 else "")
         was, now = by_id[nid].get("file"), new_nodes[nid].get("file")
         if was and now and changes.renamed.get(was, was) != now:
             return f"{nid} moved from {was} to {now}"

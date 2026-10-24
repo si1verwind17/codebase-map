@@ -103,7 +103,8 @@ very first command.
    - `incremental` → `meaning.json` holds every fact; the ones the change
      touched carry `"stale": true`: a line they cite or the method around it
      changed, an end node is gone or moved, or their route changed
-     (`stale.json` lists them, and its `why` says what changed for each).
+     (`stale.json` lists them, and its `why` says what changed for each; `causes` counts the facts each reason
+     flags, so work through it a cause at a time, and a gone method's `now <id>?` names its likely successor).
      Evidence on unchanged lines already points at their new place. Re-resolve
      each flagged fact against the new code: keep it
      (delete the flag), change it (edit, delete the flag), or drop it. A

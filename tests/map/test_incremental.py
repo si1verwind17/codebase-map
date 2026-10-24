@@ -447,6 +447,14 @@ def test_deployable_changes_force_full_and_say_which(shop_repo):
     assert stale["reason"] == "deployable definitions changed: docker-compose.yml: service billing added"
 
 
+def test_a_test_projects_build_file_forces_no_full_rescan(shop_repo):
+    deployed_shop(shop_repo)
+    write_files(shop_repo, {"tests/Orders.UnitTests/Orders.UnitTests.csproj": "<Project/>\n"})
+    commit_all(shop_repo, "a test project")
+    stale, _ = rescan_plan(shop_repo)
+    assert "deployable definitions" not in (stale.get("reason") or "")
+
+
 def test_changed_entry_points_force_full(shop_repo):
     deployed_shop(shop_repo)
     write_files(shop_repo, {"docker-compose.yml": COMPOSE.replace("command: python -m worker.main",
@@ -500,3 +508,21 @@ def test_a_renamed_file_carries_its_evidence(shop_repo):
     # its via moved with the file, so the fact is re-checked; the evidence already names the new path
     assert call["stale"] is True and call["evidence"][0] == {"file": "pylib/http_client.py", "line": 4}
     assert stale["why"][CALL] == ["pylib::pylib.client#call/0 is not in the new structure"]
+
+
+def test_a_method_whose_parameters_changed_names_its_successor_and_causes_are_counted(shop_repo):
+    scan(shop_repo)
+    _bump_scanner(shop_repo, ("pylib::pylib.client#call/0", "pylib::pylib.client#call/1"))   # the map knew call/1
+    stale, _ = rescan_plan(shop_repo)
+    assert stale["why"][CALL] == ["pylib::pylib.client#call/1 is not in the new structure; "
+                                  "now pylib::pylib.client#call/0?"]
+    assert stale["causes"] == [{"reason": "pylib::pylib.client#call/1 is not in the new structure; "
+                                          "now pylib::pylib.client#call/0?", "facts": 1}]
+
+
+def test_only_a_test_projects_build_file_is_skipped():
+    from vizcode import incremental
+    assert incremental.TEST_BUILD.search("tests/Orders.UnitTests/Orders.UnitTests.csproj")
+    assert incremental.TEST_BUILD.search("src/Orders.Tests.csproj")
+    for kept in ("orders/build.gradle.kts", ".docker/web/Dockerfile", "docs/docker-compose.yml", "src/Orders.csproj"):
+        assert not incremental.TEST_BUILD.search(kept), kept

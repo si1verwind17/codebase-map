@@ -547,7 +547,8 @@ descriptions (optional); `roles` overrides package roles (optional). Complete ex
 | `structure.json`, `summary.md` | no | `extract.py` |
 | `meaning.json` | no | you; `diff.py` on incremental scans (all facts, stale ones flagged); `diff.py` also flags stale examples |
 | `meaning.previous.json` | no | `diff.py` on full rescans: the previous map's facts in `meaning.json`'s shape, suspect ones flagged `stale` as on incremental scans; removed by `diff.py` on none/incremental runs and by `assemble.py` on exit 0 |
-| `stale.json` | no | `diff.py`: `mode`, `reason` (why a rescan is full), `changed` files, the flagged `stale_relations`, `stale_nodes` and `stale_examples` (each with `why`), `why` (fact id → what it depends on that changed), `removed_nodes`, `moved_evidence` (evidence lines moved to their new place); on a full rescan, `previous_meaning` names the file above |
+| `stale.json` | no | `diff.py`: `mode`, `reason` (why a rescan is full), `changed` files, the flagged `stale_relations`, `stale_nodes` and `stale_examples` (each with `why`), `why` (fact id → what it depends on that changed; a gone method with one same-named successor of other arity
+says `now <id>?`), `causes` (each reason with the number of facts it flags, most first), `removed_nodes`, `moved_evidence` (evidence lines moved to their new place); on a full rescan, `previous_meaning` names the file above |
 | `code-map.invalid.json` | no | `assemble.py` when validation fails |
 | `index.html` | no | `assemble.py` (or `view.py` alone): the viewer with the map built in, minified and ASCII-escaped, so not byte-equal to `code-map.json` |
 | `export-comment.md` | no | the viewer: review comments and pin changes (`## Pins`) for the agent |
