@@ -670,7 +670,10 @@ patterns name different tables on it the pattern listed first keeps its facts: J
 `source` is `pack` or `stack.yaml`. A call on an entity class whose table is known (the class a `defined` fact is
 on, a Django model its migration creates, a Rails or Eloquent model by the plural naming default) adds an access
 fact with `op` (`read` or `write`, from the ORM verb: `Order.objects.filter`, `Document.findByPk`,
-`Contact::create`), `pattern: orm-call` and `source: scanner`, one per (table, method, op). `summary.md` prints
+`Contact::create`), `pattern: orm-call` and `source: scanner`, one per (table, method, op); a call on a value
+typed with a Spring Data repository of the entity (`OrderRepository extends JpaRepository<Order, Long>`, its
+entity in the file's `repositories` fact) counts too, its inherited and derived methods as verbs (`findById`,
+`findByName`, `saveAll`, `deleteById`). `summary.md` prints
 them per module as `- **tables (patterns):** orders (repo/OrderRepo.java:12 defined on Order)`, an access with its
 op (`orders (app/views.py:5 in show, read)`).
 

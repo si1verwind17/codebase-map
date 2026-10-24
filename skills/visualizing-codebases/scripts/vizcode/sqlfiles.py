@@ -135,6 +135,10 @@ CONTEXT_WORDS = re.compile(r"_*(?:db|ctx|\w*[cC]ontext|\w*[dD]b|\w*[cC]tx)")
 def _context_name(name: str) -> bool:
     """How code names an EF DbContext (`_context`, `db`, `DataContext`); ASP.NET's `HttpContext` is none."""
     return bool(CONTEXT_WORDS.fullmatch(name)) and "httpcontext" not in name.lower()
+# a repository's inherited or derived query method: a read (`findById`, `findByLastName`, `existsBy..`, `countBy..`)
+# or a write (`saveAll`, `deleteById`, `saveAndFlush`)
+REPOSITORY_VERB = re.compile(r"^(?:(find|get|read|query|search|stream|count|exists)|(save|delete|remove|insert|update|"
+                             r"flush))(?:[A-Z]\w*)?$")
 ORM_HOLDERS = {"objects", "query", "unscoped"}   # Django's manager, Flask-SQLAlchemy's query
 # a declared type that holds an entity's rows: the entity itself, or a repository generic of it (TypeORM
 # `Repository<User>`, Mongoose `Model<User>`, Spring Data `UserRepository` aside: a class of its own)
@@ -183,17 +187,23 @@ def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dic
     def decls(caller: dict, value: str) -> list[str]:
         return [d.get("type") or "" for d in declared(caller, value)]
 
-    def typed(caller: dict, value: str) -> str | None:
-        """The entity a value's declared type names: the entity itself (`User user`, `user: User`) or a repository
-        of it (`Repository<UserEntity>`, `Model<User>`), never a list or map of it; an entity of the caller's
-        language."""
+    # a repository interface -> the entity it serves (`OrderRepository extends JpaRepository<Order, Long>`)
+    served = {by_id[cid]["name"]: ent for ff in file_facts.values() for cid, ent in (ff.get("repositories") or {}).items()
+              if cid in by_id}
+
+    def typed(caller: dict, value: str) -> tuple[str, bool] | None:
+        """The entity a value's declared type names, and whether through a repository interface: the entity itself
+        (`User user`, `user: User`), a repository of it (`Repository<UserEntity>`, `Model<User>`), or a repository
+        interface serving it (`OrderRepository`), never a list or map of it; an entity of the caller's language."""
         for d in declared(caller, value):
             m = REPO_TYPE.fullmatch(re.sub(r"\s+", "", d.get("type") or "").strip("?"))
             word = (m.group(1) or m.group(2)) if m else None
+            repository = (word or "") in served
+            word = served.get(word or "", word)   # a repository interface stands for its entity
             hits = [x for x in named.get(word or "", []) if by_id[x].get("lang") == caller.get("lang")
-                    and (not d.get("refs") or x in d["refs"])]   # a resolved type: only the class it names
+                    and (repository or not d.get("refs") or x in d["refs"])]   # a resolved type: only its class
             if hits and len({tables[x] for x in hits}) == 1:
-                return hits[0]
+                return hits[0], repository
         return None
 
     def a_context(caller: dict, value: str) -> bool:
@@ -217,9 +227,12 @@ def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dic
             if table is None and len(parts) > 1 and (caller := by_id.get(c.get("in") or "")):
                 # a value typed with an entity (`this.users: Repository<User>`), or an EF context's DbSet property
                 at = 1 if parts[0] in ("self", "this") and len(parts) > 2 else 0
-                if (ent := typed(caller, parts[at])) is not None and parts[at + 1:at + 2] \
-                        and parts[at + 1] in ORM_READS | ORM_WRITES:   # `school.courses.all()`: another table
-                    table, rest = tables[ent], parts[at + 1:]
+                if (got := typed(caller, parts[at])) is not None and parts[at + 1:at + 2] \
+                        and (parts[at + 1] in ORM_READS | ORM_WRITES
+                             or (got[1] and REPOSITORY_VERB.match(parts[at + 1]))):   # never `pet.getName()`
+                    table, rest = tables[got[0]], parts[at + 1:]   # (`school.courses.all()`: another table, none)
+                    if (verb := REPOSITORY_VERB.match(rest[0])) is not None and rest[0] not in ORM_READS | ORM_WRITES:
+                        rest = ["save" if verb.group(2) else "find"] + rest[1:]   # `findByLastName`, `saveAll`
                 elif (i := next((i for i in range(at + 1, len(parts) - 1) if parts[i] in context_sets and (
                         a_context(caller, parts[i - 1]) if i - 1 == at else _context_name(parts[i - 1]))),
                         None)) is not None:   # `_context.Users`, `unitOfWork.DataContext.Users`

@@ -432,6 +432,26 @@ def _go_implements(nodes: list[dict]) -> None:
             classes[cid]["implements"] = sorted(set(classes[cid].get("implements", [])) | set(hits))
 
 
+# a Spring Data repository's base, its first type argument the entity it serves
+REPOSITORY_BASE = re.compile(r"\b(?:Jpa|Crud|PagingAndSorting|ListCrud|ListPagingAndSorting|Mongo|ReactiveCrud|"
+                             r"ReactiveMongo|R2dbc|Coroutine(?:Crud|Sorting))?Repository\s*<\s*([A-Z]\w*)")
+
+
+def _repository_entities(r: dict, text: str) -> dict[str, str]:
+    """Each repository interface of a file with the entity its base names (`interface OrderRepository extends
+    JpaRepository<Order, Long>` -> Order): read from the class's header, which the supers keep without type
+    arguments."""
+    lines = text.split("\n")
+    out = {}
+    for cid, bases in r.get("supers", []):
+        if any(b.split(".")[-1].endswith("Repository") for b in bases):
+            node = next((n for n in r["nodes"] if n["id"] == cid), None)
+            head = "\n".join(lines[node["line"] - 1:node["line"] + 3]) if node else ""
+            if (m := REPOSITORY_BASE.search(head.split("{", 1)[0])) is not None:
+                out[cid] = m.group(1)
+    return out
+
+
 def _grpc_text(text: str, r: dict, lang: str, file_id: str | None = None) -> list[dict]:
     """The gRPC ends of proto.text_ends in one file's source, each with its line and the method (else class) it
     sits in, else (an end at the file's top: `server.addService(..)`) `file_id`; JavaScript and TypeScript
@@ -1650,6 +1670,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                         r["route_like"] = [x for x in stack.route_like(decode(data), lang)
                                            if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
                     r["tables"] = _pattern_tables(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                    if repos := _repository_entities(r, sources[f]):
+                        r["repositories"] = repos
                     r["untabled"] = stack.entities_without_table(r, any(
                         h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
                     r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
@@ -1782,6 +1804,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             file_facts[f]["implemented"] = implemented
         if r["tables"]:   # the key appears only where a table pattern matched
             file_facts[f]["tables"] = r["tables"]
+        if r.get("repositories"):   # and for the entity each repository interface serves
+            file_facts[f]["repositories"] = r["repositories"]
         if queues := queue_use.handled(r.get("queues", []), r["imports"], internal.get(lang, set()), lang):
             file_facts[f]["queues"] = queues   # likewise for in-process queue creation sites
         if r.get("jobs"):   # and for job system sites

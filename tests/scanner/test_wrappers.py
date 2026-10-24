@@ -439,6 +439,25 @@ def test_orm_access_through_a_django_queryset_and_a_nested_ef_context(make_repo)
     assert acc == [("Items", "read", "A/1"), ("pings", "read", "queryset/2")]
 
 
+def test_a_spring_data_repository_reaches_its_entitys_table(make_repo):
+    """`OrderRepository extends JpaRepository<Order, Long>`: its inherited and derived methods read and write the
+    entity's table; an entity's own getter (`order.getName()`) reads none."""
+    files = {"pom.xml": "<project/>\n",
+             "src/main/java/a/Order.java": "package a;\nimport jakarta.persistence.*;\n@Entity\n@Table(name = \"orders\")\n"
+                                           "public class Order {\n    public String getName() { return null; }\n}\n",
+             "src/main/java/a/OrderRepository.java": "package a;\nimport org.springframework.data.jpa.repository.JpaRepository;\n"
+                                                     "public interface OrderRepository extends JpaRepository<Order, Long> {\n"
+                                                     "    Order findByName(String n);\n}\n",
+             "src/main/java/a/Orders.java": "package a;\npublic class Orders {\n    private OrderRepository repo;\n"
+                                            "    public Object one(long id) { return repo.findById(id); }\n"
+                                            "    public Object named(String n) { return repo.findByName(n); }\n"
+                                            "    public void put(Order o) { repo.saveAll(java.util.List.of(o)); }\n"
+                                            "    public String label(Order o) { return o.getName(); }\n}\n"}
+    s = structure.build(make_repo(files))
+    acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
+                 for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
+    assert acc == [("orders", "read", "named/1"), ("orders", "read", "one/1"), ("orders", "write", "put/1")]
+
 
 def test_built_addresses_stay_honest(make_repo):
     """Two verbs on one line are two requests; a path of placeholders only is none; a loop variable takes no
