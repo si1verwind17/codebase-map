@@ -664,3 +664,10 @@ def test_own_folders_imported_bare_are_not_libraries(make_repo):
              "src/views.ts": "export const v = 2\n"}
     s = structure.build(make_repo(files))
     assert unrecognised(s) == {"echarts", "react"}
+
+
+def test_a_yaml_error_names_the_file_and_line(tmp_path):
+    bad = write(tmp_path, "python:\n  imports:\n    - {prefix: x, kind: http\n")
+    with pytest.raises(stack.StackError) as e:
+        stack.load(bad)
+    assert str(bad) in str(e.value) and "<unicode string>" not in str(e.value) and "line" in str(e.value)

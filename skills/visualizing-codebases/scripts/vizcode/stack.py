@@ -466,6 +466,11 @@ def _read(st: Stack, fname: str, doc, source: str) -> None:
                 _add_routes(st, fname, lang, entries, source)
 
 
+def _where(err: Exception, path) -> str:
+    """A YAML error's text naming the file it is in, not `"<unicode string>"`."""
+    return str(err).replace('"<unicode string>"', f'"{path}"')
+
+
 def load(stack_file: Path | None) -> Stack:
     """Packs always, then stack_file when it exists. Raises StackError."""
     st = Stack()
@@ -481,7 +486,7 @@ def load(stack_file: Path | None) -> Stack:
         try:
             doc = yaml.safe_load(text)
         except yaml.YAMLError as err:
-            raise StackError(f"{Path(stack_file).name}: not valid YAML: {err}") from None
+            raise StackError(f"{stack_file}: not valid YAML: {_where(err, stack_file)}") from None
         # of the parsed content: a comment, whitespace or line-ending edit digests the same
         st.digest = hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
                                               default=str).encode()).hexdigest()
@@ -519,7 +524,7 @@ def add_excludes(stack_file: Path, globs: list[str]) -> list[str]:
     try:
         doc = yaml.safe_load(text)
     except yaml.YAMLError as err:
-        raise StackError(f"{path.name}: not valid YAML: {err}") from None
+        raise StackError(f"{path}: not valid YAML: {_where(err, path)}") from None
     have = doc.get("exclude") if isinstance(doc, dict) and isinstance(doc.get("exclude"), list) else []
     added = [g for g in dict.fromkeys(globs) if g not in have]
     if not added:
