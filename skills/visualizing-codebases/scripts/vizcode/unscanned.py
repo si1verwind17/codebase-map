@@ -21,12 +21,12 @@ SOURCE = {
     ".hs": "Haskell", **dict.fromkeys((".ml", ".mli"), "OCaml"), **dict.fromkeys((".fs", ".fsx"), "F#"),
     ".vb": "Visual Basic", **dict.fromkeys((".clj", ".cljs", ".cljc"), "Clojure"), ".groovy": "Groovy",
     **dict.fromkeys((".pl", ".pm"), "Perl"), ".lua": "Lua", ".r": "R", ".jl": "Julia", ".zig": "Zig",
-    ".nim": "Nim", ".cr": "Crystal", ".elm": "Elm", ".sol": "Solidity",
+    ".nim": "Nim", ".cr": "Crystal", ".elm": "Elm", ".sol": "Solidity", ".rake": "Rake",
     **{suf: lang for lang, sufs in TEMPLATES.items() for suf in sufs},
     **dict.fromkeys((".sh", ".bash", ".zsh"), "shell"), ".ps1": "PowerShell",
     **dict.fromkeys((".conf", ".vcl"), "server config"),
 }
-NAMES = {"Caddyfile": "server config"}
+NAMES = {"Caddyfile": "server config", "Rakefile": "Rake"}
 DOCKERFILE = re.compile(r"^(?:Dockerfile[^/]*|[^/]+\.[Dd]ockerfile)$")
 # a folder segment that says the image is for tests, CI, docs, examples, benchmarks or a developer's tooling, not
 # the product: a CI folder, `dev`, or a tooling word as a whole segment or a dashed part of one (`e2e-tests`,
@@ -44,7 +44,7 @@ def tooling(folder: str) -> bool:
 
 
 # source that runs beside any deployable (scripts, server config): it never makes one unscanned by its share
-AUXILIARY = {"shell", "PowerShell", "server config"}
+AUXILIARY = {"shell", "PowerShell", "server config", "Rake"}
 MANY = 100   # this many unread source files, a fifth of the read ones or more, make a deployable unscanned in part
 COMPOSE = re.compile(r"^(?:docker-)?compose[^/]*\.ya?ml$")
 

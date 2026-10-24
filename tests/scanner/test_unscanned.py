@@ -127,3 +127,12 @@ def test_product_folders_and_jvm_packages_are_no_tooling(make_repo):
     assert "env keys of test" not in md and "PAYMENT_GATEWAY_URL" in md and "SEARCH_API_URL" in md
     assert not s["unscanned"].get("tooling")
     assert {d["folder"] for d in s["unscanned"]["deployables"]} == {"payment-integration", "code-sandbox"}
+
+
+def test_rake_tasks_are_listed_but_never_make_a_deployable_unscanned(make_repo):
+    files = {"Gemfile": "gem 'rails'\n", "Dockerfile": "FROM ruby\n", **{f"app/models/m{i}.rb": f"class M{i}; end\n" for i in range(5)},
+             "Rakefile": "require_relative 'config/application'\n",
+             **{f"lib/tasks/t{i}.rake": "task :x do\nend\n" for i in range(3)}}
+    s = structure.build(make_repo(files), "docs/viz-code")
+    assert {x["lang"]: x["files"] for x in s["unscanned"]["languages"]} == {"Rake": 4}
+    assert s["unscanned"]["deployables"] == []
