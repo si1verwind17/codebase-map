@@ -1189,6 +1189,25 @@ def test_a_values_method_never_reaches_a_free_function_of_that_name(make_repo):
     assert not any(k[0].endswith("#run/1") for k in got), got
 
 
+def test_a_field_type_matches_classes_of_the_callers_language_only():
+    # a Python model's `options = Column(...)`: a TypeScript class named Column elsewhere is not its type
+    nodes = [{"id": "svc:a", "kind": "service", "name": "a", "parent": None},
+             {"id": "a::m", "kind": "file", "name": "m", "parent": "svc:a", "lang": "python"},
+             {"id": "a::m.Source", "kind": "class", "name": "Source", "parent": "a::m", "lang": "python",
+              "fields": [{"name": "options", "type": "Column"}]},
+             {"id": "a::m.Source#to_dict/0", "kind": "method", "name": "to_dict", "parent": "a::m.Source", "lang": "python"},
+             {"id": "a::c", "kind": "file", "name": "c", "parent": "svc:a", "lang": "python"},
+             {"id": "a::c.Container", "kind": "class", "name": "Container", "parent": "a::c", "lang": "python"},
+             {"id": "a::c.Container#set_schema/1", "kind": "method", "name": "set_schema", "parent": "a::c.Container",
+              "lang": "python"},
+             {"id": "a::ui", "kind": "file", "name": "ui", "parent": "svc:a", "lang": "typescript"},
+             {"id": "a::ui.Column", "kind": "class", "name": "Column", "parent": "a::ui", "lang": "typescript"},
+             {"id": "a::ui.Column#render/0", "kind": "method", "name": "render", "parent": "a::ui.Column",
+              "lang": "typescript"}]
+    rels, _ = calls.resolve(nodes, [], {"m.py": {"calls": [{"callee": "self.options.set_schema",
+                                                            "in": "a::m.Source#to_dict/0", "line": 3, "args": 1}]}})
+    assert [r["to"] for r in rels] == ["a::c.Container#set_schema/1"]
+
 
 def test_a_go_package_named_unlike_its_folder_and_a_common_name_on_a_value(make_repo):
     # `store.Fetch` through `.../userstore` (`package store`) keeps its call; `seen.add()` on a set, a name five

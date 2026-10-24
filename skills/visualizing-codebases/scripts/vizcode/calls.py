@@ -371,11 +371,14 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                     len(parts) == 2 or (len(parts) == 3 and parts[0] in SELF_RECEIVERS | {c.get("self")})):
                 # a field of the caller's class (`repo.save`, `this.repo.save`) typed with a repo class: as a parameter
                 field = _field_type(by_id.get(by_id[caller].get("parent") or ""), receiver)
-                typed = field if field is not None and field[0] in classes else None
+                typed = field if field is not None and any(
+                    by_id[k].get("lang") == by_id[caller].get("lang") for k in classes.get(field[0], [])) else None
             if typed is not None:
                 outer, refs = typed
-                # the repo classes the outer type names: its resolved ref, else every class of that name
-                named = [r for r in refs if by_id.get(r, {}).get("name", "").rstrip("$") == outer] or classes.get(outer, [])
+                # the repo classes the outer type names: its resolved ref, else every class of that name in the
+                # caller's language
+                named = [r for r in refs if by_id.get(r, {}).get("name", "").rstrip("$") == outer] or [
+                    k for k in classes.get(outer, []) if by_id[k].get("lang") == by_id[caller].get("lang")]
                 if named:
                     owners = {a for r in named for a in _ancestors(r, by_id)}
                     cands = [m for m in cands if by_id[m].get("parent") in owners
