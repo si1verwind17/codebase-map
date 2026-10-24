@@ -511,9 +511,29 @@ def _arg_count(args, spec: LangSpec) -> int | None:
     return count_args(args, spec.splats, spec.comments)
 
 
+# TypeScript the grammar cannot parse, blanked to spaces of the same length before parsing (the text is read from
+# the source as written): `export type * from`'s `type`, and type arguments that open with an object type before a
+# tagged template (`styled.div<{ a: number }>`..``; `a<b` comparisons never open with `{`). Types make no nodes, so nothing the scan reads is lost.
+TS_TYPE_STAR = re.compile(rb"\bexport\s+(type)(?=\s+\*)")
+TS_TEMPLATE_ARGS = re.compile(rb"(?<=[\w)\]])<(?=\s*\{)(?=[^`]{0,600}>\s*`)[^`<>]*(?:<[^`<>]*>[^`<>]*)*>(?=\s*`)")
+
+
+def _blank(m: re.Match, group: int = 0) -> bytes:
+    """The match with its `group` turned to spaces, line ends kept."""
+    whole, a, b = m.group(0), m.start(group) - m.start(), m.end(group) - m.start()
+    return whole[:a] + re.sub(rb"[^\n]", b" ", whole[a:b]) + whole[b:]
+
+
+def parseable(src: bytes, grammar: str) -> bytes:
+    """The source to hand the grammar: TypeScript with the forms it cannot parse blanked (TS_TYPE_STAR, ..)."""
+    if grammar not in ("typescript", "tsx"):
+        return src
+    return TS_TEMPLATE_ARGS.sub(_blank, TS_TYPE_STAR.sub(lambda m: _blank(m, 1), src))
+
+
 def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None, *, spec: LangSpec) -> dict:
     """`st` is unused: route patterns run in structure.build on the method spans this returns."""
-    root = _parser(spec.grammar).parse(src).root_node
+    root = _parser(spec.grammar).parse(parseable(src, spec.grammar)).root_node
     pkg, pkg_node = _package(root, spec, rel_file, module)
     res = new_result(pkg, root.has_error)
     res["annotations"], res["attached"], res["values"], res["class_inits"] = [], [], [], []
