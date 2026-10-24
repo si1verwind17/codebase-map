@@ -2,7 +2,8 @@
 """Look up node ids in structure.json (or code-map.json) without reading the whole file.
 
 Usage: find.py MAP_JSON TEXT [--kind method|class|file|package] [--limit 30]
-Prints one line per match: id  file:line  (params) -> returns
+Prints one line per match (the node named TEXT first, then ids ending in it, then any id holding it):
+id  file:line  (params) -> returns
 """
 from __future__ import annotations
 
@@ -20,7 +21,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--limit", type=int, default=30)
     a = ap.parse_args(argv)
     nodes = json.loads(a.map_json.read_text(encoding="utf-8"))["nodes"]
-    hits = [n for n in nodes if a.text.lower() in n["id"].lower() and (a.kind is None or n["kind"] == a.kind)]
+    want = a.text.lower()
+    hits = [n for n in nodes if want in n["id"].lower() and (a.kind is None or n["kind"] == a.kind)]
+    # the node named TEXT first, then ids ending in it, then the rest: on a large map the one meant is not cut
+    hits.sort(key=lambda n: (str(n.get("name", "")).lower() != want, not n["id"].lower().endswith(want)))
     for n in hits[:a.limit]:
         sig = n.get("signature")
         sig_text = ""
