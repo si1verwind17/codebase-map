@@ -208,7 +208,7 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
         if _words(receiver) & SERVER_WORDS:
             return None
         if heads[f] and (last.lower() in CLIENT_WORDS or last.lower().endswith("client")) and not last[:1].isupper():
-            return "strong"   # a callable client made from a client library (`this.client(url, ..)`)
+            return "weak"   # a callable client (`this.client(url, ..)`), or a factory (`session.client("sts")`)
         if not (last in CLIENT_CALLS or (len(parts) == 1 and head in GLOBAL_CLIENTS)):
             return None   # a request call, not a client's constructor (`httpx.Client(..)`) or setting
         if head in GLOBAL_CLIENTS or head in heads[f] or (heads[f] and typed_client(f, c, receiver)):

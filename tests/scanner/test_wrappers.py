@@ -279,7 +279,10 @@ def test_orm_calls_on_entities_are_table_access(make_repo):
                                         "    return Line.objects.create(order=o)\n",
              "Gemfile": "gem 'rails'\n", "db/schema.rb": 'create_table "categories" do |t|\nend\n',
              "app/models/category.rb": "class Category < ApplicationRecord\nend\n",
-             "app/services/sorter.rb": "class Sorter\n  def run\n    Category.where(active: true).order(:name)\n  end\nend\n"}
+             "app/services/sorter.rb": "class Sorter\n  def run\n    Category.where(active: true).order(:name)\n"
+                                       "    Session.get('x')\n  end\nend\n",
+             "lib/session.rb": "class Session\n  def self.get(k)\n  end\nend\n",
+             "db/migrate/1_sessions.rb": 'create_table "sessions" do |t|\nend\n'}
     s = structure.build(make_repo(files))
     acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
                  for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
@@ -301,3 +304,40 @@ def test_an_inline_handler_at_the_file_top_is_its_own_node(make_repo):
     assert rs == {"/docs.info": ".::src/r.ts#post_docs_info/0", "/docs.list": ".::src/r.ts#get_docs_list/0"}
     ins = {c["callee"]: c["in"] for c in s["facts"]["src/r.ts"]["calls"]}
     assert ins["load"] == rs["/docs.info"] and ins["list"] == rs["/docs.list"] and ins["auth"] is None
+
+
+def test_a_file_level_lambda_belongs_only_to_the_route_call_holding_it(make_repo):
+    """An error middleware after a route that names its handler is no handler of that route; a Rails
+    `resources .. do` block makes no handler for the resource's routes."""
+    files = {"package.json": '{"name": "s", "dependencies": {"express": "4"}}\n',
+             "src/app.js": "const express = require('express')\nconst app = express()\n"
+                           "app.get('/metrics', promBundle.metricsMiddleware)\n"
+                           "app.use((err, req, res, next) => {\n  log(err)\n})\n",
+             "Gemfile": "gem 'rails'\n",
+             "config/routes.rb": "Rails.application.routes.draw do\n  resources :users do\n    get :export\n  end\nend\n"}
+    s = structure.build(make_repo(files))
+    assert [r["handler"] for r in s["facts"]["src/app.js"]["routes"]] == [".::src/app.js"]
+    assert not any("#get_users" in r["handler"] for r in s["facts"]["config/routes.rb"]["routes"])
+
+
+def test_concatenated_and_built_addresses(make_repo):
+    files = {"package.json": '{"name": "ui"}\n',
+             "src/a.ts": "import axios from 'axios'\n\nexport function go(id: string) {\n"
+                         "  axios.get('/api/users/' + id)\n  axios.delete(BASE + '/api/b/' + String(id))\n}\n",
+             "app/__init__.py": "",
+             "app/c.py": "import requests\nfrom urllib.parse import urljoin\n\n\ndef c(i):\n"
+                         "    requests.get(urljoin(BASE, '/api/c'))\n    requests.post(BASE + '/api/d/' + str(i) + '/x')\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "src/a.ts")] == [("GET", "/api/users/{id}"), ("DELETE", "/api/b/{id}")]
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/api/c"), ("POST", "/api/d/{i}/x")]
+
+
+def test_a_client_factory_and_a_method_first_call_over_lines(make_repo):
+    """`boto3.client("s3")` makes a client, it sends nothing; `request(\\n "POST",\\n "/jobs")` is a POST."""
+    files = {"app/__init__.py": "",
+             "app/s3.py": "import boto3\n\n\ndef put(k):\n    boto3.client('s3').put_object(Key=k)\n",
+             "app/api.py": "import requests\n\n\ndef call(method, url):\n    return requests.request(method, url)\n",
+             "app/use.py": "from app.api import call\n\n\ndef run():\n    return call(\n        'POST',\n        '/jobs',\n    )\n"}
+    s = structure.build(make_repo(files))
+    assert clients(s, "app/s3.py") == []
+    assert clients(s, "app/use.py") == [("POST", "/jobs", "app.use#run/0")]
