@@ -225,3 +225,13 @@ def test_route_tables_contracts_and_key_stores_are_no_requests(make_repo):
              "app/__init__.py": "", "app/locks.py": "def release(self):\n    self.zk_client.delete('/locks/job')\n"}
     s = structure.build(make_repo(files))
     assert {f: ff["clients"] for f, ff in s["facts"].items() if ff.get("clients")} == {}
+
+
+def test_a_literal_inside_the_address_expression_is_no_path(make_repo):
+    """A route-name helper, a lookup, a choice and a header read name no path; a literal joined onto a base does."""
+    files = {"package.json": '{"name": "ui"}\n',
+             "src/a.ts": "import axios from 'axios'\n\nexport function go(o: any, f: boolean) {\n"
+                         "  axios.get(route('close_beta'))\n  axios.post(o.get('url'))\n"
+                         "  axios.put(f ? 'always_invoice' : 'none')\n  axios.get(base + '/users')\n}\n"}
+    s = structure.build(make_repo(files))
+    assert clients(s, "src/a.ts") == [("GET", "/users", "src/a.ts#go/2")]

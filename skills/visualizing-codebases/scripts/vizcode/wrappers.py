@@ -72,6 +72,76 @@ def _args(lines: list[str], line: int, name: str, nth: int = 0) -> str:
     return text[start + 1:]
 
 
+# a URL builder taking the path as an argument: `urljoin(BASE, "/x")`, `path.join(base, "x")`, `new URL("/x", base)`
+URL_BUILDER = re.compile(r"""^(?:new\s+URL|(?:[\w$]+\.)*(?:urljoin|join|resolve))\s*\((.*)\)$""", re.S)
+STRING_PREFIX = re.compile(r"^[fFrRbBuU]{1,2}(?=[\"'])")   # Python's `f"…"`, `r'…'`
+
+
+def _plus_terms(arg: str) -> list[str]:
+    """The `+`-joined terms of an expression, split outside brackets and strings."""
+    terms, depth, quote, cur = [], 0, None, ""
+    for ch in arg:
+        if quote:
+            quote = None if ch == quote else quote
+        elif ch in "\"'`":
+            quote = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "+" and depth == 0:
+            terms.append(cur.strip())
+            cur = ""
+            continue
+        cur += ch
+    return terms + [cur.strip()]
+
+
+def _literal(term: str) -> str | None:
+    s = STRING.fullmatch(STRING_PREFIX.sub("", term.strip()))
+    return next((x for x in s.groups() if x is not None), None) if s else None
+
+
+def _address(arg: str) -> str | None:
+    """The path an address argument spells: a string or template, a URL builder's literal argument, or `+`-joined
+    terms holding a literal (a leading base dropped, each later value a `{name}` segment:
+    `'/api/users/' + id` -> `/api/users/{id}`). None for a literal inside another call, a lookup or a choice
+    (`route('name')`, `opts.get("url")`, `a ? 'x' : 'y'`), which names no path."""
+    arg = arg.strip()
+    if (b := URL_BUILDER.match(arg)) is not None:
+        lits = [x for part in _split_args(b.group(1)) if (x := _literal(part)) is not None]
+        return lits[0] if len(lits) == 1 else None
+    terms = _plus_terms(arg)
+    if len(terms) == 1:
+        return _literal(arg)
+    out, seen_literal = [], False
+    for i, term in enumerate(terms):
+        if (lit := _literal(term)) is not None:
+            out.append(lit)
+            seen_literal = True
+        elif i == 0:
+            continue   # the base the path is joined onto
+        elif re.fullmatch(r"[\w$.()\[\]'\"]+", term) and (words := IDENT.findall(term)):   # `str(i)`, `user.id`
+            out.append("${" + words[-1] + "}")
+        else:
+            return None
+    return "".join(out) if seen_literal else None
+
+
+def _split_args(text: str) -> list[str]:
+    """A call's arguments, split on commas outside brackets."""
+    out, depth, cur = [], 0, ""
+    for ch in text:
+        depth += ch in "([{"
+        depth -= ch in ")]}"
+        if ch == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    return out + [cur]
+
+
 def _first_arg(text: str) -> str:
     """The call's first argument as written, stripped (up to the first comma outside brackets)."""
     depth = 0
@@ -247,8 +317,7 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
                 text = text[text.index(first) + len(first):].lstrip(" ,\n\t")
                 first = _first_arg(text)
             keyed = KEYED.search(first) if first.startswith("{") else None
-            lit = keyed.group(1)[1:-1] if keyed else next((x for g in STRING.finditer(first) for x in g.groups()
-                                                            if x is not None), None)
+            lit = keyed.group(1)[1:-1] if keyed else _address(first)
             path = _path(lit) if lit is not None else None
             if path is None or (how == "weak" and "/" not in lit) \
                     or (how == "loose" and not (keyed and lit.startswith("/"))):   # a key store's `get('/a')`: none
