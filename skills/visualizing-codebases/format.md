@@ -652,8 +652,12 @@ source}]`, `in` the enclosing method id (`kind: access`), else the enclosing
 class id (`kind: defined`: an ORM mapping; in a generic-walker language one class defines one table, so when
 patterns name different tables on it the pattern listed first keeps its facts: JPA `@Table(name)` over
 `@Entity(name)`), else the file id (`access`);
-`source` is `pack` or `stack.yaml`. `summary.md` prints them per module as
-`- **tables (patterns):** orders (repo/OrderRepo.java:12 defined on Order)`.
+`source` is `pack` or `stack.yaml`. A call on an entity class whose table is known (the class a `defined` fact is
+on, a Django model its migration creates, a Rails or Eloquent model by the plural naming default) adds an access
+fact with `op` (`read` or `write`, from the ORM verb: `Order.objects.filter`, `Document.findByPk`,
+`Contact::create`), `pattern: orm-call` and `source: scanner`, one per (table, method, op). `summary.md` prints
+them per module as `- **tables (patterns):** orders (repo/OrderRepo.java:12 defined on Order)`, an access with its
+op (`orders (app/views.py:5 in show, read)`).
 
 Packs per language. Each also has an `ignore` list: the standard library and
 the wiring of the frameworks it covers (dependency injection, config,

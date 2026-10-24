@@ -260,3 +260,28 @@ def test_tables_created_by_orm_schemas_and_migrations(make_repo):
     s = structure.build(make_repo(files))
     assert sorted(d["table"] for d in s["sql_files"]) == ["Users", "access_requests", "accounts", "contacts", "jhi_user",
                                                          "order_lines", "orders_order"]
+
+
+def test_orm_calls_on_entities_are_table_access(make_repo):
+    """A call on an entity class whose table is known reads or writes it, by the verb: a SQLAlchemy model's own
+    table, a Django model its migration creates, a Rails model by the naming default; `cls.query` inside the entity
+    counts for itself; a name two entities share names no table."""
+    files = {"app/__init__.py": "",
+             "app/models.py": "from sqlalchemy.orm import declarative_base\n\nBase = declarative_base()\n\n\n"
+                              "class Order(Base):\n    __tablename__ = 'orders'\n\n    @classmethod\n"
+                              "    def recent(cls):\n        return cls.query.filter_by(done=False).all()\n",
+             "app/views.py": "from app.models import Order\n\n\ndef show(i):\n    return Order.query.get(i)\n\n\n"
+                             "def drop(i):\n    Order.query.filter_by(id=i).delete()\n",
+             "shop/__init__.py": "", "shop/orders/__init__.py": "", "shop/orders/migrations/__init__.py": "",
+             "shop/orders/migrations/0001_initial.py": "operations = [migrations.CreateModel(name='Line', fields=[])]\n",
+             "shop/orders/models.py": "from django.db import models\n\n\nclass Line(models.Model):\n    pass\n",
+             "shop/orders/services.py": "from shop.orders.models import Line\n\n\ndef add(o):\n"
+                                        "    return Line.objects.create(order=o)\n",
+             "Gemfile": "gem 'rails'\n", "db/schema.rb": 'create_table "categories" do |t|\nend\n',
+             "app/models/category.rb": "class Category < ApplicationRecord\nend\n",
+             "app/services/sorter.rb": "class Sorter\n  def run\n    Category.where(active: true).order(:name)\n  end\nend\n"}
+    s = structure.build(make_repo(files))
+    acc = sorted((t["table"], t["op"], t["in"].rsplit("#", 1)[-1]) for ff in s["facts"].values()
+                 for t in ff.get("tables", []) if t.get("pattern") == "orm-call")
+    assert acc == [("categories", "read", "run/0"), ("orders", "read", "recent/0"), ("orders", "read", "show/1"),
+                   ("orders", "write", "drop/1"), ("orders_line", "write", "add/1")]

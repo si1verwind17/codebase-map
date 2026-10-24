@@ -475,7 +475,9 @@ For each client library, SQL table and `tables (patterns)` entry in
 `summary.md`, find the method that performs the read or write and attach the
 relation there, to a `table` node under its datastore. A pattern match says
 which table, not which way: decide `db-read` or `db-write` from the code, as
-for a client library. When an interface has several implementations, follow
+for a client library. An entry ending `, read` or `, write` is an ORM call on
+the table's entity in that method (`orm-call`): the relation's direction, from
+that method. When an interface has several implementations, follow
 the wiring (ZLayer, dependency injection, constructors) to the one production
 runs. Why: a test double or an unused implementation is not the system.
 

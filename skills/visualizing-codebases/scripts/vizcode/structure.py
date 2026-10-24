@@ -1183,6 +1183,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             file_facts[f]["jobs"] = r["jobs"]
 
     sqlfiles.attach(mapper_sql, nodes, file_facts)
+    sqlfiles.orm_access(file_facts, nodes, sql_files)
     file_node = {n["file"]: n["id"] for n in nodes if n["kind"] == "file"}
     first_node = {}
     for n in nodes:
@@ -1350,9 +1351,9 @@ def _unscanned_lines(rep: dict) -> list[str]:
 
 
 def _table_line(t: tuple, names: dict[str, str]) -> str:
-    table, f, line, where, kind = t
+    table, f, line, where, kind, *op = t
     name = names.get(where) or where
-    return f"{table} ({f}:{line} {'defined on' if kind == 'defined' else 'in'} {name})"
+    return f"{table} ({f}:{line} {'defined on' if kind == 'defined' else 'in'} {name}{', ' + op[0] if op and op[0] else ''})"
 
 
 def summary_md(s: dict) -> str:
@@ -1397,7 +1398,7 @@ def summary_md(s: dict) -> str:
             mounts += [f"{x['path']}" + (f" → {x['target']}" if x["target"] else "") + f" ({f}:{x['line']}"
                        + (f", composed onto {_plural(x['composed'], 'route', 'routes')})" if x.get("composed") else ")")
                        for x in ff.get("mounts", [])]
-            tables += [(t["table"], f, t["line"], t["in"], t["kind"]) for t in ff.get("tables", [])]
+            tables += [(t["table"], f, t["line"], t["in"], t["kind"], t.get("op") or "") for t in ff.get("tables", [])]
             queues += [f"{q['delivery']} at {f}:{q['line']} in {names.get(q['in']) or q['in']}"
                        for q in ff.get("queues", [])]
             for j in ff.get("jobs", []):

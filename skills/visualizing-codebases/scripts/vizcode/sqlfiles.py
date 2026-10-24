@@ -63,17 +63,18 @@ def read(root: Path, tree: list[str], skip) -> tuple[list[dict], list[dict]]:
             continue
         text = (root / f).read_text(encoding="utf-8", errors="replace")
         if not f.endswith(".sql") and SCHEMA_PATH.search(f) and not MAPPER.search(text):
-            found = [(m.start(), next(g for g in m.groups() if g)) for m in CREATES.finditer(text)]
+            found: list[tuple] = [(m.start(), next(g for g in m.groups() if g)) for m in CREATES.finditer(text)]
             if f.endswith(".py") and "/migrations/" in f:
                 app = f.rsplit("/migrations/", 1)[0].rsplit("/", 1)[-1]
                 for i, m in enumerate(models := list(DJANGO_MODEL.finditer(text))):
                     end = models[i + 1].start() if i + 1 < len(models) else len(text)
                     opt = DB_TABLE.search(text, m.end(), end)
-                    found.append((m.start(), opt.group("table") if opt else f"{app}_{m.group('model').lower()}"))
-            for at, name in sorted(found):
+                    found.append((m.start(), opt.group("table") if opt else f"{app}_{m.group('model').lower()}",
+                                  {"model": m.group("model"), "app": f.rsplit("/migrations/", 1)[0]}))
+            for at, name, *model in sorted(found, key=lambda x: x[0]):
                 if name.lower() not in seen_tables:
                     seen_tables.add(name.lower())
-                    defined.append({"file": f, "line": text.count("\n", 0, at) + 1, "table": name})
+                    defined.append({"file": f, "line": text.count("\n", 0, at) + 1, "table": name, **(model[0] if model else {})})
             continue
         if not f.endswith((".xml", ".sql")):
             continue
@@ -110,3 +111,82 @@ def attach(statements: list[dict], nodes: list[dict], file_facts: dict[str, dict
         if m is not None and m.get("file") in file_facts:
             file_facts[m["file"]]["sql"].append({**st["sql"], "line": m["line"], "in": m["id"],
                                                  "source": f"{st['file']}:{st['line']}"})
+
+
+# ORM verbs on an entity class (`Order.objects.filter`, `Document.findByPk`, `Contact::where`): a write when any
+# write verb follows the class in the chain, else a read when a read verb does
+ORM_WRITES = {"create", "save", "update", "update_all", "delete", "delete_all", "destroy", "destroy_all", "insert",
+              "insert_all", "upsert", "bulk_create", "bulk_update", "update_or_create", "get_or_create", "increment",
+              "decrement", "truncate", "remove", "create_many", "createMany", "updateMany", "deleteMany", "bulkCreate",
+              "findOrCreate", "firstOrCreate", "updateOrCreate", "insertGetId", "forceDelete"}
+ORM_READS = {"get", "filter", "filter_by", "all", "first", "last", "find", "find_by", "find_each", "where", "select",
+             "query", "count", "exists", "pluck", "find_one", "findOne", "findAll", "findFirst", "findMany",
+             "findUnique", "findByPk", "findAndCountAll", "aggregate", "sum", "paginate", "one", "order_by",
+             "includes", "joins", "limit", "order", "values", "values_list", "get_or_404", "first_or_404",
+             "firstOrFail", "findOrFail", "whereIn", "orderBy", "latest", "exclude", "annotate", "scalar"}
+ORM_HOLDERS = {"objects", "query", "unscoped"}   # Django's manager, Flask-SQLAlchemy's query
+
+
+def orm_access(file_facts: dict[str, dict], nodes: list[dict], defined: list[dict]) -> None:
+    """Add a `tables` access fact (`op` read or write) for each call on an entity class whose table is known: the
+    class a table fact is defined on, or the Django model a migration creates. One fact per (table, method, op), at
+    its first line. `cls.query..`/`self.objects..` inside the entity counts for the entity itself. A class name two
+    entities of different tables share names no table; a Ruby or PHP class counts by the naming default only in a
+    `models` folder."""
+    by_id = {n["id"]: n for n in nodes}
+    tables: dict[str, str] = {}   # entity class id -> its table
+    for ff in file_facts.values():
+        for t in ff.get("tables", []):
+            if t.get("kind") == "defined" and by_id.get(t["in"], {}).get("kind") == "class":
+                tables[t["in"]] = t["table"]
+    for d in defined:
+        if d.get("model"):
+            for n in nodes:
+                if n["kind"] == "class" and n["name"] == d["model"] and (n.get("file") or "").startswith(d["app"] + "/"):
+                    tables.setdefault(n["id"], d["table"])
+    created = {d["table"] for d in defined}
+    for n in nodes:   # Rails and Eloquent name a model's table by default: its class, snake-case, plural
+        if n["kind"] == "class" and n.get("lang") in ("ruby", "php") and "models" in (n.get("file") or "").lower().split("/") \
+                and (plural := _plural(_snake(n["name"]))) in created:
+            tables.setdefault(n["id"], plural)
+    named: dict[str, list[str]] = {}
+    for cid in tables:
+        named.setdefault(by_id[cid]["name"], []).append(cid)
+    for f, ff in file_facts.items():
+        seen = {(t["table"], t["in"], t.get("op")) for t in ff.get("tables", [])}
+        for c in ff["calls"]:
+            parts = re.findall(r"[A-Za-z_$][\w$]*", re.sub(r"\([^()]*\)", "", c["callee"]))
+            cid, rest = None, []
+            for i, p in enumerate(parts):   # one entity by that name, or several that are one table (a reopened class)
+                if len({tables[x] for x in named.get(p, [])}) == 1:
+                    cid, rest = named[p][0], parts[i + 1:]
+                    break
+            if cid is None and len(parts) > 2 and parts[0] in ("cls", "self", "this", "static") \
+                    and parts[1] in ORM_HOLDERS:
+                owner = by_id.get(by_id.get(c.get("in") or "", {}).get("parent") or "", {})
+                cid, rest = (owner["id"], parts[1:]) if owner.get("id") in tables else (None, [])
+            if cid is None:
+                continue
+            op = "write" if any(p in ORM_WRITES for p in rest) else "read" if any(p in ORM_READS for p in rest) else None
+            if op and (key := (tables[cid], c["in"], op)) not in seen:
+                seen.add(key)
+                ff.setdefault("tables", []).append({"table": tables[cid], "line": c["line"], "in": c["in"],
+                                                    "kind": "access", "op": op, "pattern": "orm-call",
+                                                    "source": "scanner"})
+        writes = {(t["table"], t["in"], t["line"]) for t in ff.get("tables", []) if t.get("op") == "write"}
+        if writes:   # `Order.query.filter_by(..).delete()`: the filter on that line is part of the write
+            ff["tables"] = [t for t in ff["tables"] if not (t.get("op") == "read"
+                                                            and (t["table"], t["in"], t["line"]) in writes)]
+
+
+def _snake(name: str) -> str:
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "_", name).lower()
+
+
+def _plural(word: str) -> str:
+    """English plural as Rails and Laravel make a default table name (the common rules; irregular words aside)."""
+    if re.search(r"[^aeiou]y$", word):
+        return word[:-1] + "ies"
+    if re.search(r"(?:s|x|z|ch|sh)$", word):
+        return word + "es"
+    return word + "s"

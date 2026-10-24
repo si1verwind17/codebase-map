@@ -133,7 +133,8 @@ def test_ktor_routes_mounts_tables(ktor_repo):
         ("GET", "/health", f"{module}.get_health/0", 19, "ktor", "pack")]
     assert [(m["path"], m["line"], m["framework"]) for m in s["facts"][APP]["mounts"]] == [("/v1", 11, "ktor-route")]
     orders = "src/main/kotlin/io/demo/orders/Orders.kt"
-    assert tables(s, orders) == [("orders", 7, ".::io.demo.orders.Orders", "defined", "exposed")]
+    assert tables(s, orders) == [("orders", 7, ".::io.demo.orders.Orders", "defined", "exposed"),
+                                 ("orders", 12, ".::io.demo.orders.OrderRepo#find/1", "access", "orm-call")]
     assert sinks(s, orders) == [("sql-db", "org.jetbrains.exposed")] * 3
     assert sorted(set(sinks(s, APP))) == [("http-in", "io.ktor.server.routing"), ("http-out", "io.ktor.client")]
     assert s["stack"]["unrecognised"] == []
