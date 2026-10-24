@@ -15,6 +15,6 @@ def test_flask_decorators_and_url_rules(make_repo):
     s = structure.build(make_repo(files))
     names = {n["id"]: n["name"] for n in s["nodes"]}
     got = sorted((r["method"], r["path"], names.get(r["handler"], r["handler"])) for r in s["facts"]["app/views.py"]["routes"])
-    assert got == [("DELETE", "/users/{uid}", "user"), ("GET", "/health", "health"), ("GET", "/items", "views.py"),   # a class view: the agent names its method
+    assert got == [("DELETE", "/users/{uid}", "user"), ("GET", "/health", "health"), ("GET", "/items", "Items"),   # a class view with no verb methods: the class
                    ("GET", "/users/{uid}", "user"), ("POST", "/login", "login"), ("POST", "/ping", "ping"),
                    ("PUT", "/pong", "ping")]

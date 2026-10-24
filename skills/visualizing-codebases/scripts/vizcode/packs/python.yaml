@@ -7,7 +7,9 @@
 # tables: SQLAlchemy (also through Flask-SQLAlchemy or SQLModel) `__tablename__ = "x"` and Django `db_table = "x"` (in the model's Meta), defined on the class.
 # The standard library is ignored in code (sys.stdlib_module_names), not listed here.
 # ignore: libraries the code rules above read (Airflow, Flyte), so they are not listed as unrecognised.
-# routes: Flask `@x.route(path, methods=[..])` (GET when none), `@x.get(path)`... (Flask 2) and `add_url_rule`.
+# routes: Flask `@x.route(path, methods=[..])` (GET when none), `@x.get(path)`... (Flask 2) and `add_url_rule`;
+# Flask-RESTX/RESTplus `@ns.route`, Flask-RESTful `add_resource`, Django `path()`; a route a class handles is one per
+# verb method of the class (structure).
 # queues: in-process queue creation sites (`asyncio.Queue` and `queue.Queue` (and their Priority/Lifo/Simple forms)): candidates the agent confirms (references/interactions.md).
 python:
   ignore: [airflow, flytekit]
@@ -64,6 +66,29 @@ python:
       path: literal
       method: GET
       regex: '@\w+\.(?P<method>get|post|put|patch|delete)\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
+    # Flask-RESTX / Flask-RESTplus: `@ns.route("/x")` on a Resource class (its get/post/.. methods are the routes)
+    - name: flask-restx
+      when: flask_restx
+      path: literal
+      method: GET
+      regex: '@\w+\.route\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
+    - name: flask-restplus
+      when: flask_restplus
+      path: literal
+      method: GET
+      regex: '@\w+\.route\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
+    # Flask-RESTful / RESTX: `api.add_resource(Users, "/users")`
+    - name: flask-restful
+      when: flask_restful
+      path: literal
+      method: GET
+      regex: '\.add_resource\(\s*(?P<handler>[A-Za-z_][\w.]*)\s*,\s*[rRuU]?["''](?P<path>[^"'']*)["'']'
+    # Django: `path("users/<int:pk>/", views.UserApi.as_view())`, `path("x/", views.x)`; `include()` is a mount
+    - name: django-path
+      when: django.urls
+      path: literal
+      method: ANY
+      regex: '\bpath\(\s*[rRuU]?["''](?P<path>[^"'']*)["'']\s*,\s*(?!include\b)(?P<handler>[A-Za-z_][\w.]*?(?:\.as_view)?)\s*[(,)]'
     # `bp.add_url_rule("/x", view_func=h, methods=[..])`, keywords in any order; `h.as_view("name")` is h
     - name: flask-url-rule
       when: flask

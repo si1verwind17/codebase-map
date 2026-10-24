@@ -42,6 +42,11 @@ php:
   - {prefix: Google\Cloud, kind: cloud-sdk}
   - {prefix: Grpc, kind: grpc}
   routes:
+    # `Route::put('x', Foo::class)`: an invokable controller (listed first: the plain entry reads the same call)
+    - name: laravel-invokable
+      path: literal
+      method: ANY
+      regex: '\bRoute::(?:(?P<method>get|post|put|patch|delete|options)|any)\(\s*["''](?P<path>[^"'']*)["'']\s*,\s*(?P<handler>\\?[\w\\]+::class)\s*\)'
     - name: laravel
       path: literal
       method: ANY

@@ -624,7 +624,7 @@ def test_every_pack_regex_entry_has_when(lang):
     st = stack.default()
     no_when = {("ruby", "rails"), ("ruby", "rails-resources"), ("ruby", "rails-resource"),
                ("ruby", "active-record-table-name"), ("csharp", "aspnet-minimal"),
-               ("csharp", "aspnet-map-group"), ("php", "laravel"), ("php", "laravel-match"), ("php", "laravel-prefix"),
+               ("csharp", "aspnet-map-group"), ("php", "laravel"), ("php", "laravel-invokable"), ("php", "laravel-match"), ("php", "laravel-prefix"),
                ("go", "gorm-table-name")}
     for p in (*st.patterns, *st.tables):
         if p.lang == lang and p.source == "pack":

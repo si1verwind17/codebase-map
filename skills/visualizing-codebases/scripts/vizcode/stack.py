@@ -785,6 +785,7 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
         methods = _methods(m.group("methods") or "") if "methods" in groups else []
         if not methods and "method" in groups and m.group("method"):
             methods = [verb_of(m.group("method")) or m.group("method")]
+        default = {} if methods else {"method_default": True}   # the method the framework serves when none is named
         methods = [x.upper() for x in methods] or ([pat.method] if pat.method else [])
         line = src.count("\n", 0, m.start()) + 1
         handler = _handler(spans, line, file_id, "handler" not in groups)
@@ -796,7 +797,7 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
                         "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
                         "call_end": call_end,
                         **({"handler_name": named.strip()} if named and named.strip() else {}),
-                        **_named_handler(pat, m), **on_mount})
+                        **_named_handler(pat, m), **on_mount, **default})
     compose(src, out, mounts or [], lang)
     # a route on its mount's own path with no mount around it (`resource(PATHS)`): its path is unknown
     return [r for r in out if not r.pop("on_mount", None) or r.pop("composed_on", None)]

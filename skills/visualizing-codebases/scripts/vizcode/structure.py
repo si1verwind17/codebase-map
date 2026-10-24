@@ -1,6 +1,7 @@
 """Structure pass: committed tree -> structure.json (nodes, uses-code relations, per-file facts)."""
 from __future__ import annotations
 
+import bisect
 import fnmatch
 import posixpath
 import os
@@ -409,7 +410,33 @@ def _pattern_routes(st: stack.Stack, lang: str, data: bytes, r: dict, module: di
     found = stack.find_routes(st, lang, src, imports, _spans(r, "method"), _file_id(r, module, lang),
                               r.get("mounts")) \
         + stack.find_annotated(st, lang, r.get("annotations", []), r["nodes"], imports)
+    # a class-only pattern on a function is another framework's decorator: gone before dedupe keeps one of the two
+    decls = _Decls(r["nodes"]) if any(x["framework"] in CLASS_ROUTES for x in found) else None
+    found = [x for x in found if x["framework"] not in CLASS_ROUTES or decls.decorated(x) is not None]
     return _dedupe(st.patterns, lang, found, "routes", "framework", ("method", "path", "handler"), r)
+
+
+class _Decls:
+    """A file's classes and methods by line, built once, for `decorated`."""
+    def __init__(self, nodes: list[dict]):
+        self.decls = sorted((n["line"], n["kind"], n["id"], n.get("parent")) for n in nodes
+                            if n["kind"] in ("class", "method"))
+        self.lines = [d[0] for d in self.decls]
+        self.spans = [(n["line"], n["line"] + n["metrics"].get("loc", 1), n["id"]) for n in nodes
+                      if n["kind"] in ("class", "method")]
+        self.file = next((n["id"] for n in nodes if n["kind"] == "file"), None)
+
+    def decorated(self, route: dict) -> str | None:
+        """The class a route decorator sits on: the next declaration below it, when that is a class in the
+        decorator's own scope (the innermost class or method around it, else the file); a class nested in a function
+        has no node, so the next one is another scope's."""
+        i = bisect.bisect_right(self.lines, route["line"])
+        if i >= len(self.decls) or self.decls[i][1] != "class":
+            return None
+        line = route["line"]
+        around = [s for s in self.spans if s[0] <= line < s[1]]
+        scope = max(around)[2] if around else self.file
+        return self.decls[i][2] if self.decls[i][3] == scope else None
 
 
 def _beside_code_rules(r: dict, found: list[dict]) -> list[dict]:
@@ -473,16 +500,16 @@ def _unalias(f: str, r: dict, results: dict[str, dict], names: dict[str, dict[st
         if not m or m.group(2) not in renamed:
             return text
         member, target = renamed[m.group(2)]
-        if qualify and not text[m.end():]:
+        if qualify and text[m.end():] in ("", "::class", ".as_view"):   # a class named as handler keeps its suffix
             segs = _segments(target)
-            return "/".join(segs + ([member] if segs[-1:] != [member] else []))
+            return "/".join(segs + ([member] if segs[-1:] != [member] else [])) + text[m.end():]
         return m.group(1) + member + text[m.end():]
     for c in r["calls"]:
         c["callee"] = plain(c["callee"])
     for route in r["routes"]:
         for key in ("handler_name", "handler_class"):
-            if route.get(key):
-                route[key] = plain(route[key], key == "handler_class")
+            if route.get(key):   # a class named as the handler (`Foo::class`) keeps its import's namespace too
+                route[key] = plain(route[key], key == "handler_class" or route[key].endswith(("::class", ".as_view")))
     for key in ("supers", "bases"):
         if key in r:
             r[key] = [(cid, [plain(x) for x in supers]) for cid, supers in r[key]]
@@ -505,14 +532,24 @@ def _import_hints(r: dict, f: str, name: str, qualifier: str | None, results: di
     return out
 
 
+def _ends_with(f: str, segs: list[str]) -> bool:
+    """A file whose module path (`shop/views.py`, or its folder for a package) ends with the dotted segments."""
+    own = Path(f).with_suffix("").parts
+    return any(len(p) >= len(segs) and list(p[-len(segs):]) == segs for p in (own, own[:-1]))
+
+
 def _qualified(r: dict, cls: str) -> str:
     """A bare class name the file imports, written with the namespace it is imported from (`ScrobbleController`
     -> `App/Http/Controllers/API/ScrobbleController`), so two same-named classes are told apart."""
     if len(_segments(cls)) > 1:
         return cls
     for imp in r["imports"]:
-        if cls in (imp.get("names") or []) and not imp["relative"]:
-            return "/".join(_segments(imp["target"]) + [cls])
+        renamed = imp.get("renames") or {}
+        # the names the file uses for this import: a member renamed away (`use X as AdminX`) is not one
+        local = {*(n for n in imp.get("names") or [] if n not in renamed.values() or n in renamed), *renamed}
+        if cls in local and not imp["relative"]:
+            member = renamed.get(cls, cls)
+            return "/".join(_segments(imp["target"]) + [member])
     return cls
 
 
@@ -733,6 +770,76 @@ def _compose_mounts(results: dict[str, dict]) -> None:
             mt.pop("on", None)
 
 
+# patterns whose route is a class's alone: a match on a function is another framework's decorator
+CLASS_ROUTES = {"flask-restx", "flask-restplus"}
+# a handler naming a class: Django/Flask `View.as_view(..)`, Laravel `Foo::class`
+CLASS_VIEW = re.compile(r"^((?:[\w$]+(?:\.|::|\\|/))*[A-Z][\w$]*)(\.as_view|::class)?$")
+# the methods a class-based view answers each HTTP method with, and those that answer whatever the route says
+VERB_METHODS = {"get": "GET", "post": "POST", "put": "PUT", "patch": "PATCH", "delete": "DELETE", "head": "HEAD",
+                "options": "OPTIONS"}
+INVOKE_METHODS = ("__invoke", "__call__")
+
+
+def _class_routes(results: dict[str, dict]) -> None:
+    """A route handled by a class (named as one: `View.as_view()`, `Foo::class`; or a route decorator on a class:
+    `@ns.route('/x')` over `class Users(Resource)`, past its other decorators) is one route per HTTP-verb method the
+    class or its repo bases define (`get`, `post`, ..), each its handler, when the route names no method (ANY or the
+    framework's default), else the one for its verb; a class with an invoke method (`__invoke`, `__call__`) keeps
+    the route's method, that method its handler. A class with neither, or a Laravel `::class` (dispatched only by
+    `__invoke`), is the handler itself."""
+    nodes = {n["id"]: n for r in results.values() for n in r["nodes"]}
+    members: dict[str, dict[str, str]] = {}
+    for n in nodes.values():
+        if n["kind"] == "method" and nodes.get(n.get("parent") or "", {}).get("kind") == "class":
+            members.setdefault(n["parent"], {}).setdefault(n["name"], n["id"])
+
+    def methods_of(cid: str) -> dict[str, str]:
+        out, todo, seen = {}, [cid], set()
+        while todo:
+            c = todo.pop(0)
+            if c in seen or c not in nodes:
+                continue
+            seen.add(c)
+            for name, mid in members.get(c, {}).items():
+                out.setdefault(name, mid)
+            todo += nodes[c].get("implements") or []
+        return out
+
+    for f, r in results.items():
+        if not r["routes"]:
+            continue
+        starts = sorted((n["line"], n["kind"], n["id"]) for n in r["nodes"] if n["kind"] in ("class", "method"))
+        decls = _Decls(r["nodes"]) if any(x["framework"] in CLASS_ROUTES for x in r["routes"]) else None
+        out = []
+        for route in r["routes"]:
+            cid, form = route.pop("handler_cls", None), route.pop("handler_form", None)
+            default = route.pop("method_default", False)
+            if cid is None:   # a decorator on a class: the next declaration below the route, past its decorators
+                below = next((s for s in starts if s[0] > route["line"]), None)
+                h = nodes.get(route["handler"], {})
+                if route["framework"] in CLASS_ROUTES:   # a restx class with no method of its own still takes it
+                    cid = decls.decorated(route)
+                elif below and below[1] == "class" and (h.get("parent") == below[2] or route["handler"] == below[2]):
+                    cid = below[2]
+            if cid is None:
+                if route["framework"] not in CLASS_ROUTES:   # `@ns.route` decorates a Resource class, never a function
+                    out.append(route)
+                continue
+            own = methods_of(cid)
+            if invoke := next((own[m] for m in INVOKE_METHODS if m in own), None):
+                out.append({**route, "handler": invoke})
+                continue
+            verbs = [(VERB_METHODS[m], mid) for m, mid in own.items() if m in VERB_METHODS]
+            if not verbs or form == "::class":   # Laravel calls only an invokable class: no verb dispatch
+                out.append({**route, "handler": cid})
+                continue
+            # an unnamed method (ANY, or the framework's default) is every verb the class serves; a named one only its own
+            out += [{**route, "method": verb, "handler": mid} for verb, mid in sorted(verbs)
+                    if route["method"] == "ANY" or default or route["method"] == verb] \
+                or [route]   # a class with no method for the route's verb: the route as it was
+        r["routes"] = out
+
+
 def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry,
                       names: dict[str, dict[str, str]]) -> None:
     """Replace the span-rule handler of a route that names one (`handler_name`) with the method or function of
@@ -782,6 +889,23 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                 route["handler"] = found
                 continue
             name = route.pop("handler_name", None) or route.pop("nested_handler", None)
+            # `Users.as_view()`, `Foo::class`, or a bare class name no method has (`add_resource(Users, ..)`)
+            if name and (view := CLASS_VIEW.match(name.lstrip("\\"))) and (view.group(2) or not anywhere.get(
+                    _segments(view.group(1))[-1])):
+                cname = _qualified(r, view.group(1))
+                # imported from outside the repo (`from rest_framework_simplejwt.views import X`): no repo class
+                outside = any(view.group(1) in (imp.get("names") or []) and not imp["relative"]
+                              and _in_repo(f, imp, results, names) is None
+                              and not any(_ends_with(g, imp["target"].split(".")) for g in results)
+                              for imp in r["imports"])
+                pool = [] if outside else (classes.get((file_mod[f], _segments(cname)[-1]), [])
+                                           or any_classes.get(_segments(cname)[-1], []))
+                if len(pool) > 1 and (outer := [x.lower() for x in _segments(cname)[:-1]]):   # told apart by namespace
+                    pool = [c for c in pool if [x.lower() for x in _segments(c.split("::", 1)[-1])[:-1]][-len(outer):]
+                            == outer]
+                if len(pool) == 1:
+                    route["handler_cls"], route["handler_form"] = pool[0], view.group(2)
+                    continue
             nested = [x for x in r.get("nested", []) if x["in"] == route["handler"]]
             if not name:
                 below = [x for x in nested if x["start"] <= route["line"] <= x["line"]]
@@ -1167,6 +1291,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
 
     _attach(nodes, results)
     _implements(nodes, results, file_mod)
+    _class_routes(results)   # after _implements: a class's verbs include its repo bases'
     _go_implements(nodes)
     names = _module_names(modules, results, file_mod, build_names)
     internal = _internal(results, file_mod, mod_by_id, names, protos, aliases, py_deps)

@@ -627,7 +627,12 @@ pattern whose facts this one's matches repeated: every match was already
 another pattern's). `overrides` entries are `{lang, prefix, pack_kind, kind}`
 (a kind changed) or `{lang, group, name}` (a pack entry replaced).
 
-A file's `routes` facts are `[{method, path, handler, line, framework,
+A route a class handles (named as the handler, `View.as_view()`, `Foo::class`, `add_resource(Users, ..)`, or a route
+decorator on a class, past its other decorators) is one route per HTTP-verb method the class or its repo bases define
+(`get`, `post`, ..) when the route names no method (ANY, or the framework's default), else the method for its own
+verb; a class with an invoke method (`__invoke`, `__call__`) keeps the route's method; a Laravel `::class` that has
+none, or a class with no verb method, is itself the handler. A handler class is told from a same-named one by the
+file's imports (an alias too); one imported from a library is no repo class. A file's `routes` facts are `[{method, path, handler, line, framework,
 source}]` (`framework` is the pattern's name; `method` upper-cased; a handler outside any method is the
 file node, made for a generic-walker file that has none); its `mounts` facts (key
 present on files with a mount) are `[{path, target, line, framework,
