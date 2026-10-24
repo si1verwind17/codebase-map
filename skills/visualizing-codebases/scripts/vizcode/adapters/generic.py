@@ -17,7 +17,7 @@ TURBOFISH = re.compile(r"::(?=\(|$)")      # `parse::<u32>()` once its type argu
 BODIES = {"block", "function_body", "constructor_body", "compound_statement", "expression_body",
           "arrow_expression_clause", "statement_block"}   # the node types a function's body may have
 Import = tuple       # target, names, relative, the node giving the line[, the local name of the whole import
-                     # [, {local name: imported name} of the names it renames]]
+                     # [, {local name: imported name} of the names it renames[, the default import's local name]]]
 _PARSERS: dict[str, object] = {}
 
 
@@ -95,7 +95,9 @@ def _es_module(node, spec: LangSpec) -> list[Import]:
                if s.type == "import_specifier" and (a := s.child_by_field_name("alias")) is not None}
     local = next((text(i) for s in walk(node) if s.type == "namespace_import"
                   for i in s.named_children if i.type == "identifier"), None)
-    return [(target, names, target.startswith("."), node, local, renamed or None)]
+    default = next((text(i) for s in walk(node) if s.type == "import_clause"
+                    for i in s.named_children if i.type == "identifier"), None)   # `import users from './users'`
+    return [(target, names, target.startswith("."), node, local, renamed or None, default)]
 
 
 def _one_string(args, spec: LangSpec, types: tuple[str, ...]) -> str | None:
@@ -649,6 +651,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
                     res["imports"][-1]["as"] = rest[0]
                 if len(rest) > 1 and rest[1]:
                     res["imports"][-1]["renames"] = rest[1]
+                if len(rest) > 2 and rest[2]:
+                    res["imports"][-1]["default"] = rest[2]
             continue
         if pkg_node is not None and n == pkg_node:
             pass                  # Ruby's outermost module names the package: walked, not a class

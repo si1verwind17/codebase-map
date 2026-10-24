@@ -609,6 +609,67 @@ def _compose_includes(results: dict[str, dict]) -> None:
         r["routes"] = out
 
 
+def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, str | None] | None:
+    """(file, exported name or None for its default export) of the router a mount in file f names through f's
+    imports: `import users from './users'` + `use('/u', users)`, `{ adminRouter }`, `* as api` + `api.router`."""
+    head, *rest = target.split(".")
+    for imp in results[f]["imports"]:
+        if not imp["relative"] or (g := _relative_file(f, imp["target"], results)) is None:
+            continue
+        if imp.get("default") == head:
+            return g, None
+        renames = imp.get("renames") or {}
+        if head in renames or head in (imp.get("names") or []):
+            name = renames.get(head, head)
+            return g, None if name == "default" else name
+        if imp.get("as") == head and rest:
+            return g, rest[0]
+    return None
+
+
+def _compose_mounts(results: dict[str, dict]) -> None:
+    """Join the prefix of a mount whose router comes from another file (`app.use('/users', usersRouter)`) onto that
+    file's routes registered on the router it exports: its named export, or for the default export the file's one
+    router. Mount chains compose outward across files; a router mounted in two places gives its routes once per
+    place. The mount counts its routes in `composed`."""
+    parents: dict[tuple[str, str], list[tuple[tuple[str, str] | None, str, dict]]] = {}
+    for f, r in results.items():
+        for mt in r.get("mounts", []):
+            if not mt.get("target") or (hit := _mount_target(f, mt["target"], results)) is None:
+                continue
+            g, name = hit
+            ons = {x["on"] for x in results[g]["routes"] if x.get("on")} | \
+                  {m["on"] for m in results[g].get("mounts", []) if m.get("on") and m.get("target")}
+            var = name if name in ons else (next(iter(ons)) if name is None and len(ons) == 1 else None)
+            if var is not None:
+                parents.setdefault((g, var), []).append(((f, mt["on"]) if mt.get("on") else None, mt["path"], mt))
+
+    def chains(node: tuple[str, str], seen: frozenset) -> list[tuple[str, list[dict]]]:
+        ups = [(p, pre, mt) for p, pre, mt in parents.get(node, []) if p not in seen]
+        if not ups:
+            return [("", [])]
+        out = []
+        for p, pre, mt in ups:
+            above = chains(p, seen | {p}) if p is not None else [("", [])]
+            out += [(a + "/" + pre.strip("/"), mts + [mt]) for a, mts in above]
+        return out
+
+    for f, r in results.items():
+        out = []
+        for route in r["routes"]:
+            on = route.pop("on", None)
+            ways = chains((f, on), frozenset({(f, on)})) if on and (f, on) in parents else [("", [])]
+            for above, mts in ways:
+                out.append({**route, "path": stack.normalise(above + "/" + route["path"].lstrip("/"))} if above
+                           else dict(route))
+                for mt in mts:
+                    mt["composed"] = mt.get("composed", 0) + 1
+        r["routes"] = out
+    for r in results.values():
+        for mt in r.get("mounts", []):
+            mt.pop("on", None)
+
+
 def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: ids.IdRegistry,
                       names: dict[str, dict[str, str]]) -> None:
     """Replace the span-rule handler of a route that names one (`handler_name`) with the method or function of
@@ -1001,6 +1062,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         _unalias(f, r, results, names)
     _resolve_handlers(results, file_mod, reg, names)
     _compose_includes(results)
+    _compose_mounts(results)
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)

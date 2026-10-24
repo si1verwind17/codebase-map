@@ -325,7 +325,8 @@ Match an outbound call to an inbound route, topic or table by its **protocol
 key**: HTTP method + path template, topic name, gRPC service/method, table
 name. The structure pass already lists routes per module (the packs' frameworks,
 `format.md` → Stack, and `stack.yaml`; methods upper-cased, and without the
-prefixes of mounts it could not join, which you compose onto them yourself; a prefix only config
+prefixes of mounts it could not join, which you compose onto them yourself (it joins a mount in its
+own file, and one whose router another file exports through an import the mount's file names); a prefix only config
 sets, such as a servlet context path or a URI version, goes into `stack.yaml` `base_paths`
 once per deployable folder, citing the config line in the report; a segment written as a
 constant is kept as `{Name}`, `/{Asset}/{id}` from `@Controller(RouteKey.Asset)`: look the

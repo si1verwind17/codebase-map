@@ -207,7 +207,7 @@ def test_find_routes_flask(tmp_path):
     src = '@bp.route("/users/<int:id>", methods=["GET", "POST"])\ndef user(id): ...\n'
     got = stack.find_routes(st, "python", src, ["flask"], [(2, 2, "f#user")], "f")
     assert got == [{"method": m, "path": "/users/{id}", "handler": "f#user", "line": 1, "framework": "flask",
-                    "source": "stack.yaml"} for m in ("GET", "POST")]
+                    "source": "stack.yaml", "on": "bp"} for m in ("GET", "POST")]
     got = stack.find_routes(st, "python", '@app.route("/x/")\ndef x(): ...\n', ["flask"], [], "f")
     assert [(r["method"], r["path"], r["handler"]) for r in got] == [("GET", "/x", "f")]
 

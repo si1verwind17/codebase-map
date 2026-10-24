@@ -821,6 +821,8 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
             continue
         at = r.pop("at")
         chain = prefix(at, _head(src, at))
+        if not chain and (on := _head(src, at)):
+            r["on"] = on   # the router it is registered on: a mount in another file may name it (structure)
         if chain and r.get("on_mount"):
             r["composed_on"] = True
         if chain:
@@ -829,6 +831,8 @@ def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") ->
             for k in chain:
                 mounts[k]["composed"] = mounts[k].get("composed", 0) + 1
     for mt in mounts:
+        if "at" in mt and (on := _head(src, mt["at"])):
+            mt["on"] = on
         mt.pop("at", None)
         mt.pop("call", None)
 
