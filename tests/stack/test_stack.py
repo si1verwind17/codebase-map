@@ -684,3 +684,34 @@ def test_a_module_named_like_a_declared_library_does_not_hide_it(make_repo):
              "app/util.py": "def x():\n    return 1\n", "app/main.py": "import util\n"}
     s = structure.build(make_repo(files))
     assert {"celery", "asana"} <= unrecognised(s) and "util" not in unrecognised(s)
+
+
+def test_patterns_skip_comments_and_docstrings(make_repo):
+    """A usage example in a comment or a docstring is no route and no table."""
+    files = {"go.mod": "module example.com/app\n",
+             "api.go": "package api\n\nimport \"github.com/go-chi/chi/v5\"\n\n// Example:\n//   r.Get(\"/doc-only\", h)\n"
+                       "func routes(r chi.Router) {\n\tr.Get(\"/real\", h)\n}\n\nfunc h() {}\n",
+             "app/__init__.py": "",
+             "app/order.py": "from sqlalchemy.orm import declarative_base\n\nBase = declarative_base()\n\n\n"
+                             "def helper():\n    \"\"\"\n    class Article(Base):\n        __tablename__ = 'article'\n    \"\"\"\n\n\n"
+                             "class Order(Base):\n    __tablename__ = 'orders'\n"}
+    s = structure.build(make_repo(files))
+    assert [r["path"] for r in s["facts"]["api.go"]["routes"]] == ["/real"]
+    assert [t["table"] for t in s["facts"]["app/order.py"]["tables"]] == ["orders"]
+
+
+def test_a_string_closing_on_its_own_line_is_no_docstring(make_repo):
+    files = {"requirements.txt": "flask\nsqlalchemy\n", "app/__init__.py": "",
+             "app/views.py": "from flask import Flask\nfrom sqlalchemy.orm import declarative_base\n\napp = Flask(__name__)\n"
+                             "Base = declarative_base()\nX = \"\"\"\nSELECT 1\n\"\"\"\n\n\n@app.route('/a')\ndef a():\n"
+                             "    cur.execute(\n        \"\"\"SELECT 2\"\"\")\n\n\n@app.route('/b')\ndef b():\n    return 1\n\n\n"
+                             "class Order(Base):\n    __tablename__ = 'orders'\n"}
+    s = structure.build(make_repo(files))
+    assert sorted(r["path"] for r in s["facts"]["app/views.py"]["routes"]) == ["/a", "/b"]
+    assert [t["table"] for t in s["facts"]["app/views.py"]["tables"]] == ["orders"]
+
+
+def test_a_js_regex_literal_is_no_comment():
+    src = 'const u = env.URL.replace(/https?:\\/\\//, ""); router.get("/x", h)\nx = a / b // note\n'
+    out = stack.pattern_text(src, "typescript")
+    assert 'router.get("/x", h)' in out and "note" not in out and len(out) == len(src)

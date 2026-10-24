@@ -786,7 +786,10 @@ def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict
 
 
 _LINE_STRINGS = r'"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\''
-C_COMMENTS = re.compile(_LINE_STRINGS + r"|`[^`]*`|(//[^\n]*|/\*[\s\S]*?\*/)")
+# a JS regex literal (`/https?:\/\//`), kept like a string: a `/` after an operator or an opening bracket starts one,
+# never a division
+REGEX_LITERAL = r"(?<=[(,=:!&|?{};\[])\s*/(?![/*])(?:\\.|\[(?:\\.|[^\]\n\\])*\]|[^/\n\\\[])+/[a-z]*"
+C_COMMENTS = re.compile(_LINE_STRINGS + r"|`[^`]*`|" + REGEX_LITERAL + r"|(//[^\n]*|/\*[\s\S]*?\*/)")
 HASH_COMMENTS = re.compile(_LINE_STRINGS + r"|(#[^\n]*)")
 CHAIN_STEP = re.compile(r"\s*(?:\.|::|->|\?\.)\s*[A-Za-z_]\w*\s*(?=[(\[{])")
 HEAD = re.compile(r"@?\s*(\$?[A-Za-z_]\w*)\s*(?:\.|::|->)")
@@ -827,6 +830,39 @@ def _blank_comments(src: str, lang: str) -> str:
     string when brackets are matched: `#` comments in Python and Ruby, `//` and `/* */` in the other languages."""
     pat = HASH_COMMENTS if lang in ("python", "ruby") else C_COMMENTS
     return pat.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)) if m.group(1) else m.group(0), src)
+
+
+def _docstrings(src: str) -> list[tuple[int, int]]:
+    """(start, end) offsets of the Python strings that stand alone as a statement (docstrings, prose): a STRING token
+    that is a whole logical line, read with `tokenize` so a string's closing quotes on a line of their own, or a
+    string passed as an argument, never count. Empty when the source does not tokenize."""
+    import io
+    import tokenize
+    starts = [0]
+    for line in src.splitlines(keepends=True):
+        starts.append(starts[-1] + len(line))
+    out: list[tuple[int, int]] = []
+    try:
+        toks = [t for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                if t.type not in (tokenize.COMMENT, tokenize.NL)]
+    except (tokenize.TokenError, SyntaxError, IndentationError):
+        return []
+    lead = (tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT, tokenize.ENCODING)
+    for i, tok in enumerate(toks):
+        if tok.type == tokenize.STRING and (i == 0 or toks[i - 1].type in lead) \
+                and i + 1 < len(toks) and toks[i + 1].type in (tokenize.NEWLINE, tokenize.ENDMARKER):
+            out.append((starts[tok.start[0] - 1] + tok.start[1], starts[tok.end[0] - 1] + tok.end[1]))
+    return out
+
+
+def pattern_text(src: str, lang: str) -> str:
+    """The source every pattern runs on: comments, and Python docstrings, blanked to spaces with lines and offsets
+    kept, so a usage example in one is no route, table, queue or job."""
+    out = _blank_comments(src, lang)
+    if lang == "python":
+        for a, b in reversed(_docstrings(src)):
+            out = out[:a] + re.sub(r"[^\n]", " ", out[a:b]) + out[b:]
+    return out
 
 
 def compose(src: str, routes: list[dict], mounts: list[dict], lang: str = "") -> None:

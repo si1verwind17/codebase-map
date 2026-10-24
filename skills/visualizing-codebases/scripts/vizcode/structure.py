@@ -1050,9 +1050,11 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             try:   # a crash on one file never stops the scan
                 r = adapter.parse(data, f, mod_by_id[file_mod[f]], reg, st)
                 names = stack.import_names(r["imports"], lang) + usings.get(file_mod[f], [])
+                data_text = data   # the source as written; the patterns read it with comments and docstrings blanked
+                data = stack.pattern_text(decode(data), lang).encode()
                 r["mounts"] = stack.find_mounts(st, lang, decode(data), names)
                 r["routes"] += _beside_code_rules(r, _pattern_routes(st, lang, data, r, mod_by_id[file_mod[f]], names))
-                sources[f] = decode(data)
+                sources[f] = decode(data_text)
                 if any(h["kind"] in stack.SERVER_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)):
                     r["route_like"] = [x for x in stack.route_like(decode(data), lang)
                                        if not any(a <= x["line"] <= b for a, b in _bodyless_spans(r))]
@@ -1063,17 +1065,17 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
                                             {n["id"]: n["name"] for n in r["nodes"]},
                                             _file_id(r, mod_by_id[file_mod[f]], lang))
-                r["grpc_text"] = _grpc_text(decode(data), r, lang)
+                r["grpc_text"] = _grpc_text(decode(data_text), r, lang)
                 if lang in SPECS:
                     lines[f] = decode(data).count("\n") + 1
             except Exception as err:
                 skipped.append({"file": f, "reason": f"parser failed: {type(err).__name__}: {err}"[:200]})
                 continue
             results[f] = r
-            if generated.generated(f, decode(data)):
+            if generated.generated(f, decode(data_text)):
                 gen_files.append(f)
             if f.endswith(".scala"):   # kept only for `_declared`
-                texts[f] = decode(data)
+                texts[f] = decode(data_text)
         protos = []
         for p in sorted(root.rglob("*.proto")):
             f = p.relative_to(root).as_posix()
