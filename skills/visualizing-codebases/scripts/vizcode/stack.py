@@ -14,7 +14,7 @@ from .adapters.langs import ALL, SPECS
 
 LANGS = ("python", "scala", *dict.fromkeys(spec.lang for spec in ALL))
 KINDS = ("sql-db", "doc-db", "cache", "http-in", "http-out", "http", "ws", "event", "grpc", "cloud-sdk", "spark")
-GROUPS = ("imports", "routes", "effects", "ignore", "tables", "queues")
+GROUPS = ("imports", "routes", "effects", "ignore", "tables", "queues", "jobs")
 READERS = ("literal", "segments")
 HEADER = ("# stack.yaml: written by the visualizing-codebases agent from this repo's code; read by extract.py.\n"
           "# Libraries and route styles the scanner does not know built in. Commit it; edit it by hand if a fact is wrong.\n")
@@ -87,6 +87,19 @@ class QueuePattern:
 
 
 @dataclass(frozen=True)
+class JobPattern:
+    lang: str
+    name: str
+    regex: re.Pattern
+    when: str | None
+    side: str              # define (the code a job runs) | enqueue (a call that queues one) | schedule (a timed run)
+    source: str
+
+
+JOB_SIDES = ("define", "enqueue", "schedule")
+
+
+@dataclass(frozen=True)
 class Effect:
     name: str
     match: str
@@ -103,6 +116,7 @@ class Stack:
     patterns: list[RoutePattern | AnnotatedPattern] = field(default_factory=list)
     tables: list[TablePattern] = field(default_factory=list)
     queues: list[QueuePattern] = field(default_factory=list)
+    jobs: list[JobPattern] = field(default_factory=list)
     digest: str | None = None
     overrides: list[dict] = field(default_factory=list)
     excludes: list[str] = field(default_factory=list)   # stack.yaml `exclude`: globs every scan leaves out
@@ -418,6 +432,31 @@ def _add_queues(st: Stack, fname: str, lang: str, entries: list, source: str) ->
                QueuePattern(lang, name, regex, _trim(e.get("when"), lang), e["delivery"], source))
 
 
+def _add_jobs(st: Stack, fname: str, lang: str, entries: list, source: str) -> None:
+    for i, e in enumerate(entries):
+        where = f"{lang}.jobs[{i}]"
+        name = e.get("name") if isinstance(e, dict) and isinstance(e.get("name"), str) else None
+        if not isinstance(e, dict):
+            raise _fail(fname, where, None, "must be a mapping")
+        if extra := sorted(set(e) - {"name", "regex", "when", "side"}):
+            raise _fail(fname, where, name, f"unknown key '{extra[0]}'")
+        for key in ("name", "regex"):
+            if not isinstance(e.get(key), str) or not e[key]:
+                raise _fail(fname, where, name, f"missing {key}")
+        if e.get("side") not in JOB_SIDES:
+            raise _fail(fname, where, name, f"side must be one of {', '.join(JOB_SIDES)}")
+        if e.get("when") is not None and not isinstance(e["when"], str):
+            raise _fail(fname, where, name, "when must be an import prefix")
+        try:
+            regex = re.compile(e["regex"], re.M)
+        except re.error as err:
+            raise _fail(fname, where, name, f"regex does not compile: {err}") from None
+        if e["side"] == "enqueue" and "job" not in regex.groupindex:
+            raise _fail(fname, where, name, "an enqueue regex needs a `job` group naming the job")
+        _place(st, st.jobs, "jobs", fname, where, name,
+               JobPattern(lang, name, regex, _trim(e.get("when"), lang), e["side"], source))
+
+
 def _read(st: Stack, fname: str, doc, source: str) -> None:
     if doc is None:
         return
@@ -462,6 +501,8 @@ def _read(st: Stack, fname: str, doc, source: str) -> None:
                 _add_tables(st, fname, lang, entries, source)
             elif group == "queues":
                 _add_queues(st, fname, lang, entries, source)
+            elif group == "jobs":
+                _add_jobs(st, fname, lang, entries, source)
             else:
                 _add_routes(st, fname, lang, entries, source)
 
@@ -875,6 +916,41 @@ def find_queues(st: Stack, lang: str, src: str, imports: list[str], spans: list[
             method = [s for s in spans if s[0] <= line <= s[1]]
             out.append({"line": line, "in": max(method, key=lambda s: s[0])[2] if method else file_id,
                         "delivery": pat.delivery, "pattern": pat.name, "source": pat.source})
+    return out
+
+
+def find_jobs(st: Stack, lang: str, src: str, imports: list[str], spans: list[tuple[int, int, str]],
+              class_spans: list[tuple[int, int, str]], names: dict[str, str], file_id: str) -> list[dict]:
+    """Job system sites from every job pattern of the language that applies to the file (`side`, `job`, `line`,
+    `pattern`, `source`). An enqueue's `in` is the innermost method around it, else the file. A definition's or a
+    schedule's `node` is, for a decorator or annotation (`@app.task`, `@Scheduled`), the method or class starting
+    within 3 lines below it; for any other match (`include Sidekiq::Job`, a class header implementing
+    `ShouldQueue`), the class around it; its
+    `job` is the pattern's `job` group, else that node's name. `names`: node id -> name."""
+    out = []
+    for pat in st.jobs:
+        if pat.lang != lang or (pat.when and not any(prefix_match(pat.when, i, sep(lang)) for i in imports)):
+            continue
+        for m in pat.regex.finditer(src):
+            line = src.count("\n", 0, m.start()) + 1
+            named = (m.group("job") or "").strip() if "job" in pat.regex.groupindex else ""
+            job = re.split(r"\.|::|\\", named)[-1] if named else ""
+            fact = {"side": pat.side, "job": job, "line": line, "pattern": pat.name, "source": pat.source}
+            if pat.side == "enqueue":
+                method = [s for s in spans if s[0] <= line <= s[1]]
+                fact["in"] = max(method, key=lambda s: s[0])[2] if method else file_id
+            else:
+                around = [s for s in class_spans if s[0] <= line <= s[1]]
+                below = sorted(s for s in spans + class_spans if line <= s[0] <= line + 3)
+                if m.group(0).lstrip().startswith("@") or not around:   # a decorator or annotation: what it marks
+                    node = below[0][2] if below else None
+                else:   # a marker inside a class (`include Sidekiq::Job`) or its header: the class
+                    node = max(around, key=lambda s: s[0])[2]
+                if node is not None:
+                    fact["node"] = node
+                fact["job"] = job or (names.get(node, "") if node else "")
+            if fact["job"]:
+                out.append(fact)
     return out
 
 
@@ -1389,7 +1465,7 @@ def _patterns(st: Stack, files: dict[str, dict], langs: set[str]) -> list[dict]:
     for name, lang in BUILT_IN.items():
         if hits := hits_of("routes", lang, name):
             out.append(entry("routes", lang, name, "built in", hits, hits[0][0]))
-    for group, pats in (("routes", st.patterns), ("tables", st.tables), ("queues", st.queues)):
+    for group, pats in (("routes", st.patterns), ("tables", st.tables), ("queues", st.queues), ("jobs", st.jobs)):
         for pat in pats:
             if pat.lang not in langs:
                 continue
@@ -1405,8 +1481,10 @@ def _patterns(st: Stack, files: dict[str, dict], langs: set[str]) -> list[dict]:
             else:
                 first = next(p for p, f in sorted(files.items()) if f["lang"] == pat.lang)
             mount = isinstance(pat, RoutePattern) and pat.mount
-            out.append(entry(group, pat.lang, pat.name, pat.source,
-                             hits_of("mounts" if mount else group, pat.lang, pat.name), first))
+            hits = hits_of("mounts" if mount else group, pat.lang, pat.name)
+            if pat.source == "pack" and not pat.when and not hits:
+                continue   # a pack pattern every file of the language could match: listed where it matched
+            out.append(entry(group, pat.lang, pat.name, pat.source, hits, first))
             if mount:
                 out[-1]["mount"] = True
             if isinstance(pat, AnnotatedPattern):

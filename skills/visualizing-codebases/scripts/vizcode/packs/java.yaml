@@ -117,3 +117,7 @@ java:
   queues:
     - {name: blocking-queue, when: java.util.concurrent, delivery: queue, regex: '\bnew\s+(?:LinkedBlocking|ArrayBlocking|PriorityBlocking|LinkedTransfer|Synchronous|Delay)(?:Queue|Deque)\b'}
     - {name: guava-eventbus, when: com.google.common.eventbus, delivery: fan-out, regex: '\bnew\s+(?:Async)?EventBus\s*\('}
+  jobs:
+    # Spring: `@Scheduled` runs the method below on a timer; `@Async` makes a call to it run on an executor
+    - {name: spring-scheduled, when: org.springframework.scheduling, side: schedule, regex: '^[ \t]*@Scheduled\b'}
+    - {name: spring-async, when: org.springframework.scheduling, side: define, regex: '^[ \t]*@Async\b'}

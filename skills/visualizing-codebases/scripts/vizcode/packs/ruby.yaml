@@ -58,3 +58,8 @@ ruby:
     - {name: active-record-table-name, regex: '^[ \t]*self\.table_name\s*=\s*["''](?P<table>[^"'']+)["'']'}
   queues:
     - {name: thread-queue, delivery: queue, regex: '\b(?:Thread::)?(?:Sized)?Queue\.new\b'}
+  jobs:
+    # Sidekiq and ActiveJob (Ruby files import nothing: no `when`)
+    - {name: sidekiq-job, side: define, regex: '^[ \t]*include\s+Sidekiq::(?:Job|Worker)\b'}
+    - {name: active-job, side: define, regex: '^[ \t]*class\s+(?P<job>[A-Z]\w*(?:::[A-Z]\w*)*)\s*<\s*(?:ApplicationJob|ActiveJob::Base)\b'}
+    - {name: job-enqueue, side: enqueue, regex: '\b(?P<job>[A-Z]\w*(?:::[A-Z]\w*)*)(?:\.set\([^()]*\))?\.(?:perform_later|perform_async|perform_in|perform_at|perform_bulk)\b'}

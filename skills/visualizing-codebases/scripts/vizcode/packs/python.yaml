@@ -78,3 +78,17 @@ python:
   queues:
     - {name: asyncio-queue, when: asyncio, delivery: queue, regex: '\b(?:asyncio\.)?(?:Priority|Lifo)?Queue\s*\('}
     - {name: thread-queue, when: queue, delivery: queue, regex: '\b(?:queue\.)?(?:Simple|Priority|Lifo)?Queue\s*\('}
+  jobs:
+    # Celery: `@app.task` on the project's own app (no celery import in the file), `@shared_task`; `.delay`/`.apply_async`
+    # on the task, `send_task("name")`, a beat entry's `"task": "name"`. RQ: `queue.enqueue(fn)`, `@job(..)` (often an app's own
+    # wrapper, so no `when`). Dramatiq.
+    - {name: celery-task, side: define, regex: '^[ \t]*@(?:(?!dag\.)\w+\.task|(?:celery\.)?shared_task)\b(?!\.)'}
+    - {name: celery-enqueue, side: enqueue, regex: '(?<!self\.)(?<!cls\.)\b(?P<job>[A-Za-z_]\w*)\.(?:delay|apply_async)\('}
+    - {name: celery-send-task, when: celery, side: enqueue, regex: '\.send_task\(\s*["''](?P<job>[\w.]+)["'']'}
+    # a beat entry: its dict holds both "task" and "schedule"
+    - {name: celery-beat, side: schedule, regex: '["'']task["'']\s*:\s*["''](?P<job>[\w.]+)["''](?=[^{}]*["'']schedule["''])'}
+    - {name: celery-beat-after, side: schedule, regex: '["'']schedule["''][^{}]*?["'']task["'']\s*:\s*["''](?P<job>[\w.]+)["'']'}
+    - {name: rq-enqueue, when: rq, side: enqueue, regex: '\.enqueue(?:_call|_in|_at)?\(\s*(?:f\s*=\s*)?(?P<job>[A-Za-z_][\w.]*)\s*[,)]'}
+    - {name: rq-job, side: define, regex: '^[ \t]*@(?:\w+\.)*job\('}
+    - {name: dramatiq-actor, when: dramatiq, side: define, regex: '^[ \t]*@(?:dramatiq\.)?actor\b'}
+    - {name: dramatiq-send, when: dramatiq, side: enqueue, regex: '\b(?P<job>[A-Za-z_]\w*)\.send(?:_with_options)?\('}

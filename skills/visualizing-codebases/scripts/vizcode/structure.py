@@ -385,7 +385,7 @@ def _file_node(r: dict, f: str, module_id: str, lang: str, loc: int, reg: ids.Id
     itself (an inline function, a file of no functions), as the walker creates it on a top-level function; a file
     node already made is reused. Runs after _resolve_handlers (a route whose handler name resolves needs none) and
     again after wrappers.find, for requests."""
-    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []), *r.get("clients", []))
+    facts = [x for x in (*r["routes"], *r["tables"], *r.get("queues", []), *r.get("clients", []), *r.get("jobs", []))
              if NEW_FILE_NODE in (x.get("handler"), x.get("in"))]
     if not facts:
         return
@@ -545,7 +545,7 @@ def _nested_node(r: dict, nested: dict, reg: ids.IdRegistry) -> str:
                        "signature": {"params": nested["params"], "returns": None}})
     if (owner := by_id.get(outer["parent"])) is not None:
         owner["metrics"]["methods"] = owner["metrics"].get("methods", 0) + 1
-    for group in ("calls", "strings", "tables", "queues"):
+    for group in ("calls", "strings", "tables", "queues", "jobs"):
         for x in r.get(group, []):
             if x.get("in") == outer["id"] and nested["start"] <= x["line"] <= nested["end"]:
                 x["in"] = nid
@@ -1060,6 +1060,9 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
                 r["untabled"] = stack.entities_without_table(r, any(
                     h["kind"] in stack.DB_KINDS for imp in r["imports"] for h in stack.import_sinks(st, lang, imp)))
                 r["queues"] = _pattern_queues(st, lang, data, r, mod_by_id[file_mod[f]], names)
+                r["jobs"] = stack.find_jobs(st, lang, decode(data), names, _spans(r, "method"), _spans(r, "class"),
+                                            {n["id"]: n["name"] for n in r["nodes"]},
+                                            _file_id(r, mod_by_id[file_mod[f]], lang))
                 r["grpc_text"] = _grpc_text(decode(data), r, lang)
                 if lang in SPECS:
                     lines[f] = decode(data).count("\n") + 1
@@ -1176,6 +1179,8 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
             file_facts[f]["tables"] = r["tables"]
         if queues := queue_use.handled(r.get("queues", []), r["imports"], internal.get(lang, set()), lang):
             file_facts[f]["queues"] = queues   # likewise for in-process queue creation sites
+        if r.get("jobs"):   # and for job system sites
+            file_facts[f]["jobs"] = r["jobs"]
 
     sqlfiles.attach(mapper_sql, nodes, file_facts)
     file_node = {n["file"]: n["id"] for n in nodes if n["kind"] == "file"}
@@ -1187,6 +1192,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         "stack": stack.report(st, {f: {"lang": LANGS[Path(f).suffix][0], "imports": results[f]["imports"],
                                        "routes": file_facts[f]["routes"], "tables": file_facts[f].get("tables", []),
                                        "queues": file_facts[f].get("queues", []),
+                                       "jobs": file_facts[f].get("jobs", []),
                                        "mounts": file_facts[f].get("mounts", []), "module": file_mod[f],
                                        "deduped": results[f].get("deduped", []),
                                        "route_like": results[f].get("route_like", []),
@@ -1276,7 +1282,8 @@ def _stack_lines(rep: dict) -> list[str]:
         lines.append("")
     for group, label, one0, many0 in (("routes", "Route patterns:", "route", "routes"),
                                     ("tables", "Table patterns:", "table", "tables"),
-                                    ("queues", "Queue patterns:", "queue", "queues")):
+                                    ("queues", "Queue patterns:", "queue", "queues"),
+                                    ("jobs", "Job patterns:", "job site", "job sites")):
         if mine := [p for p in pats if p["group"] == group]:
             lines.append(label)
             for p in mine:
@@ -1365,13 +1372,22 @@ def summary_md(s: dict) -> str:
                   "name them in the map where code reads or writes them:"]
         lines += [f"- {d['table']} ({d['file']}:{d['line']})" for d in defined] + [""]
     names = {n["id"]: n["name"] for n in s["nodes"]}
+    job_defs: dict[str, list[str]] = {}   # a job's name -> the nodes that define it, anywhere in the repo
+    methods_named: dict[str, list[str]] = {}   # for a job that is a plain method (Hangfire `() => svc.Run()`)
+    for n in s["nodes"]:
+        if n["kind"] == "method":
+            methods_named.setdefault(n["name"], []).append(n["id"])
+    for ff in s["facts"].values():
+        for j in ff.get("jobs", []):
+            if j["side"] == "define" and j.get("node"):
+                job_defs.setdefault(j["job"], []).append(j["node"])
     for m in s["modules"]:
         files = [f for f, i in s["files"].items() if i["module"] == m["id"]]
         lines.append(f"## {m['id']} ({m['lang']}, {m['build']}, {len(files)} files)")
         routes_, clients, sinks, reads, writes, urls, envs = [], [], set(), set(), set(), set(), set()
         tool_envs: set[str] = set()
         implemented: list[str] = []
-        tables, queues = [], []
+        tables, queues, jobs_def, jobs_enq = [], [], [], []
         grpc_ends: dict[tuple[str, str], list[str]] = {}
         dags, wfs, refs, mounts = [], [], [], []
         for f in files:
@@ -1383,6 +1399,16 @@ def summary_md(s: dict) -> str:
             tables += [(t["table"], f, t["line"], t["in"], t["kind"]) for t in ff.get("tables", [])]
             queues += [f"{q['delivery']} at {f}:{q['line']} in {names.get(q['in']) or q['in']}"
                        for q in ff.get("queues", [])]
+            for j in ff.get("jobs", []):
+                if j["side"] == "enqueue":
+                    to, same = job_defs.get(j["job"], []), methods_named.get(j["job"], [])
+                    where = f" → {', '.join(to)}" if to else \
+                        f" → a method of that name: {', '.join(same)}" if 0 < len(same) <= 3 else \
+                        f" → no definition; {len(same)} methods have that name" if same else " → no definition found"
+                    jobs_enq.append(f"{j['pattern']} `{j['job']}` ← {j['in']} ({f}:{j['line']}){where}")
+                else:
+                    jobs_def.append(f"{j['pattern']} `{j['job']}`{' scheduled' if j['side'] == 'schedule' else ''}"
+                                    f" → {j.get('node') or 'the file'} ({f}:{j['line']})")
             sinks |= {x["kind"] + ":" + x["lib"] for x in ff["sinks"]}
             for q in ff["sql"]:
                 reads |= set(q["reads"])
@@ -1419,7 +1445,7 @@ def summary_md(s: dict) -> str:
                             ("flyte workflows", wfs), ("reference tasks", refs), ("sinks", sorted(sinks)),
                             ("sql reads", sorted(reads)), ("sql writes", sorted(writes)),
                             ("tables (patterns)", [_table_line(t, names) for t in sorted(tables)]),
-                            ("in-process queues", queues),
+                            ("in-process queues", queues), ("jobs defined", jobs_def), ("jobs enqueued", jobs_enq),
                             ("url literals", sorted(urls)), ("env keys", sorted(envs)),
                             ("env keys of test, CI, dev and release files", sorted(tool_envs - envs))):
             for i in range(0, len(vals), SUMMARY_CHUNK):   # a long list on several lines, each with its label

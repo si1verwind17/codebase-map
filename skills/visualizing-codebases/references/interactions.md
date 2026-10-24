@@ -53,7 +53,13 @@ it: `topic:<engine>:<name>` with that store's engine, `delivery: queue`, its
   topic, each enqueue call an `event` to it, and each job's run method the
   consumer, an `event` from it. Key each relation by its job (`job <name>`),
   both sides: one method enqueuing two jobs on one queue is two relations,
-  and each worker consumes its own key.
+  and each worker consumes its own key. `summary.md`'s `jobs enqueued` lines
+  give the enqueue sites, each with the job's definition (`jobs defined`): write
+  one `event` per line, from the `←` method, and the consumer from the `→`
+  node (its run method: `perform`, `handle`, the task function). A line `no
+  definition found` is a job the packs do not see defined (or no job: a
+  Laravel event also `dispatch`es): read the code. A `jobs defined` line marked
+  `scheduled` is a timed run: a `batch` keyed `task <name>`.
 - A table used as a queue (rows inserted, then claimed with a lock and
   deleted or updated): a topic backed by the table's datastore; the insert is
   the publish, the claiming method the consumer.

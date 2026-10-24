@@ -384,7 +384,8 @@ def test_report_quart_without_stack(quart_repo):
     # the server files' decorator lines are listed too: what the missing route pattern has to read
     assert [(x["file"], x["lines"]) for x in rep["routes_unmatched"]] == [
         ("shopfront/__init__.py", [6]), ("shopfront/users.py", [6, 11, 16])]
-    assert rep["patterns"] == [] and stack.count(rep) == 5
+    assert [(p["name"], p["matches"]) for p in rep["patterns"]] == [("celery-task", 1), ("celery-send-task", 0)]
+    assert stack.count(rep) == 5
     md = structure.summary_md(s)
     assert "## Stack — 2 unrecognised imports, 1 server library without routes, 0 patterns with no match, " \
            "4 route-looking lines with no route\n" in md
@@ -398,7 +399,8 @@ def test_report_quart_with_stack(quart_repo):
     rep = s["stack"]
     assert rep["unrecognised"] == [] and rep["servers_without_routes"] == []
     assert [(p["name"], p["source"], p["matches"]) for p in rep["patterns"]] == \
-        [("quart", "stack.yaml", 4), ("quart-shortcut", "stack.yaml", 1), ("quart-rule", "stack.yaml", 1)]
+        [("quart", "stack.yaml", 4), ("quart-shortcut", "stack.yaml", 1), ("quart-rule", "stack.yaml", 1),
+         ("celery-task", "pack", 1), ("celery-send-task", "pack", 0)]   # tasks.py's Celery task
     md = structure.summary_md(s)
     assert "## Stack — nothing unrecognised\n" in md
     assert "Route patterns:\n- python quart (stack.yaml): 4 routes in 1 file\n" in md

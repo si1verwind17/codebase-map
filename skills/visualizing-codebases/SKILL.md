@@ -480,7 +480,9 @@ runs. Why: a test double or an unused implementation is not the system.
 ## Queues
 
 A queue hands work from one method to another without a call between them, so a trace stops at the
-put and looks complete. When `summary.md` lists `in-process queues`, or the repo enqueues jobs,
+put and looks complete. When `summary.md` lists `in-process queues`, `jobs defined` or `jobs enqueued` (the
+packs' job systems: Celery, RQ, Dramatiq, Sidekiq and ActiveJob, Laravel queues, Bull, Hangfire, Spring
+`@Scheduled`/`@Async`; a `stack.yaml` `jobs` entry adds one), or the repo enqueues jobs another way,
 pushes to a list or stream in a store, or uses a table as a queue: read `references/interactions.md`
 (the `in-process-queue` node and its `hand-off`s; a store's or job system's queue as a `topic`).
 

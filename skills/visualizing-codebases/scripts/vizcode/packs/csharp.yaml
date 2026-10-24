@@ -67,3 +67,7 @@ csharp:
   queues:
     - {name: dotnet-channel, when: System.Threading.Channels, delivery: queue, regex: '\bChannel\.Create(?:Bounded|Unbounded)\b'}
     - {name: blocking-collection, when: System.Collections.Concurrent, delivery: queue, regex: '\bnew\s+BlockingCollection\s*<'}
+  jobs:
+    # Hangfire: `BackgroundJob.Enqueue(() => svc.Method(..))` and `.Schedule`; `RecurringJob.AddOrUpdate(.., () => svc.M())`
+    - {name: hangfire-enqueue, when: Hangfire, side: enqueue, regex: '\bBackgroundJob\.(?:Enqueue|Schedule)\s*(?:<[^<>()]*>)?\s*\(\s*\(?\s*\w*\s*\)?\s*=>\s*(?:[\w.]+\.)?(?P<job>\w+)\s*\('}
+    - {name: hangfire-recurring, when: Hangfire, side: schedule, regex: '\bRecurringJob\.AddOrUpdate\s*(?:<[^<>()]*>)?\s*\([^;]*?=>\s*(?:[\w.]+\.)?(?P<job>\w+)\s*\('}

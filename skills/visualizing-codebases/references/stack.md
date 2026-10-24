@@ -13,6 +13,7 @@ Sort each line into one group of its language:
 | `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`) | nothing; the line leaves the section |
 | `tables` | an ORM or query DSL names tables in code (Quill `query[Order]`, JPA `@Table(name = "orders")`, SQLAlchemy `__tablename__`, Django `db_table`): a regex that finds the name. Its library still goes in `imports` | `tables (patterns)` lines in `summary.md`, to attach (SKILL.md § Side effects) |
 | `queues` | a library or the repo's own code makes in-process queues, channels or event buses the packs do not know: a regex for the creation call, with its `delivery` | `in-process queues` lines in `summary.md` (`references/interactions.md`) |
+| `jobs` | a job system the packs do not know (or a repo's own job registry): one entry per `side`, `define` (the decorator, base class or marker of a job), `enqueue` (the call that queues one, a `job` group naming the job) or `schedule` (a timed run) | `jobs defined` and `jobs enqueued` lines in `summary.md` (`references/interactions.md`) |
 
 1. Read each example line at the scanned commit before deciding. Write only
    what the repo shows: each pattern is checked against at least one real

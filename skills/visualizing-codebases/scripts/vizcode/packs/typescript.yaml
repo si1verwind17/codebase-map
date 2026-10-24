@@ -138,3 +138,10 @@ typescript:
   queues:
     - {name: event-emitter, when: events, delivery: fan-out, regex: '\bnew\s+EventEmitter\s*\('}
     - {name: event-emitter-node, when: node:events, delivery: fan-out, regex: '\bnew\s+EventEmitter\s*\('}
+  jobs:
+    # Bull and BullMQ: a worker or processor names its queue or job; `queue.add("job", ..)` on a value named like a
+    # queue enqueues one
+    - {name: bullmq-worker, when: bullmq, side: define, regex: '\bnew\s+Worker\s*\(\s*["''`](?P<job>[^"''`]+)["''`]'}
+    - {name: bull-process, when: bull, side: define, regex: '\.process\(\s*["''`](?P<job>[^"''`]+)["''`]'}
+    - {name: bull-add, when: bullmq, side: enqueue, regex: '\b\w*[Qq]ueue\w*\s*\.add\(\s*["''`](?P<job>[^"''`]+)["''`]'}
+    - {name: bull-add-legacy, when: bull, side: enqueue, regex: '\b\w*[Qq]ueue\w*\s*\.add\(\s*["''`](?P<job>[^"''`]+)["''`]'}

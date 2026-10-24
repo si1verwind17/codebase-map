@@ -137,3 +137,7 @@ kotlin:
     - {name: coroutine-channel, when: kotlinx.coroutines.channels, delivery: queue, regex: '\bChannel\s*(?:<[^>]*>)?\s*\('}
     - {name: shared-flow, when: kotlinx.coroutines.flow, delivery: fan-out, regex: '\bMutableSharedFlow\s*(?:<[^>]*>)?\s*\('}
     - {name: blocking-queue, when: java.util.concurrent, delivery: queue, regex: '\b(?:LinkedBlocking|ArrayBlocking|PriorityBlocking|LinkedTransfer|Synchronous|Delay)(?:Queue|Deque)\s*(?:<[^>]*>)?\s*\('}
+  jobs:
+    # Spring: `@Scheduled` runs the method below on a timer; `@Async` makes a call to it run on an executor
+    - {name: spring-scheduled, when: org.springframework.scheduling, side: schedule, regex: '^[ \t]*@Scheduled\b'}
+    - {name: spring-async, when: org.springframework.scheduling, side: define, regex: '^[ \t]*@Async\b'}

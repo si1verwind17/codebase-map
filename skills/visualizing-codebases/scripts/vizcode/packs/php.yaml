@@ -67,3 +67,10 @@ php:
        regex: '\bprotected\s+(?:\??string\s+)?\$table\s*=\s*["''](?P<table>[^"'']+)["'']'}
     - {name: doctrine-table, when: Doctrine\ORM,
        regex: '\b(?:ORM|Mapping)\\Table\(\s*[^()]*?\bname\s*[:=]\s*["''](?P<table>[^"'']+)["'']'}
+  jobs:
+    # Laravel queues: a class implementing ShouldQueue; `Job::dispatch(..)`, `dispatch(new Job)`, `Bus::chain`; the
+    # scheduler's `->job(new Job)`
+    - {name: laravel-job, side: define, regex: '^[ \t]*(?:final\s+)?class\s+(?P<job>[A-Z]\w*)[^{]*\bimplements\b[^{]*\bShouldQueue\b'}
+    - {name: laravel-dispatch, side: enqueue, regex: '\b(?P<job>[A-Z]\w*)::dispatch(?:Sync|Now|AfterResponse|If|Unless)?\('}
+    - {name: laravel-dispatch-new, side: enqueue, regex: '(?<![>\w$])dispatch(?:_sync)?\(\s*new\s+(?P<job>[A-Z]\w*)'}
+    - {name: laravel-schedule, side: schedule, regex: '->job\(\s*new\s+(?P<job>[A-Z]\w*)'}

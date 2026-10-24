@@ -589,8 +589,9 @@ language (`python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
 `javascript`, `go`, `rust`, `ruby`, `php`) the groups `imports`
 (`{prefix, kind}`), `routes`, `effects` (Scala type names; Scala only),
 `ignore` (prefixes), `tables` (`name`, `regex` with a `table` group,
-optional `when`) and `queues` (`name`, `regex`, `delivery` `queue` or `fan-out`, optional `when`: in-process queue
-creation sites); and at the top level `exclude`, a list of path globs every scan leaves out (`extract.py --exclude`
+optional `when`), `queues` (`name`, `regex`, `delivery` `queue` or `fan-out`, optional `when`: in-process queue
+creation sites) and `jobs` (`name`, `regex`, `side` `define`, `enqueue` or `schedule`, optional `when`: a job
+system's sites; an `enqueue` regex needs a `job` group, the others may name the job with one); and at the top level `exclude`, a list of path globs every scan leaves out (`extract.py --exclude`
 adds to it), and `base_paths`, folder → path prefix (`account-service: /accounts`): a path only config or a proxy
 sets (a servlet context path, a URI version), joined onto every route of the longest folder holding the route's
 file. A route entry is one of:
@@ -619,7 +620,7 @@ replaces it; any other repeated name is an error. It is data only;
 full format and when to write it: `references/stack.md` (when: SKILL.md § Stack). `structure.json` holds
 the `stack` block (`digest`, `unrecognised`, `servers_without_routes`,
 `patterns`, `overrides`) that `summary.md`'s Stack section prints. Each
-`patterns` entry: `group` (`routes`, `tables` or `queues`), `lang`, `name`, `source`
+`patterns` entry: `group` (`routes`, `tables`, `queues` or `jobs`), `lang`, `name`, `source`
 (`pack`, `stack.yaml` or `built in`), `matches`, `files`, `first_file`, and
 when they apply `form: annotated`, `mount: true`, and `duplicates` (the
 pattern whose facts this one's matches repeated: every match was already
@@ -639,6 +640,12 @@ A file a queue pattern matched carries a `queues` fact (the key is absent when n
 delivery, pattern, source}]`, `in` the innermost method around the match, else the file; `summary.md` lists them
 per module as `in-process queues`. Two patterns matching at one (line, in) give one fact.
 
+A file a job pattern matched carries a `jobs` fact: `[{side, job, line, pattern, source}]` with `in` (an enqueue:
+the innermost method around it, else the file) or `node` (a definition or schedule: for a decorator or annotation,
+the method or class starting within 3 lines below it; else the class around the match). `job` is the pattern's `job` group's last segment, else
+the node's name. `summary.md` lists them per module as `jobs defined` and `jobs enqueued`, each enqueue followed by
+the nodes defining a job of that name anywhere in the repo, else up to 3 methods of that name.
+
 A file a table pattern matched carries a `tables` fact in `structure.json`
 (the key is absent when nothing matched): `[{table, line, in, kind, pattern,
 source}]`, `in` the enclosing method id (`kind: access`), else the enclosing
@@ -656,7 +663,7 @@ annotations), whose IO parts are `imports` entries instead. When several
 
 | Pack | Routes | Tables | Library kinds (`imports`) | `ignore` |
 |---|---|---|---|---|
-| `python.yaml` | FastAPI (code rule) | SQLAlchemy and Flask-SQLAlchemy `__tablename__`, SQLModel, Django `db_table` | DB drivers, SQLAlchemy, BigQuery, Mongo, Redis, Kafka, RabbitMQ, Pub/Sub, HTTP clients, FastAPI/Flask (`http-in`), aiohttp (`http`), websockets, gRPC, boto3, GCS, PySpark | Airflow and Flyte (read by code rules); the standard library is ignored in code |
+| `python.yaml` | FastAPI (code rule), Flask | SQLAlchemy and Flask-SQLAlchemy `__tablename__`, SQLModel, Django `db_table` | DB drivers, SQLAlchemy, BigQuery, Mongo, Redis, Kafka, RabbitMQ, Pub/Sub, HTTP clients, FastAPI/Flask (`http-in`), aiohttp (`http`), websockets, gRPC, boto3, GCS, PySpark | Airflow and Flyte (read by code rules); the standard library is ignored in code |
 | `scala.yaml` | tapir (code rule), zio-http | Quill `query[T]`, `querySchema[T]("t")` | Quill, doobie, Skunk, Slick, ScalikeJDBC, zio-jdbc, sttp, tapir, zio-http, Kafka, Redis, gRPC, AWS, Spark; `effects`: ZIO types | `scala`, `java`, `javax`, `zio` |
 | `java.yaml`, `kotlin.yaml` | Spring MVC/WebFlux, JAX-RS (jakarta and javax), Micronaut (annotated; Feign, `@HttpExchange`, `@RegisterRestClient`, Micronaut `@Client` interfaces skipped); Kotlin also Ktor (regex, `route("/x")` mounts) | JPA `@Table(name)`, `@Entity(name)` (jakarta and javax); Kotlin also Exposed `object X : Table("x")`, `object Xs : Table()` (`Xs`) | JDBC, Spring JDBC/Data/JPA/R2DBC, Hibernate, jOOQ, MyBatis, Exposed, Micronaut Data, Quarkus ORM, BigQuery; Mongo, Spring Data Mongo/Cassandra/Elasticsearch; Kafka, Spring Kafka/AMQP/JMS/Cloud Stream, RabbitMQ, Pub/Sub, MicroProfile messaging; Jedis, Lettuce, Redisson, Spring Data Redis; OkHttp, RestTemplate, WebClient, Retrofit, `java.net.http`, OpenFeign, JAX-RS/Micronaut/Quarkus/MicroProfile clients, Ktor client; Spring WebSocket; JMS; Ktor routing (`http-in`), websockets; AWS, GCS; gRPC | the standard library (`java`, `javax`, `jdk`; Kotlin `kotlin`), `org.springframework`, `io.micronaut`, `io.quarkus`, Jakarta EE wiring (`jakarta.inject`, `jakarta.enterprise`, `jakarta.validation`, …), `org.eclipse.microprofile`; Kotlin also `io.ktor` |
 | `typescript.yaml`, `javascript.yaml` | NestJS (annotated; `setGlobalPrefix` a mount), Express (`app.use` a mount), Koa router (`use`/`prefix` mounts), Fastify (`register` prefix a mount) | TypeORM `@Entity`, Prisma `prisma.<model>`, Sequelize `define` / `tableName`, sequelize-typescript | pg, mysql2, Prisma, TypeORM, Sequelize, Knex, Drizzle, Mongo, Mongoose; kafkajs, amqplib, BullMQ, NestJS microservices, Pub/Sub; ioredis, redis; axios, node-fetch, got, undici; Express, Koa, Fastify, `@nestjs/core` (`http-in`); NestJS websockets; AWS SDK v3, `@google-cloud`; gRPC | Node built-ins (`node:`, `fs`, `path`, …), `@nestjs` |
@@ -667,12 +674,17 @@ annotations), whose IO parts are `imports` entries instead. When several
 | `php.yaml` | Laravel `Route::get`/`match` (`Route::prefix` a mount; no `use` needed: the global `Route` alias), Symfony `#[Route]` (annotated) | Eloquent `protected $table`, Doctrine `ORM\Table(name)` | PDO, Doctrine DBAL/ORM, Laravel DB; php-amqplib, Enqueue, Laravel Queue, Symfony Messenger, Pub/Sub; Predis, `Redis`, Laravel Redis; Guzzle, Laravel Http, Symfony HttpClient; Laravel/Symfony routing (`http-in`); AWS, GCP; Grpc | `Illuminate`, `Symfony` (PHP's standard library is global, not namespaced) |
 | `modules.yaml` | build files per ecosystem (Modules above), not a language pack | | | |
 
+Job systems (`jobs`): Python Celery, RQ and Dramatiq; Ruby Sidekiq and ActiveJob; PHP Laravel queues; TypeScript and JavaScript Bull/BullMQ; C# Hangfire; Java and Kotlin Spring `@Scheduled`/`@Async`.
+
 Every pack regex entry runs only on files that import its `when` prefix,
 except ten whose files usually import nothing, each with a tight regex:
 Rails routes, `resources` and `resource` (`config/routes.rb`), ActiveRecord
 `self.table_name`, gorm `TableName()`, ASP.NET minimal APIs and `MapGroup`
 (implicit usings), and Laravel `Route::` calls and prefixes (the global
-`Route` alias).
+`Route` alias); and the job patterns whose files import the project's own app or
+nothing: Celery `@<app>.task`, `@shared_task`, `.delay`/`.apply_async` and beat
+entries, RQ `@job`, Sidekiq/ActiveJob, Laravel `ShouldQueue` and `dispatch`. A pack
+pattern without `when` is listed under the pattern counts only where it matched.
 
 ## Audit
 
