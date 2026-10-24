@@ -738,10 +738,13 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
   worst 5 floors, then `… N more`: highest congestion, highest spread, least
   room between the fit zoom and the names/codes switch zoom.
 - **Content warnings:** `ext.missing` (a config key that looks like an
-  outside endpoint names nothing on the map), `external.unused` (an `external` node that no relation starts or
+  outside endpoint names nothing on the map; keys only test, CI, dev, release or scripts files read have a line of
+  their own and are not checked), `external.unused` (an `external` node that no relation starts or
   ends at), `deployable.unscanned` (a deployable folder in `summary.md` § Not scanned, a Dockerfile's or a compose
-  service's build context whose source is mostly or wholly unscanned, that no service cites a file inside of or is
-  named like the compose service of, and no `problems` entry names), `queue.missing` (an
+  service's build context whose source is mostly or wholly unscanned, or holds 100 unscanned files or more that
+  come to a fifth of its scanned ones, that no service cites a file inside of or is named like the compose service
+  of, and no `problems` entry names; images in a CI or `dev` folder, or one whose name holds `test`, `e2e`, `docs`,
+  `examples`, `samples` or `benchmarks` as a word, are listed apart, not checked), `queue.missing` (an
   `in-process queues` creation site in `summary.md` that no in-process-queue
   cites in `evidence` and no `problems` entry names as `file:line`), `data.two-way-call` (a `request` or `ext-call`
   with `data: both`: a call's reply is not data moving back), `module.empty` (a service or

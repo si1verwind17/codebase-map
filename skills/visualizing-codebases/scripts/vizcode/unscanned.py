@@ -28,10 +28,21 @@ SOURCE = {
 }
 NAMES = {"Caddyfile": "server config"}
 DOCKERFILE = re.compile(r"^(?:Dockerfile[^/]*|[^/]+\.[Dd]ockerfile)$")
-# a folder segment that says the image is for tests, CI, docs, examples or a developer's tooling, not the product
+# a folder segment that says the image is for tests, CI, docs, examples, benchmarks or a developer's tooling, not
+# the product: a CI folder, `dev`, or a tooling word as a whole segment or a dashed part of one (`e2e-tests`,
+# `docker-stack-docs`); never a word inside a product name (`payment-integration`)
 TOOLING = re.compile(r"(?i)^(?:\.(?:github|gitlab|circleci|buildkite|devcontainer)|dev|devtools?|dev-tools?|ci|"
-                     r"(?:.*[-_.])?(?:tests?|testing|e2e|it|integration|docs?|documentation|examples?|samples?|"
-                     r"benchmarks?|sandbox)(?:[-_.].*)?)$")
+                     r"(?:.*[-_.])?(?:tests?|testing|e2e|docs|documentation|examples?|samples?|benchmarks?)"
+                     r"(?:[-_.].*)?)$")
+
+
+def tooling(folder: str) -> bool:
+    """A folder of TOOLING, judged on the segments above any source tree (`src/main/java/dev/acme` is a package)."""
+    segs = folder.split("/")
+    above = segs[:segs.index("src")] if "src" in segs else segs
+    return any(TOOLING.match(seg) for seg in above)
+
+
 # source that runs beside any deployable (scripts, server config): it never makes one unscanned by its share
 AUXILIARY = {"shell", "PowerShell", "server config"}
 MANY = 100   # this many unread source files, a fifth of the read ones or more, make a deployable unscanned in part
@@ -96,10 +107,10 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         elif COMPOSE.match(name):
             for svc, folder in _build_contexts(f, read(f)):
                 found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, f])
-    deployables, tooling = [], []
+    deployables, tools = [], []
     for folder, how in sorted(found.items()):
-        if any(TOOLING.match(seg) for seg in folder.split("/")):
-            tooling.append({"folder": folder, **how})
+        if tooling(folder):
+            tools.append({"folder": folder, **how})
             continue
         mine = sum(1 for f in scanned if _inside(f, folder))
         missed: dict[str, int] = {}
@@ -110,4 +121,4 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         if mine == 0 or sum(missed.values()) > mine or (main >= MANY and 5 * main >= mine):
             deployables.append({"folder": folder, **how, "scanned": mine,
                                 "unscanned": [[lang, n] for lang, n in sorted(missed.items(), key=lambda kv: (-kv[1], kv[0]))]})
-    return {"languages": languages, "deployables": deployables, **({"tooling": tooling} if tooling else {})}
+    return {"languages": languages, "deployables": deployables, **({"tooling": tools} if tools else {})}

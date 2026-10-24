@@ -1198,6 +1198,19 @@ def _stack_lines(rep: dict) -> list[str]:
     return lines
 
 
+# a folder of release, build or developer scripts: what its files read from the environment is no runtime setting
+SCRIPT_FOLDER = re.compile(r"(?i)^(?:release|releases|scripts?|build-?tools?|buildSrc)$")
+
+
+def _tooling_file(f: str) -> bool:
+    """A file in a test, CI, docs, dev, release or scripts folder (unscanned.tooling, SCRIPT_FOLDER), judged above
+    any `src` folder."""
+    folder = f.rsplit("/", 1)[0] if "/" in f else ""
+    segs = folder.split("/")
+    above = segs[:segs.index("src")] if "src" in segs else segs
+    return unscanned.tooling(folder) or any(SCRIPT_FOLDER.match(seg) for seg in above)
+
+
 def _unscanned_lines(rep: dict) -> list[str]:
     """The Not scanned section: source in languages without a reader, and the deployables made mostly of it."""
     langs, deps = rep.get("languages", []), rep.get("deployables", [])
@@ -1253,6 +1266,7 @@ def summary_md(s: dict) -> str:
         files = [f for f, i in s["files"].items() if i["module"] == m["id"]]
         lines.append(f"## {m['id']} ({m['lang']}, {m['build']}, {len(files)} files)")
         routes_, clients, sinks, reads, writes, urls, envs = [], [], set(), set(), set(), set(), set()
+        tool_envs: set[str] = set()
         implemented: list[str] = []
         tables, queues = [], []
         grpc_ends: dict[tuple[str, str], list[str]] = {}
@@ -1271,7 +1285,7 @@ def summary_md(s: dict) -> str:
                 reads |= set(q["reads"])
                 writes |= set(q["writes"])
             urls |= {u["url"] for u in ff["urls"]}
-            envs |= {e["key"] for e in ff["env_keys"]}
+            (tool_envs if _tooling_file(f) else envs).update(e["key"] for e in ff["env_keys"])
             clients += [f"{c['method']} {c['path']} ← {c['in']} ({f}:{c['line']})" for c in ff.get("clients", [])]
             implemented += [" ".join([i["class"]] + ([f"extends {', '.join(i['bases'])}"] if i["bases"] else [])
                                      + ([i["annotation"]] if i["annotation"] else [])
@@ -1303,7 +1317,8 @@ def summary_md(s: dict) -> str:
                             ("sql reads", sorted(reads)), ("sql writes", sorted(writes)),
                             ("tables (patterns)", [_table_line(t, names) for t in sorted(tables)]),
                             ("in-process queues", queues),
-                            ("url literals", sorted(urls)), ("env keys", sorted(envs))):
+                            ("url literals", sorted(urls)), ("env keys", sorted(envs)),
+                            ("env keys of test, CI, dev and release files", sorted(tool_envs - envs))):
             for i in range(0, len(vals), SUMMARY_CHUNK):   # a long list on several lines, each with its label
                 lines.append(f"- **{label}:** " + "; ".join(vals[i:i + SUMMARY_CHUNK]))
         lines.append("")

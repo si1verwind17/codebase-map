@@ -97,3 +97,33 @@ def test_tooling_images_apart_and_a_large_unread_share_counts(make_repo):
     assert [d["folder"] for d in s["unscanned"]["deployables"]] == ["."]
     assert [d["folder"] for d in s["unscanned"]["tooling"]] == ["dev/sandbox", "docker-stack-docs", "e2e-tests"]
     assert "no service needed — `dev/sandbox`, `docker-stack-docs`, `e2e-tests`" in structure.summary_md(s)
+
+
+def test_env_keys_of_release_and_ci_scripts_have_a_line_of_their_own(make_repo):
+    """A key only release, CI or test files read is no runtime setting: it is listed apart, and ext.missing,
+    which reads the `env keys` line, never asks for it."""
+    from vizcode import mapcheck
+    files = {"package.json": '{"name": "app"}\n',
+             "src/api.ts": "export const base = process.env.BILLING_URL\n",
+             "release/src/slack.ts": "export const hook = process.env.SLACK_WEBHOOK_URL\n",
+             "dev/notify.ts": "export const t = process.env.GITHUB_API_URL\n"}
+    md = structure.summary_md(structure.build(make_repo(files)))
+    assert "- **env keys:** BILLING_URL\n" in md
+    assert "- **env keys of test, CI, dev and release files:** GITHUB_API_URL; SLACK_WEBHOOK_URL\n" in md
+    missing = [w["detail"] for w in mapcheck.warnings({"nodes": [], "relations": []}, md) if w["id"] == "ext.missing"]
+    assert len(missing) == 1 and "BILLING_URL" in missing[0]
+
+
+def test_product_folders_and_jvm_packages_are_no_tooling(make_repo):
+    files = {"pom.xml": "<project/>\n",
+             "src/main/java/dev/acme/pay/Config.java": "package dev.acme.pay;\n\npublic class Config {\n"
+                                                      "    String u = System.getenv(\"PAYMENT_GATEWAY_URL\");\n}\n",
+             "bot/__init__.py": "", "bot/tools/__init__.py": "",
+             "bot/tools/search.py": "import os\n\nURL = os.environ['SEARCH_API_URL']\n",
+             "payment-integration/Dockerfile": "FROM node\n", "code-sandbox/Dockerfile": "FROM node\n",
+             **{f"payment-integration/x{i}.ex": "x\n" for i in range(3)}, **{f"code-sandbox/y{i}.ex": "y\n" for i in range(3)}}
+    s = structure.build(make_repo(files))
+    md = structure.summary_md(s)
+    assert "env keys of test" not in md and "PAYMENT_GATEWAY_URL" in md and "SEARCH_API_URL" in md
+    assert not s["unscanned"].get("tooling")
+    assert {d["folder"] for d in s["unscanned"]["deployables"]} == {"payment-integration", "code-sandbox"}
