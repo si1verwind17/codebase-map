@@ -101,51 +101,86 @@ JOB_SIDES = ("define", "enqueue", "schedule", "publish", "consume")
 MESSAGE_SIDES = ("publish", "consume")   # a broker's topics and queues: named whole (`orders.created`), never split
 # a file-level name bound to one string literal, for a topic written as a constant (`TOPIC = "orders"`)
 _NAMED_LITERAL = re.compile(r"""^[ \t]*(?:export[ \t]+)?(?:(?:const|let|var|val|final|static|private|public|protected|readonly|"""
-                            r"""internal)[ \t]+)*(?:[\w<>\[\],?]+[ \t]+)?([A-Za-z_$][\w$]*)[ \t]*(?::[ \t]*[\w<>\[\]|]+[ \t]*)?:?=[ \t]*"""
+                            r"""internal|pub)[ \t]+)*(?:[\w<>\[\],?]+[ \t]+)?([A-Za-z_$][\w$]*)[ \t]*"""
+                            r"""(?::[ \t]*&?(?:'\w+[ \t]+)?[\w<>\[\]|]+[ \t]*)?:?=[ \t]*"""
                             r"""(?:[^\n]*?(?:\?\?|\|\||\bor\b|,)[ \t]*)?["'`]([^"'`\n]+)["'`][ \t]*\)?[ \t]*;?[ \t]*$""", re.M)
 # (also a setting's literal default: `env("TOPIC") ?? "orders"`, `os.getenv("TOPIC", "orders")`, `x || "orders"`)
 FIELD_WORDS = re.compile(r"\b(?:private|public|protected|internal|static|readonly)\b")
 CONSTANT_NAME = re.compile(r"[A-Z][A-Z0-9_]*$")   # `ROUTING_KEY = 'orders'` in a class, Kotlin `const val TOPIC`
 
 
-CLASS_HEAD = re.compile(r"^\s*(?:(?:@[\w.]+(?:\([^)]*\))?|public|private|protected|internal|abstract|final|sealed|"
-                        r"data|open|inner|static|export|default|case|pub(?:\([\w ]+\))?|partial|annotation|"
-                        r"implicit|value|unsafe|readonly|ref|file|new|declare|const|fileprivate|indirect|expect|"
-                        r"actual|inline|external|strictfp|transparent|override)\s+)*(?:class|object|interface|enum|struct|record|trait|impl|namespace|"
-                        r"module|companion)\s+[\w$]")
+CLASS_HEAD = re.compile(r"^\s*(?:(?:@[\w.]+(?:\((?:[^()]|\([^()]*\))*\))?|(?:private|protected)\[\w+\]|public|private|"
+                        r"protected|internal|abstract|final|sealed|data|open|inner|static|export|default|case|"
+                        r"pub(?:\([\w :]+\))?|partial|annotation|implicit|value|unsafe|readonly|ref|file|new|declare|const|"
+                        r"fileprivate|indirect|expect|actual|inline|external|strictfp|transparent|override)\s+)*"
+                        r"(?:(?:class|interface|enum|struct|record|trait|impl|namespace|module|companion|mod|extension|"
+                        r"actor)\s+[\w$]|object\s+(?![\w$]+\s*\()[\w$]|@interface\s+\w|impl\s*<)")
 FUNCTION_HEAD = re.compile(r"^\s*(?:(?:async\s+)?def\s|(?:fun(?!\s+interface\b)|func|function)\b|(?![^(]*\b(?:class|object|interface|enum|"
                            r"companion|struct|record|namespace|trait)\s+[\w$])(?!(?:if|elif|else|for|while|switch|with|"
                            r"try|except|case)\b)(?!(?:catch|when|match)\s)(?:[\w<>\[\],?.]+\s+)*[\w$]+\s*\([^)]*\)\s*"
-                           r"(?:->\s*[^:{]+|:\s*[\w<>\[\]?, .]+)?\s*[:{]\s*$)")
+                           r"(?:->\s*[^:{]+|:\s*[\w<>\[\]?, .]+)?\s*[:{]\s*$"
+                           # a static initializer, a property accessor, a callback (`it('x', () => {`, `function (req) {`)
+                           r"|static\s*\{\s*$|(?:(?:public|private|protected|internal)\s+)?(?:get|set|init)\s*\{\s*$"
+                           r"|.*(?:=>|\bfunction\b\s*[\w$]*\s*\([^)]*\))\s*\{\s*$)")
+ACCESSOR = re.compile(r"\s*(?:(?:public|private|protected|internal)\s+)?(?:get|set|init)\s*$")
 
 
-def in_function(lines: list[str], i: int) -> bool:
-    """Line i (0-based) sits inside a function: walking out through the lines above it with less indent, a
-    function's head (`def a(p):`, `void a() {`, `fun a() {`) comes before a class's or an object's or the file's top;
-    a block between (`if (x) {`, `with lock:`, `try:`) is passed through."""
+def _signature(lines: list[str], j: int, last: int) -> str:
+    """Line j, joined with the lines after it (up to line last) while its parentheses stay open: a signature written
+    over several lines (`void run(String a,` / `String b) {`)."""
+    text, k = lines[j], j
+    while text.count("(") > text.count(")") and k + 1 < last and k - j < 12:
+        k += 1
+        text += " " + lines[k].strip()
+    return text
+
+
+def enclosing_head(lines: list[str], i: int) -> str | None:
+    """The head of the function line i (0-based) sits inside, or None: walking out through the lines above it with
+    less indent, a
+    function's head (`def a(p):`, `void a() {`, `fun a() {`, a signature over several lines, a head whose `{` is on
+    the next line, a static initializer, a property accessor, a callback `() => {`) comes before a class's or an
+    object's or the file's top; a block between (`if (x) {`, `with lock:`, `try:`) is passed through."""
     indent = len(lines[i]) - len(lines[i].lstrip())
     for j in range(i - 1, -1, -1):
         line = lines[j]
         if line.strip() and (lead := len(line) - len(line.lstrip())) < indent:
-            if FUNCTION_HEAD.match(line):
-                return True
+            if line.strip() == "{" and (k := next((k for k in range(j - 1, -1, -1) if lines[k].strip()), None)) is not None:
+                above = lines[k]   # the head of a brace on its own line (C#, Allman style)
+                if FUNCTION_HEAD.match(above + " {") or ACCESSOR.fullmatch(above):
+                    return above
+                if CLASS_HEAD.match(above):
+                    return None
+            if FUNCTION_HEAD.match(head := _signature(lines, j, i)):
+                return head
             if lead == 0 or CLASS_HEAD.match(line):
-                return False
+                return None
             indent = lead
-    return False
+    return None
+
+
+STATIC_BLOCK = re.compile(r"\s*static\s*\{\s*$")
+
+
+def in_function(lines: list[str], i: int) -> bool:
+    """Line i (0-based) sits inside a function (enclosing_head)."""
+    return enclosing_head(lines, i) is not None
 
 
 def file_literals(src: str) -> dict[str, str]:
     """A file's names bound once to a string literal at its top, as a declared field (`private static final String
     TOPIC = "x"`) or as a constant-cased name (`ROUTING_KEY = 'orders'` in a class): a name bound to two different
-    ones, or a function's local (`final String topic = "x"` in a method), is left out."""
+    ones, or a function's local (`final String topic = "x"` in a method), is left out; a bare assignment in a static
+    initializer (`static { TOPIC = "orders"; }`) sets the class's field."""
     seen: dict[str, set[str]] = {}
     lines = src.split("\n")
     for m in _NAMED_LITERAL.finditer(src):
         i = src.count("\n", 0, m.start())
         line = lines[i]
+        head = enclosing_head(lines, i) if line[:1].isspace() else None
+        field = head is not None and STATIC_BLOCK.match(head) and re.match(rf"\s*{re.escape(m.group(1))}\s*=", line)
         if not line[:1].isspace() or ((CONSTANT_NAME.match(m.group(1)) or FIELD_WORDS.search(line.split("=", 1)[0]))
-                                      and not in_function(lines, i)):
+                                      and (head is None or field)):
             seen.setdefault(m.group(1), set()).add(m.group(2))
     return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 

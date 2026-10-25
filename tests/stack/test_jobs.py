@@ -197,3 +197,39 @@ def test_more_class_modifiers_and_a_kotlin_fun_interface():
                  "public readonly struct P {"):
         assert CLASS_HEAD.match(head), head
     assert not FUNCTION_HEAD.match("fun interface Handler {") and FUNCTION_HEAD.match("fun interfaceFor(x) {")
+
+
+def test_locals_of_brace_on_next_line_heads_multi_line_signatures_and_initializers_are_no_file_constants():
+    from vizcode.stack import file_literals
+    # C# Allman: the brace on its own line under the head
+    assert file_literals('class A\n{\n    public void Run(string x)\n    {\n        const string TOPIC = "l";\n    }\n}\n') == {}
+    # a signature over several lines
+    assert file_literals('class A {\n    void run(String a,\n            String b) {\n        String TOPIC = "l";\n    }\n}\n') == {}
+    # a property accessor, a static initializer
+    assert file_literals('class A\n{\n    public string Url\n    {\n        get\n        {\n            var BASE = "/l";\n'
+                         '            return BASE;\n        }\n    }\n}\n') == {}
+    assert file_literals('class A {\n    static {\n        String TOPIC = "l";\n    }\n}\n') == {}
+    # a bare assignment there sets the class's field
+    assert file_literals('class A {\n    static final String TOPIC;\n    static {\n        TOPIC = "orders";\n    }\n}\n') == {
+        "TOPIC": "orders"}
+    # a callback at a file's top
+    assert file_literals("describe('x', () => {\n  const TOPIC = 'l'\n})\n") == {}
+    assert file_literals("app.get('/x', function (req, res) {\n  const TOPIC = 'l'\n})\n") == {}
+    # still constants: a class's fields under an Allman head
+    assert file_literals('public class A\n{\n    private const string TOPIC = "orders";\n}\n') == {"TOPIC": "orders"}
+
+
+def test_a_rust_const_with_a_reference_type_is_a_literal():
+    from vizcode.stack import file_literals
+    assert file_literals('pub const TOPIC: &str = "orders";\nstatic QUEUE: &\'static str = "jobs";\n') == {
+        "TOPIC": "orders", "QUEUE": "jobs"}
+
+
+def test_more_class_heads_and_a_method_returning_object():
+    from vizcode.stack import CLASS_HEAD
+    for head in ("private[this] class P {", "@JsonSerialize(using = classOf[X]) class P {", "pub(in crate::a) struct P {",
+                 "impl<T> Service<T> for P {", "pub mod api {", "public @interface Marker {", "extension Foo {",
+                 "actor Store {", "@Target(value = [AnnotationTarget.CLASS]) annotation class Marker"):
+        assert CLASS_HEAD.match(head), head
+    for line in ("public object Get(string id) {", "public object Get(string id)"):
+        assert not CLASS_HEAD.match(line), line
