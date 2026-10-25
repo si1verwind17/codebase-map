@@ -152,6 +152,13 @@ def test_ext_missing_matches_a_service_by_its_words_and_clears_on_a_problem():
     assert got == ["PAYROLL_API_KEY"]
 
 
+def test_module_empty_skips_a_service_a_problem_lists_in_its_nodes():
+    m = copy.deepcopy(DEMO)
+    m["nodes"] += [{"id": "svc:db", "kind": "service", "name": "db"}, {"id": "svc:mq", "kind": "service", "name": "mq"}]
+    m["problems"] = m.get("problems", []) + [{"text": "a stock image with its config only", "nodes": ["svc:db"]}]
+    assert [w["node"] for w in mapcheck.warnings(m) if w["id"] == "module.empty"] == ["svc:mq"]
+
+
 def test_module_empty_skips_a_service_that_deploys_a_twin():
     m = copy.deepcopy(DEMO)
     m["nodes"].append({"id": "svc:sim", "kind": "service", "name": "sim", "twins": ["agent::agent/"]})

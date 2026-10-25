@@ -93,6 +93,33 @@ def compose_services(doc) -> dict:
     return {k: v for k, v in doc.items() if isinstance(v, dict) and ("image" in v or "build" in v)}
 
 
+def service_spans(text: str) -> dict[str, tuple[int, int]]:
+    """Each compose service's lines (first, last; 1-based): its key under `services:` (or at the top of a version 1
+    file) through the line before the next key at that depth or less."""
+    lines = text.splitlines()
+    body = lambda s: s.strip() and not s.lstrip().startswith("#")
+    indent = lambda s: len(s) - len(s.lstrip())
+    top = next((i for i, s in enumerate(lines) if re.match(r"services\s*:\s*(?:#.*)?$", s)), None)
+    start = top + 1 if top is not None else 0
+    depth = next((indent(s) for s in lines[start:] if body(s)), 0) if top is not None else 0
+    spans, name, first, last = {}, None, 0, 0
+    for i in range(start, len(lines)):
+        s = lines[i]
+        if not body(s):
+            continue
+        if indent(s) < depth or (top is not None and indent(s) == 0):
+            break
+        if indent(s) == depth:
+            if name is not None:
+                spans[name] = (first, last)
+            m = re.match(r"\s*[\"']?([^\s\"':]+)[\"']?\s*:", s)
+            name, first = (m.group(1), i + 1) if m else (None, 0)
+        last = i + 1
+    if name is not None:
+        spans[name] = (first, last)
+    return spans
+
+
 def _build_contexts(path: str, text: str) -> list[tuple[str, str, str | None]]:
     """(compose service, its build context folder, the Dockerfile it names or None) for each service a compose file
     builds from this repo."""
@@ -135,8 +162,12 @@ def report(files: list[str], scanned: set[str], skip, read) -> dict:
         if DOCKERFILE.match(name):
             found.setdefault(_folder(f), {"dockerfiles": [], "compose": []})["dockerfiles"].append(f)
         elif COMPOSE.match(name):
-            for svc, folder, recipe in _build_contexts(f, read(f)):
-                found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, f])
+            text = read(f)
+            spans = service_spans(text)
+            for svc, folder, recipe in _build_contexts(f, text):
+                a, b = spans.get(svc, (0, 0))
+                at = f if not a else f"{f}:{a}" if a == b else f"{f}:{a}-{b}"
+                found.setdefault(folder, {"dockerfiles": [], "compose": []})["compose"].append([svc, at])
                 if recipe is not None and _folder(recipe) != folder:
                     recipes.add(recipe)
     deployables, tools, infra = [], [], []

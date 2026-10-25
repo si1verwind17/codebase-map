@@ -230,6 +230,9 @@ QUEUE_LINE = re.compile(r"^- \*\*in-process queues:\*\* (.*)$", re.M)
 QUEUE_SITE = re.compile(r"^(?:queue|fan-out) at (\S+):(\d+) in ")
 # a `Likely requests` line of summary.md: the client end's method id
 LIKELY_LINE = re.compile(r"^- (?:[A-Z]+ \S+|grpc \S+) ← (\S+) \(([^)]+)\) → ", re.M)   # topic lines: no `request`
+COMPOSE_FILE = re.compile(r"(?:^|/)(?:docker-)?compose[\w.-]*\.ya?ml$", re.I)
+# a file named in a problem, so the folder holding it counts as named (`docker/web/Dockerfile`, `relay/config.yaml`)
+FILE_EXT = r"(?:ya?ml|json|toml|ini|conf|cfg|xml|properties|env|sh|sql|txt|md|js|ts|py|go|rb|php|java|kt|cs|rs|lua|template)"
 DEPLOY_LINE = re.compile(r"^- deployable `([^`]+)` \((.*)\) — (.*)$", re.M)
 
 
@@ -279,9 +282,13 @@ def _requests_unmatched(cmap: dict, summary_md: str) -> list[dict]:
 
 def _deployables_unscanned(cmap: dict, summary_md: str) -> list[dict]:
     """A deployable folder whose source is mostly not scanned is accounted for when a service cites a file inside it
-    (its Dockerfile) or is named like its compose service, or a `problems` entry names the folder."""
+    (its Dockerfile) or a line of its compose service, or is named like that compose service, or a `problems` entry
+    names the folder or a file directly in it."""
     services = [n for n in cmap.get("nodes", []) if n.get("kind") == "service"]
     cited = {e.get("file", "") for n in services for e in n.get("evidence", [])}
+    # a service's deploy line: its first citation of a compose file (a gateway citing another block's `ports:` is none)
+    cited_lines = {next(((e.get("file", ""), e.get("line")) for e in n.get("evidence", [])
+                         if COMPOSE_FILE.search(str(e.get("file", "")))), None) for n in services} - {None}
     named = {str(n.get("name", "")) for n in services} | {n["id"].removeprefix("svc:") for n in services}
     said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
     out = []
@@ -289,8 +296,13 @@ def _deployables_unscanned(cmap: dict, summary_md: str) -> list[dict]:
         # the repository root holds every file: only its own Dockerfile counts there
         inside = (lambda f: f in re.findall(r"Dockerfile `([^`]+)`", how)) if folder == "." \
             else (lambda f: f.startswith(folder + "/"))
-        mention = r"`\.`" if folder == "." else rf"(?<![\w./-]){re.escape(folder)}(?![\w/-])"
+        # the folder, or a file directly in it (`docker/web/Dockerfile`), never a folder below it
+        mention = r"`\.`" if folder == "." else \
+            rf"(?<![\w./-]){re.escape(folder)}(?:/(?:[\w.-]*\.{FILE_EXT}|Dockerfile[\w.-]*))?(?![\w/-]|\.[\w-])"
+        blocks = [(f, int(a), int(b or a))
+                  for f, a, b in re.findall(r"compose service `[^`]+` in ([^\s;:]+):(\d+)(?:-(\d+))?", how)]
         if any(inside(f) for f in cited) or named & set(re.findall(r"compose service `([^`]+)`", how)) \
+                or any(f == bf and isinstance(n, int) and a <= n <= b for f, n in cited_lines for bf, a, b in blocks) \
                 or re.search(mention, said):
             continue
         out.append({"id": "deployable.unscanned", "node": None,
@@ -410,10 +422,12 @@ def warnings(cmap: dict, summary_md: str | None = None) -> list[dict]:
     runtime_ends = {e for r in cmap.get("relations", []) if r["kind"] not in ("uses-code", "calls")
                     for e in (r.get("from"), r.get("to"))}
     said = " ".join(p.get("text", "") for p in cmap.get("problems", []))
+    listed = {x for p in cmap.get("problems", []) for x in p.get("nodes", []) or []}
     for n in nodes.values():
         if n["kind"] in ("service", "library") and not has_code(n["id"]) and not n.get("twins") \
                 and not (n["kind"] == "service" and n["id"] in runtime_ends) \
-                and not (n["kind"] == "service" and re.search(rf"(?<![\w:-]){re.escape(n['id'])}(?![\w-])", said)):
+                and not (n["kind"] == "service" and (n["id"] in listed
+                                                     or re.search(rf"(?<![\w:-]){re.escape(n['id'])}(?![\w-])", said))):
             out.append({"id": "module.empty", "node": n["id"],
                         "detail": f"{n['kind']} {n['id']} has no file or package under it: give it its module, or "
                                   "for a service whose image holds no scanned code (generated or unscanned output), "

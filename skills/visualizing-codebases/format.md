@@ -779,15 +779,16 @@ command that checks them, and do not fail. `--full-audit` (on `audit.py` or
   whose method starts no `request`, `ext-call` or `stream` (nor is one's `via`) and no `problems` entry names
   the method or its `file:line`), `deployable.unscanned` (a deployable folder in `summary.md` § Not scanned, a Dockerfile's or a compose
   service's build context whose source is mostly or wholly unscanned, or holds 100 unscanned files or more that
-  come to a fifth of its scanned ones, that no service cites a file inside of or is named like the compose service
-  of, and no `problems` entry names; images in a CI or `dev` folder, or one whose name holds `test`, `e2e`, `docs`,
+  come to a fifth of its scanned ones, that no service cites a file inside of or a line of its compose service (the
+  `file:first-last` the line shows), or is named like the compose service of, and no `problems` entry names (the
+  folder, or a file directly in it such as its Dockerfile); images in a CI or `dev` folder, or one whose name holds `test`, `e2e`, `docs`,
   `examples`, `samples` or `benchmarks` as a word, are listed apart, not checked), `queue.missing` (an
   `in-process queues` creation site in `summary.md` that no in-process-queue
   cites in `evidence` and no `problems` entry names as `file:line`), `data.two-way-call` (a `request` or `ext-call`
   with `data: both`: a call's reply is not data moving back), `module.empty` (a service or
   library with no file or package under it; a service with runtime relations of its own is one the scanner
-  cannot read and does not warn, nor does one a `problems` entry names: an image of generated or unscanned
-  output) and `example.missing` (an entry
+  cannot read and does not warn, nor does one a `problems` entry names in its text or lists in its `nodes`: an image
+  of generated or unscanned output) and `example.missing` (an entry
   point with no example, or with a key that has none; above 100 entry points only those within two hops
   downstream of a pin's start; one line each; a
   root route `GET /` under a mount stays a key of its own beside the

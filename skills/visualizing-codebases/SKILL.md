@@ -304,8 +304,9 @@ scanned: a proxy or server config, an app in another language, a collector
 built from its config) is still a `service`, never an `ext:` placeholder: it
 has no modules, and its relations come from reading its code and config,
 `inferred`, citing the lines. The audit's `deployable.unscanned` lists each
-one no service cites (its Dockerfile, or its compose service's name) and no
-`problems` entry names.
+one no service cites (its Dockerfile, a line of its compose service, or its
+compose service's name) and no `problems` entry names (the folder or its
+Dockerfile).
 
 Hosts written as service-registry or gateway route names resolve through the
 registry or gateway config the repo has: a route the gateway's config declares

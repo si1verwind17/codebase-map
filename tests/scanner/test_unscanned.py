@@ -36,7 +36,7 @@ def test_unscanned_languages_and_deployables(make_repo):
     got = {d["folder"]: d for d in s["unscanned"]["deployables"]}
     # shop is scanned Python: not listed; ui is mostly Elixir beside one scanned script
     assert sorted(got) == ["proxy", "rates", "relay", "ui"]
-    assert got["ui"]["compose"] == [["ui", "docker-compose.yml"]] and got["ui"]["dockerfiles"] == []
+    assert got["ui"]["compose"] == [["ui", "docker-compose.yml:4-6"]] and got["ui"]["dockerfiles"] == []
     assert got["ui"]["scanned"] == 1 and got["ui"]["unscanned"] == [["Elixir", 3]]
     assert got["rates"]["dockerfiles"] == ["rates/Dockerfile"] and got["rates"]["scanned"] == 0
     assert got["relay"]["unscanned"] == []
@@ -47,7 +47,7 @@ def test_summary_says_what_was_not_scanned(make_repo):
     md = structure.summary_md(s)
     assert "## Not scanned — 5 languages without a reader, 4 deployables mostly in them" in md
     assert "- Elixir — 3 files: ui\n" in md and "- shell — 2 files: rates, scripts\n" in md
-    assert ("- deployable `ui` (compose service `ui` in docker-compose.yml) — 1 file scanned; "
+    assert ("- deployable `ui` (compose service `ui` in docker-compose.yml:4-6) — 1 file scanned; "
             "not scanned: Elixir 3\n") in md
     assert "- deployable `relay` (Dockerfile `relay/Dockerfile`) — 0 files scanned; no source the scanner " \
            "reads\n" in md
@@ -71,6 +71,28 @@ def test_deployable_unscanned_warning_until_a_service_or_problem_names_it(make_r
     got = [w for w in mapcheck.warnings(cmap, md) if w["id"] == "deployable.unscanned"]
     assert [w["detail"].split("`")[1] for w in got] == ["proxy"]
     assert "model it as a service" in got[0]["detail"]
+
+
+def test_a_line_of_its_compose_service_or_a_file_in_its_folder_accounts_for_a_deployable(make_repo):
+    md = structure.summary_md(structure.build(make_repo(FILES), "docs/viz-code"))
+    cmap = {"nodes": [{"id": "svc:web", "kind": "service", "name": "web",
+                       "evidence": [{"file": "docker-compose.yml", "line": 6}]},
+                      {"id": "svc:other", "kind": "service", "name": "other",
+                       "evidence": [{"file": "docker-compose.yml", "line": 3}]}],
+            "relations": [], "problems": [{"text": "proxy/Dockerfile runs a vendor proxy; relay/conf and rates/src "
+                                                   "hold no deployable"}]}
+    got = [w["detail"].split("`")[1] for w in mapcheck.warnings(cmap, md) if w["id"] == "deployable.unscanned"]
+    # ui's block is lines 4-6 (line 3 is shop's); a folder below `rates` or `relay` names neither
+    assert got == ["rates", "relay"]
+    # a dotted folder below is no file in the folder; a service citing ui's block after its own deploy line is not ui
+    cmap["problems"] = [{"text": "proxy/Dockerfile runs a vendor proxy; see rates/pg.v2 folder"}]
+    cmap["nodes"][0]["evidence"] = [{"file": "docker-compose.yml", "line": 2}, {"file": "docker-compose.yml", "line": 5}]
+    got = [w["detail"].split("`")[1] for w in mapcheck.warnings(cmap, md) if w["id"] == "deployable.unscanned"]
+    assert got == ["rates", "relay", "ui"]
+    # a folder named at a sentence's end still counts
+    cmap["problems"] = [{"text": "proxy/Dockerfile runs a vendor proxy; one image is built from rates."}]
+    got = [w["detail"].split("`")[1] for w in mapcheck.warnings(cmap, md) if w["id"] == "deployable.unscanned"]
+    assert got == ["relay", "ui"]
 
 
 def test_server_templates_are_listed_but_never_make_a_deployable_unscanned(make_repo):
@@ -144,7 +166,7 @@ def test_a_version_1_compose_file_names_its_build_contexts(make_repo):
              "rates/src/main.cpp": "int main() { return 0; }\n", "app.py": "def main():\n    pass\n"}
     s = structure.build(make_repo(files), "docs/viz-code")
     assert [(d["folder"], d["compose"]) for d in s["unscanned"]["deployables"]] == [
-        ("rates", [["rates", "docker-compose.yml"]])]
+        ("rates", [["rates", "docker-compose.yml:1-2"]])]
 
 
 def test_a_folder_of_dockerfiles_a_compose_service_names_is_no_deployable(make_repo):
