@@ -1050,9 +1050,11 @@ def _compose_includes(results: dict[str, dict]) -> None:
         r["routes"] = out
 
 
-def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, str | None] | None:
+def _mount_target(f: str, target: str, results: dict[str, dict],
+                  src: str = "") -> tuple[str, str | None] | None:
     """(file, exported name or None for its default export) of the router a mount in file f names through f's
-    imports: `import users from './users'` + `use('/u', users)`, `{ adminRouter }`, `* as api` + `api.router`. In
+    imports: `import users from './users'` + `use('/u', users)`, `{ adminRouter }`, `* as api` + `api.router`, or a
+    router of f itself that routes are registered on. In
     Python, a name f imports (`register_blueprint(bp, ..)`), or a dotted module (`include("shop.api.urls")`: name
     `*`, every route of that module)."""
     if f.endswith(".py"):
@@ -1072,6 +1074,10 @@ def _mount_target(f: str, target: str, results: dict[str, dict]) -> tuple[str, s
             return g, None if name == "default" else name
         if imp.get("as") == head and rest:
             return g, rest[0]
+    if not rest and any(x.get("on") == head for x in results[f]["routes"] + results[f].get("mounts", [])
+                        if x.get("target") or "target" not in x) \
+            and len(re.findall(rf"(?<![\w$.]){re.escape(head)}\s*(?::\s*[\w<>\[\].]+\s*)?:?=(?!=)", src)) <= 1:
+        return f, head   # a router of the same file bound once (`notes.get(..)`, then `app.route("/notes", notes)`)
     return None
 
 
@@ -1130,7 +1136,7 @@ def _passed_mounts(results: dict[str, dict]) -> None:
                     mt["composed"] = mt.get("composed", 0) + 1
 
 
-def _compose_mounts(results: dict[str, dict]) -> None:
+def _compose_mounts(results: dict[str, dict], sources: dict[str, str] | None = None) -> None:
     """Join the prefix of a mount whose router comes from another file (`app.use('/users', usersRouter)`) onto that
     file's routes registered on the router it exports: its named export, or for the default export the file's one
     router. Mount chains compose outward across files; a router mounted in two places gives its routes once per
@@ -1139,7 +1145,8 @@ def _compose_mounts(results: dict[str, dict]) -> None:
     parents: dict[tuple[str, str], list[tuple[tuple[str, str] | None, str, dict]]] = {}
     for f, r in results.items():
         for mt in r.get("mounts", []):
-            if not mt.get("target") or (hit := _mount_target(f, mt["target"], results)) is None:
+            if not mt.get("target") or (hit := _mount_target(f, mt["target"], results,
+                                                             (sources or {}).get(f, ""))) is None:
                 continue
             g, name = hit
             ons = {x["on"] for x in results[g]["routes"] if x.get("on")} | \
@@ -1706,7 +1713,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         _unalias(f, r, results, names)
     _resolve_handlers(results, file_mod, reg, names)
     _compose_includes(results)
-    _compose_mounts(results)
+    _compose_mounts(results, sources)
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)

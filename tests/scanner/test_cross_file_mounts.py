@@ -1,4 +1,4 @@
-"""A mount whose router comes from another file (`app.use('/users', users)`) joins its prefix onto that file's
+"""A mount whose router comes from another file (`app.use('/users', router)`) joins its prefix onto that file's
 routes, through the import that names it, chains composing outward (format.md § routes)."""
 from vizcode import structure
 
@@ -24,6 +24,17 @@ def test_express_routers_mounted_from_other_files(make_repo):
     assert paths(s, "src/app.ts") == [("GET", "/health")]
     md = structure.summary_md(s)
     assert "/api → api (src/app.ts:4, composed onto 2 routes)" in md
+
+
+def test_a_router_of_the_same_file_mounted_by_name(make_repo):
+    # routes registered on `users`, then `app.use('/users', router)` below them: the prefix joins the same file's router
+    files = {"package.json": '{"name": "api", "dependencies": {"express": "4"}}\n',
+             "src/app.ts": "import express, { Router } from 'express'\nconst app = express()\nconst router = Router()\n"
+                           "router.get('/:id', show)\napp.use('/users', router)\napp.get('/health', health)\n"
+                           "function show() {}\nfunction health() {}\n"}
+    s = structure.build(make_repo(files))
+    assert paths(s, "src/app.ts") == [("GET", "/health"), ("GET", "/users/{id}")]
+    assert "/users → router (src/app.ts:5, composed onto 1 route)" in structure.summary_md(s)
 
 
 def test_a_file_with_two_routers_and_a_default_import_is_left_alone(make_repo):
@@ -64,3 +75,14 @@ def test_a_register_prefix_replaces_the_blueprints_own(make_repo):
                              "@admin.route('/stats')\ndef stats():\n    return 1\n"}
     s = structure.build(make_repo(files))
     assert [r["path"] for r in s["facts"]["web/admin.py"]["routes"]] == ["/v2/stats"]
+
+
+def test_a_name_bound_twice_in_the_file_is_no_router_to_mount(make_repo):
+    # two functions each make their own `router`: the mount in one does not reach the other's routes
+    files = {"package.json": '{"name": "api", "dependencies": {"express": "4"}}\n',
+             "src/app.ts": "import express, { Router } from 'express'\nconst app = express()\n"
+                           "function admin() {\n  const router = Router()\n  router.get('/a', a)\n}\n"
+                           "function setup() {\n  const router = Router()\n  router.get('/b', b)\n  app.use('/api', router)\n}\n"
+                           "function a() {}\nfunction b() {}\n"}
+    s = structure.build(make_repo(files))
+    assert paths(s, "src/app.ts") == [("GET", "/a"), ("GET", "/b")]

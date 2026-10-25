@@ -10,7 +10,7 @@ Sort each line into one group of its language:
 | `imports` | the library talks to the outside world: `{prefix, kind}`, kind one of `sql-db`, `doc-db`, `cache`, `http-out`, `http-in`, `http`, `ws`, `event`, `grpc`, `cloud-sdk`, `spark`, `mail` (sends mail: SMTP or a mail provider's SDK). A vendor SDK that calls its API is `http-out` | the file's `sinks` (listed for you to attach) and the package role |
 | `routes` | the library receives requests: a regex or an annotation pattern that finds them (below). A server library usually needs both, `imports` as `http-in` plus a pattern | `routes` facts: matching and the `entry` role |
 | `effects` | Scala only: `val`s of these types hold behaviour (`IO`, `Resource`, `Stream`). It does not clear an import line: the library also goes in `ignore`, or in `imports` if it talks out | such a `val` becomes a method node |
-| `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`) | nothing; the line leaves the section |
+| `ignore` | you looked at its use and it neither talks out nor serves: types, schemas, data frames, a webhook signature check, a server that only runs another framework's app (`uvicorn`, `@hono/node-server`) | nothing; the line leaves the section |
 | `tables` | an ORM or query DSL names tables in code (Quill `query[Order]`, JPA `@Table(name = "orders")`, SQLAlchemy `__tablename__`, Django `db_table`): a regex that finds the name. Its library still goes in `imports` | `tables (patterns)` lines in `summary.md`, to attach (SKILL.md § Side effects) |
 | `queues` | a library or the repo's own code makes in-process queues, channels or event buses the packs do not know: a regex for the creation call, with its `delivery` | `in-process queues` lines in `summary.md` (`references/interactions.md`) |
 | `jobs` | a job system the packs do not know (or a repo's own job registry): one entry per `side`, `define` (the decorator, base class or marker of a job), `enqueue` (the call that queues one, a `job` group naming the job) or `schedule` (a timed run); a broker's messages as `publish` (a send to a topic or queue) and `consume` (the code receiving them), each with a `job` group naming the topic or queue (a repo's own event bus over a broker too) | `jobs defined`, `jobs enqueued`, `messages published` and `messages consumed` lines in `summary.md`, topics paired in § Likely requests (`references/interactions.md`) |
@@ -172,7 +172,9 @@ scala:
   inside its call or the block after it (`route("/v1") { get(..) }`), chained
   on a mount without a target, or called on a variable bound to one
   (`v1 := r.Group("/v1")`, then `v1.GET(..)`), nested mounts composing
-  outward; such a mount reads `composed onto N routes` and those routes'
+  outward. A mount whose `target` names a router joins the routes registered
+  on that router, in its own file (`notes.get(..)`, then
+  `app.route("/notes", notes)`) or in the file an import names; such a mount reads `composed onto N routes` and those routes'
   paths already hold its prefix. Every other mount you compose with
   the routes of its target (follow the target to the file that defines its
   routes) wherever you write a route's path, such as a `request` key; an
