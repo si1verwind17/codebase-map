@@ -239,3 +239,31 @@ def test_decorated_route_nested_in_a_factory_is_its_own_function(make_repo):
     calls = {c["callee"]: c["in"] for c in s["facts"]["app/main.py"]["calls"]}
     assert calls["answer"] == "app::app.main#make_app.talk/1" and calls["Flask"] == "app::app.main#make_app/0"
     assert all("nested_handler" not in r for r in s["facts"]["app/main.py"]["routes"])
+
+
+def test_a_path_after_a_name_and_a_plus_keeps_its_route(make_repo):
+    # a generated chi router: `r.Get(options.BaseURL+"/trainer/calendar", wrapper.X)`; the head is a setting
+    files = {"go.mod": "module shop\n",
+             "ports/api.go": 'package ports\n\nimport "github.com/go-chi/chi/v5"\n\nfunc Handler(r chi.Router) {\n'
+                             '\tr.Get(options.BaseURL+"/trainer/calendar", wrapper.GetHours)\n'
+                             '\tr.Post(base + "/trainer/hours", wrapper.MakeHours)\n}\n'}
+    s = structure.build(make_repo(files))
+    got = [(r["method"], r["path"], r.get("after")) for r in s["facts"]["ports/api.go"]["routes"]]
+    assert got == [("GET", "/trainer/calendar", "options.BaseURL"), ("POST", "/trainer/hours", "base")]
+    assert "GET /trainer/calendar (after `options.BaseURL`) → " in structure.summary_md(s)
+
+def test_a_client_call_with_a_built_address_is_no_route_and_a_mount_keeps_its_head(make_repo):
+    files = {"go.mod": "module shop\n",
+             "svc/notify.go": 'package svc\n\nimport (\n\t"net/http"\n\t"github.com/go-chi/chi/v5"\n)\n\n'
+                              'func Routes(r chi.Router) {\n\tr.Get("/health", health)\n}\n\n'
+                              'func notify() {\n\thttp.Post(baseURL+"/hooks/notify", "application/json", nil)\n'
+                              '\tapiClient.Get(base + "/x", nil)\n}\n',
+             "package.json": '{"name": "api", "dependencies": {"express": "4"}}\n',
+             "src/app.ts": "import express from 'express'\nimport users from './users'\nconst app = express()\n"
+                           "app.use(BASE + '/api', users)\n",
+             "src/users.ts": "import { Router } from 'express'\nconst router = Router()\nrouter.get('/me', me)\n"
+                             "function me() {}\nexport default router\n"}
+    s = structure.build(make_repo(files))
+    assert [(r["method"], r["path"]) for r in s["facts"]["svc/notify.go"]["routes"]] == [("GET", "/health")]
+    assert [(m["path"], m.get("after")) for m in s["facts"]["src/app.ts"]["mounts"]] == [("/api", "BASE")]
+    assert "/api (after `BASE`) → users (src/app.ts:4" in structure.summary_md(s)

@@ -353,7 +353,9 @@ own file, and one whose router another file exports through an import the mount'
 sets, such as a servlet context path or a URI version, goes into `stack.yaml` `base_paths`
 once per deployable folder, citing the config line in the report; a segment written as a
 constant is kept as `{Name}`, `/{Asset}/{id}` from `@Controller(RouteKey.Asset)`: look the
-constant up and write its value in `request` and example keys), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
+constant up and write its value in `request` and example keys; a path added to a name in the call,
+`r.Get(options.BaseURL+"/x", h)`, is listed by its literal with (after `options.BaseURL`): find what the
+name holds and compose it as a mount's prefix), URL literals, env keys, SQL tables, table pattern matches and client libraries. It also
 lists outbound requests as `http clients` (method + path: match them to
 routes like a URL): tapir client endpoints, calls through the code's own HTTP
 helpers (a function passing its parameter on as a client call's address, so

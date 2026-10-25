@@ -814,6 +814,32 @@ def _when_line(when: str, imports: list[dict], lang: str) -> int | None:
                  and any(prefix_match(when, t, sep(lang)) for t in targets(i, lang))), None)
 
 
+# a name and a `+` before a call argument's path literal (`r.Get(options.BaseURL+"/x", h)`, `base + "/x"`): a base
+# the code sets elsewhere
+CONCAT_HEAD = re.compile(r"""(?<=[(,])([ \t]*)([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)[ \t]*\+[ \t]*(?=["'`])""")
+
+
+# a client making a request with a built address (`http.Post(base+"/x", ..)`, `axios.get(API + "/x")`): its call
+# is no route, though a route pattern reads it once the head is blanked
+CLIENT_RECEIVER = re.compile(r"(?i)https?|requests|httpx|axios|fetch|got|ky|resty|superagent|session|instance|\w*client")
+
+
+def _client_call(src: str, path_at: int) -> bool:
+    """The call holding the path literal at path_at is made on a client (its receiver is named like one)."""
+    head = re.search(r"([\w$]+)\s*(?:\.|::|->)\s*[\w$]+\s*\(\s*$", src[max(0, path_at - 200):path_at - 1])
+    return bool(head and CLIENT_RECEIVER.fullmatch(head.group(1)))
+
+
+def _without_heads(src: str) -> tuple[str, dict[int, str]]:
+    """src with each CONCAT_HEAD blanked to spaces (offsets kept), and the head by the offset of the quote after it."""
+    heads: dict[int, str] = {}
+
+    def blank(m: re.Match) -> str:
+        heads[m.end()] = m.group(2)
+        return m.group(1) + " " * (m.end() - m.start(2))
+    return (CONCAT_HEAD.sub(blank, src), heads) if "+" in src else (src, heads)
+
+
 def _matches(st: Stack, lang: str, src: str, imports: list[str], mount: bool):
     """(pattern, match, text) of every path match of the language's regex patterns (mounts or routes). A route
     written with the empty string (`route("")`), or matched by a pattern whose path group is empty by design
@@ -867,8 +893,12 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
     method around the match or the file, never the method below it (the rule for decorators). The file's `mounts`
     (find_mounts) compose onto the routes registered on them (compose)."""
     out = []
+    src, heads = _without_heads(src)
     for pat, m, text in _matches(st, lang, src, imports, False):
         groups = pat.regex.groupindex
+        after = {"after": heads[m.start("path") - 1]} if m.start("path") - 1 in heads else {}
+        if after and _client_call(src, m.start("path")):
+            continue
         if pat.expand:
             only, exclude = ({w for w in ACTION_WORD.findall(m.group(g) or "")} if g in groups and m.group(g)
                              else None for g in ("only", "except"))
@@ -898,7 +928,7 @@ def find_routes(st: Stack, lang: str, src: str, imports: list[str], spans: list[
                         "line": line, "framework": pat.name, "source": pat.source, "at": m.start(),
                         "call_end": call_end,
                         **({"handler_name": named.strip()} if named and named.strip() else {}),
-                        **_named_handler(pat, m), **on_mount, **default})
+                        **_named_handler(pat, m), **on_mount, **default, **after})
     compose(src, out, mounts or [], lang)
     # a route on its mount's own path with no mount around it (`resource(PATHS)`): its path is unknown
     return [r for r in out if not r.pop("on_mount", None) or r.pop("composed_on", None)]
@@ -908,13 +938,17 @@ def find_mounts(st: Stack, lang: str, src: str, imports: list[str]) -> list[dict
     """Mount facts (nested prefixes) from the `mount: true` patterns that apply to the file. `at` and `call` (where
     the match and the call holding its path start) are for compose, which removes them."""
     out = []
+    src, heads = _without_heads(src)
     for pat, m, text in _matches(st, lang, src, imports, True):
+        after = {"after": heads[m.start("path") - 1]} if m.start("path") - 1 in heads else {}
+        if after and _client_call(src, m.start("path")):
+            continue
         target = m.group("target") if "target" in pat.regex.groupindex else None
         module = (m.group("module") or "").strip() if "module" in pat.regex.groupindex else ""
         out.append({"path": read_path(text, pat.path), "target": (target or "").strip() or None,
                     "line": src.count("\n", 0, m.start()) + 1, "framework": pat.name, "source": pat.source,
                     "at": m.start(), "call": src.rfind("(", m.start(), m.start("path")),
-                    **({"module": module} if module else {})})
+                    **({"module": module} if module else {}), **after})
     return out
 
 

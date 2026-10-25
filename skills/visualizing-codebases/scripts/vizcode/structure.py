@@ -2110,8 +2110,10 @@ def summary_md(s: dict) -> str:
         dags, wfs, refs, mounts = [], [], [], []
         for f in files:
             ff = s["facts"][f]
-            routes_ += [f"{r['method']} {r['path']} → {r['handler']} ({f}:{r['line']})" for r in ff["routes"]]
-            mounts += [f"{x['path']}" + (f" → {x['target']}" if x["target"] else "") + f" ({f}:{x['line']}"
+            routes_ += [f"{r['method']} {r['path']}" + (f" (after `{r['after']}`)" if r.get("after") else "")
+                        + f" → {r['handler']} ({f}:{r['line']})" for r in ff["routes"]]
+            mounts += [f"{x['path']}" + (f" (after `{x['after']}`)" if x.get("after") else "")
+                       + (f" → {x['target']}" if x["target"] else "") + f" ({f}:{x['line']}"
                        + (f", composed onto {_plural(x['composed'], 'route', 'routes')})" if x.get("composed") else ")")
                        for x in ff.get("mounts", [])]
             tables += [(t["table"], f, t["line"], t["in"], t["kind"], t.get("op") or "") for t in ff.get("tables", [])]

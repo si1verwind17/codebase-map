@@ -638,9 +638,11 @@ verb; a class with an invoke method (`__invoke`, `__call__`) keeps the route's m
 none, or a class with no verb method, is itself the handler. A handler class is told from a same-named one by the
 file's imports (an alias too); one imported from a library is no repo class. A file's `routes` facts are `[{method, path, handler, line, framework,
 source}]` (`framework` is the pattern's name; `method` upper-cased; a handler outside any method is the
-file node, made for a generic-walker file that has none); its `mounts` facts (key
+file node, made for a generic-walker file that has none; `after` the name a path literal is added to in the call,
+`options.BaseURL` from `r.Get(options.BaseURL+"/x", h)`: the path is the literal alone; such a call on a receiver
+named like a client, `http.Post(base+"/x", ..)`, is a request, no route); its `mounts` facts (key
 present on files with a mount) are `[{path, target, line, framework,
-source, composed}]`, `target` the matched name or null, `composed` (present when above 0) the number of the
+source, composed, after}]`, `target` the matched name or null, `after` as on a route, `composed` (present when above 0) the number of the
 file's routes whose path the scanner prefixed with it (`references/stack.md`). Two patterns giving the same
 route (method, path, handler) or table (table, line, in) give one fact,
 named after the pattern listed first (packs before `stack.yaml`).
