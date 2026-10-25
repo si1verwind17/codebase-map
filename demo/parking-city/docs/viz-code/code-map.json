@@ -1,12 +1,12 @@
 {
  "meta": {
   "schema_version": 3,
-  "scanner_version": "0.12.0",
-  "rules_version": 5,
+  "scanner_version": "0.18.0",
+  "rules_version": 6,
   "repo": "parking-city",
   "root": "demo/parking-city",
-  "commit": "e9ddd128436157572b11bef28d160f26a572438e",
-  "scanned_at": "2026-10-21T16:01:16Z",
+  "commit": "902c73326e899462290f83d30db2b7d2fe266fca",
+  "scanned_at": "2026-10-25T03:39:22Z",
   "languages": [
    "python",
    "scala"
@@ -7981,14 +7981,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#charge/1",
    "to": "billing::city.parking.billing.InvoiceRepo#insert/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 26
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#charge/1->billing::city.parking.billing.ReceiptStore#put/2:",
@@ -7996,14 +7995,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#charge/1",
    "to": "billing::city.parking.billing.ReceiptStore#put/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 25
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#charge/1->billing::city.parking.billing.StripeCharger#confirm/1:",
@@ -8011,14 +8009,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#charge/1",
    "to": "billing::city.parking.billing.StripeCharger#confirm/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 23
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#refund/1->billing::city.parking.billing.InvoiceRepo#markRefunded/1:",
@@ -8026,14 +8023,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#refund/1",
    "to": "billing::city.parking.billing.InvoiceRepo#markRefunded/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 30
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#refund/1->billing::city.parking.billing.StripeCharger#refund/1:",
@@ -8041,14 +8037,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#refund/1",
    "to": "billing::city.parking.billing.StripeCharger#refund/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 30
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#settle/0->billing::city.parking.billing.InvoiceRepo#markSettled/1:",
@@ -8056,14 +8051,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#settle/0",
    "to": "billing::city.parking.billing.InvoiceRepo#markSettled/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 38
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.BillingService.Live#settle/0->billing::city.parking.billing.InvoiceRepo#unsettled/0:",
@@ -8071,14 +8065,13 @@
    "from": "billing::city.parking.billing.BillingService.Live#settle/0",
    "to": "billing::city.parking.billing.InvoiceRepo#unsettled/0",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/BillingService.scala",
      "line": 37
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.DeadLetters.live$impl#park/3->common::city.parking.common.EventProducer#publish/3:",
@@ -8101,14 +8094,13 @@
    "from": "billing::city.parking.billing.InvoiceRepo.Live#insert/2",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
      "line": 23
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.InvoiceRepo.Live#markRefunded/1->common::city.parking.common.Jdbc#update/2:",
@@ -8116,14 +8108,13 @@
    "from": "billing::city.parking.billing.InvoiceRepo.Live#markRefunded/1",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
      "line": 31
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.InvoiceRepo.Live#markSettled/1->common::city.parking.common.Jdbc#update/2:",
@@ -8131,14 +8122,13 @@
    "from": "billing::city.parking.billing.InvoiceRepo.Live#markSettled/1",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
      "line": 38
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.InvoiceRepo.Live#unsettled/0->common::city.parking.common.Jdbc#query/3:",
@@ -8146,7 +8136,7 @@
    "from": "billing::city.parking.billing.InvoiceRepo.Live#unsettled/0",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
@@ -8156,8 +8146,7 @@
      "file": "billing/src/main/scala/city/parking/billing/InvoiceRepo.scala",
      "line": 34
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:billing::city.parking.billing.Main$#http/0->billing::city.parking.billing.SettleEndpoint$#routes/1:",
@@ -9602,14 +9591,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1",
    "to": "pricing::city.parking.pricing.Geocoder#geocode/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 31
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1->pricing::city.parking.pricing.TariffRepo#saveCoordinates/3:",
@@ -9617,14 +9605,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1",
    "to": "pricing::city.parking.pricing.TariffRepo#saveCoordinates/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 32
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1->pricing::city.parking.pricing.TariffRepo#zone/1:",
@@ -9632,14 +9619,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1",
    "to": "pricing::city.parking.pricing.TariffRepo#zone/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 29
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.PricingService.Live#quote/2->pricing::city.parking.pricing.PricingService.Live#ensureCoordinates/1:",
@@ -9675,14 +9661,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#quote/2",
    "to": "pricing::city.parking.pricing.SharedCache#occupancyPercent/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 20
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.PricingService.Live#quote/2->pricing::city.parking.pricing.TariffRepo#demandIndex/2:",
@@ -9690,14 +9675,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#quote/2",
    "to": "pricing::city.parking.pricing.TariffRepo#demandIndex/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 22
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.PricingService.Live#quote/2->pricing::city.parking.pricing.TariffRepo#tariff/1:",
@@ -9705,14 +9689,13 @@
    "from": "pricing::city.parking.pricing.PricingService.Live#quote/2",
    "to": "pricing::city.parking.pricing.TariffRepo#tariff/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/PricingService.scala",
      "line": 18
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.QuoteEndpoint$#routes/1->pricing::city.parking.pricing.PricingService#quote/2:",
@@ -9748,7 +9731,7 @@
    "from": "pricing::city.parking.pricing.TariffRepo.Live#demandIndex/2",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
@@ -9758,8 +9741,7 @@
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
      "line": 43
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.TariffRepo.Live#saveCoordinates/3->common::city.parking.common.Jdbc#update/2:",
@@ -9767,14 +9749,13 @@
    "from": "pricing::city.parking.pricing.TariffRepo.Live#saveCoordinates/3",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
      "line": 40
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.TariffRepo.Live#tariff/1->common::city.parking.common.Jdbc#query/3:",
@@ -9782,7 +9763,7 @@
    "from": "pricing::city.parking.pricing.TariffRepo.Live#tariff/1",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
@@ -9792,8 +9773,7 @@
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
      "line": 25
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:pricing::city.parking.pricing.TariffRepo.Live#zone/1->common::city.parking.common.Jdbc#query/3:",
@@ -9801,7 +9781,7 @@
    "from": "pricing::city.parking.pricing.TariffRepo.Live#zone/1",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
@@ -9811,8 +9791,7 @@
      "file": "pricing/src/main/scala/city/parking/pricing/TariffRepo.scala",
      "line": 31
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reporting_api/app::app.main#occupancy/0->common_py/common_py::common_py.db#connect/0:",
@@ -9977,7 +9956,7 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#find/1",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
@@ -9987,8 +9966,7 @@
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 51
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#insert/1->common::city.parking.common.Jdbc#transaction/1:",
@@ -9996,14 +9974,13 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#insert/1",
    "to": "common::city.parking.common.Jdbc#transaction/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 28
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#insert/1->reservations::city.parking.reservations.EventJson$#created/1:",
@@ -10025,14 +10002,13 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#markCancelled/1",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 58
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#markSent/1->common::city.parking.common.Jdbc#update/2:",
@@ -10040,14 +10016,13 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#markSent/1",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 73
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#pendingOutbox/1->common::city.parking.common.Jdbc#query/3:",
@@ -10055,7 +10030,7 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#pendingOutbox/1",
    "to": "common::city.parking.common.Jdbc#query/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
@@ -10065,8 +10040,7 @@
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 67
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationRepo.Live#setPaymentIntent/2->common::city.parking.common.Jdbc#update/2:",
@@ -10074,14 +10048,13 @@
    "from": "reservations::city.parking.reservations.ReservationRepo.Live#setPaymentIntent/2",
    "to": "common::city.parking.common.Jdbc#update/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationRepo.scala",
      "line": 64
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2->reservations::city.parking.reservations.PricingClient#quote/2:",
@@ -10089,14 +10062,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2",
    "to": "reservations::city.parking.reservations.PricingClient#quote/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 54
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2->reservations::city.parking.reservations.QuoteCache#get/1:",
@@ -10104,14 +10076,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2",
    "to": "reservations::city.parking.reservations.QuoteCache#get/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 50
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2->reservations::city.parking.reservations.QuoteCache#put/2:",
@@ -10119,14 +10090,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2",
    "to": "reservations::city.parking.reservations.QuoteCache#put/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 55
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#cancel/1->reservations::city.parking.reservations.ReservationRepo#markCancelled/1:",
@@ -10134,14 +10104,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#cancel/1",
    "to": "reservations::city.parking.reservations.ReservationRepo#markCancelled/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 43
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#cancel/1->reservations::city.parking.reservations.ReservationService#find/1:",
@@ -10163,14 +10132,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#create/1",
    "to": "reservations::city.parking.reservations.ReservationRepo#insert/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 32
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#create/1->reservations::city.parking.reservations.ReservationRepo#setPaymentIntent/2:",
@@ -10178,14 +10146,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#create/1",
    "to": "reservations::city.parking.reservations.ReservationRepo#setPaymentIntent/2",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 35
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#create/1->reservations::city.parking.reservations.ReservationService.Live#cachedQuote/2:",
@@ -10207,14 +10174,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#create/1",
    "to": "reservations::city.parking.reservations.StripeGateway#createIntent/3",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 33
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.ReservationService.Live#find/1->reservations::city.parking.reservations.ReservationRepo#find/1:",
@@ -10222,14 +10188,13 @@
    "from": "reservations::city.parking.reservations.ReservationService.Live#find/1",
    "to": "reservations::city.parking.reservations.ReservationRepo#find/1",
    "key": null,
-   "confidence": "inferred",
+   "confidence": "confirmed",
    "evidence": [
     {
      "file": "reservations/src/main/scala/city/parking/reservations/ReservationService.scala",
      "line": 39
     }
-   ],
-   "why": "matched by method name only"
+   ]
   },
   {
    "id": "r:calls:reservations::city.parking.reservations.StripeGateway$#live/0->common::city.parking.common.Config$#env/1:",
