@@ -21,7 +21,9 @@ typescript:
            react, react-dom, react-router, react-router-dom, vue, vue-router, pinia, svelte, "@angular/core", "@angular/common", "@angular/forms", "@angular/router", "@angular/material", "@angular/cdk", "@angular/animations", "@angular/platform-browser", rxjs, lodash, lodash-es, underscore, ramda, classnames, clsx, date-fns, dayjs, moment, luxon, uuid, nanoid, zod, yup, joi, immer, antd, "@ant-design", "@mui", "@emotion", styled-components, "@mantine", "@chakra-ui", "@radix-ui", "@headlessui", tailwind-merge, lucide-react, react-icons, "@fortawesome", i18next, react-i18next, ttag, formik, react-hook-form, redux, react-redux, mobx, mobx-react, zustand, jotai, prop-types, tslib, core-js, chart.js, echarts, recharts, framer-motion, "@dnd-kit", react-dnd, "@tiptap", "@codemirror", codemirror, monaco-editor, marked, dompurify, highlight.js, prismjs, numeral, bignumber.js, decimal.js, color, polished, invariant, tiny-invariant, deepmerge, fast-deep-equal,
            # Express middleware and helpers that only guard, parse or hash
            cors, body-parser, helmet, morgan, compression, cookie-parser, express-jwt, jsonwebtoken, bcrypt, bcryptjs, slugify,
-           "@fastify/cors", "@koa/cors", koa-bodyparser, express-validator]
+           "@fastify/cors", "@koa/cors", koa-bodyparser, express-validator,
+           # loggers: they write log lines, never a request
+           pino, pino-http, pino-pretty, express-pino-logger, winston, bunyan, loglevel]
   imports:
   - {prefix: rxjs/ajax, kind: http-out}
   - {prefix: rxjs/webSocket, kind: ws}

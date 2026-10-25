@@ -14,7 +14,8 @@
 java:
   ignore: [android, androidx, java, javax, jdk, org.springframework, io.micronaut, io.quarkus, jakarta.inject, jakarta.enterprise,
            jakarta.validation, jakarta.annotation, jakarta.transaction, jakarta.json, jakarta.xml.bind,
-           org.eclipse.microprofile]
+           org.eclipse.microprofile,
+           org.slf4j, ch.qos.logback, org.apache.logging.log4j, org.apache.log4j, org.apache.commons.logging]   # loggers
   imports:
   - {prefix: "jakarta.mail", kind: mail}
   - {prefix: "javax.mail", kind: mail}

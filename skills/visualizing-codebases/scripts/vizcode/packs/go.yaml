@@ -12,6 +12,7 @@
 # often imports nothing; the regex needs the whole method shape (receiver, no arguments, `string`, a literal return).
 # queues: in-process queue creation sites (`make(chan T)`; `chan struct{}` and `chan bool` are signals, not hand-offs; no `when`: channels are built in): candidates the agent confirms (references/interactions.md).
 go:
+  ignore: [go.uber.org/zap, github.com/sirupsen/logrus, github.com/rs/zerolog]   # loggers
   imports:
   - {prefix: "net/smtp", kind: mail}
   - {prefix: "gopkg.in/gomail.v2", kind: mail}

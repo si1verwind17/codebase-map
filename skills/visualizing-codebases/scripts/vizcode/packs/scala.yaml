@@ -10,7 +10,8 @@
 # clients), gRPC and proto services.
 # queues: in-process queue creation sites (ZIO `Queue`/`Hub`, cats-effect `Queue`, fs2 `Topic`, Akka/Pekko `Source.queue`): candidates the agent confirms (references/interactions.md).
 scala:
-  ignore: [scala, java, javax, zio]   # zio: the effect library; its kinds (zio.kafka, zio.redis, ...) are imports
+  ignore: [scala, java, javax, zio,   # zio: the effect library; its kinds (zio.kafka, zio.redis, ...) are imports
+           org.slf4j, ch.qos.logback, com.typesafe.scalalogging]   # loggers
   effects: [ZIO, Task, UIO, URIO, IO, RIO, ZLayer, ULayer, URLayer, RLayer, TaskLayer, Layer, ZStream, UStream, Stream, ZSink, ZPipeline]
   imports:
   - {prefix: io.getquill, kind: sql-db}

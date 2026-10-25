@@ -1592,11 +1592,40 @@ LOOKS_LIKE = (("server", re.compile(r"server|http|express|hono|fastify|koa|flask
                                        r"diesel|jdbc|jpa|hibernate|cassandra|dynamo\w*|elastic\w*|knex|drizzle")),
               ("queue", re.compile(r"kafka\w*|amqp\w*|rabbit\w*|queue|bull\w*|sqs|pubsub|nats|celery|sidekiq")),
               ("client", re.compile(r"client|sdk|axios|okhttp|feign|reqwest|requests|httpx|got|ky")))
+# tracing, metrics, error reporting and logging: a `grpc` or `client` in their names (`exporter-otlp-grpc`,
+# `prom-client`) is the telemetry export, not one of the app's own requests
+TELEMETRY = re.compile(r"otel|opentelemetry|otlp|telemetry|prometheus|prom|metrics?|opentracing|tracing|tracer|jaeger|"
+                       r"zipkin|sentry|datadog|ddtrace|newrelic|instana|micrometer|statsd|honeycomb|bugsnag|rollbar|"
+                       r"pino|winston|bunyan|logger|logging|log4\w*|slf4j|logback|zap|logrus|zerolog|serilog|nlog")
+# a first segment that names no library family (`com.acme`, `github.com/acme`)
+_NO_FAMILY = {"com", "org", "net", "io", "dev", "co", "me", "app", "edu", "gov", "de", "uk", "fr", "nl", "ch", "jp",
+              "github.com", "gitlab.com", "bitbucket.org", "golang.org", "google.golang.org", "gopkg.in"}
 
 
 def _looks_like(prefix: str) -> str | None:
     words = [w for w in re.split(r"[^a-z0-9]+", prefix.lower()) if w]
+    if any(TELEMETRY.fullmatch(w) for w in words):
+        return "telemetry"
     return next((kind for kind, rx in LOOKS_LIKE if any(rx.fullmatch(w) for w in words)), None)
+
+
+def _families(out: list[dict], indexes: dict[str, tuple[set[str], set[str]]]) -> None:
+    """Marks lines that share a shorter prefix with two or more others (`akka.actor`, `akka.cluster`, `akka.stream`
+    under `akka`): one entry for it covers them all. Never a prefix that would cover the repo's own code too."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for u in out:
+        s = sep(u["lang"])
+        parts = u["prefix"].split(s)
+        if len(parts) < 2:
+            continue
+        family = s.join(parts[:-1])
+        if family in _NO_FAMILY or _is_internal(family, indexes.get(u["lang"], (set(), set())), s):
+            continue
+        groups.setdefault((u["lang"], family), []).append(u)
+    for (_, family), members in groups.items():
+        if len(members) >= 3:
+            for u in members:
+                u["family"] = family
 
 
 def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str]]) -> list[dict]:
@@ -1640,7 +1669,8 @@ def _unrecognised(st: Stack, files: dict[str, dict], internal: dict[str, set[str
     out = [{"lang": lang, "prefix": prefix, "files": len(at), "examples": [f"{p}:{n}" for p, n in list(at.items())[:2]],
             **({"looks_like": kind} if (kind := _looks_like(prefix)) else {})}
            for (lang, prefix), at in sorted(seen.items())]
-    return sorted(out, key=lambda u: "looks_like" not in u)
+    _families(out, indexes)
+    return sorted(out, key=lambda u: (u.get("looks_like") in (None, "telemetry"), "looks_like" not in u))
 
 
 def _servers(st: Stack, files: dict[str, dict]) -> list[dict]:

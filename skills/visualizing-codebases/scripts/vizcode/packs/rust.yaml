@@ -13,7 +13,8 @@
 rust:
   ignore: [std, core, alloc, serde, serde_json, serde_derive, serde_with, chrono, time, uuid, futures, futures_util, regex,
            validator, slug, failure, thiserror, anyhow, log, tracing, lazy_static, once_cell, itertools, rand, async_trait,
-           derive_more, strum, bitflags, base64, hex, clap, env_logger, http, actix, actix_http, bytes, either, indexmap]
+           derive_more, strum, bitflags, base64, hex, clap, env_logger, tracing_subscriber, tracing_appender, slog, http,
+           actix, actix_http, bytes, either, indexmap]
   imports:
   - {prefix: "lettre", kind: mail}
   - {prefix: sqlx, kind: sql-db}

@@ -43,7 +43,7 @@ def test_group_roots_per_language(lang, target, root):
 
 def test_packs_ignore_standard_libraries():
     st = stack.load(None)
-    for lang, std, lib in [("java", "java.util", "org.slf4j"), ("java", "javax.inject", "org.yaml.snakeyaml"),
+    for lang, std, lib in [("java", "java.util", "org.yaml.snakeyaml"), ("java", "javax.inject", "org.yaml.snakeyaml"),
                            ("java", "jakarta.inject", "org.yaml.snakeyaml"),
                            ("kotlin", "kotlin.collections", "kotlinx.coroutines"), ("kotlin", "java.time", "arrow.core"),
                            ("csharp", "System.Linq", "Newtonsoft.Json"),
@@ -64,11 +64,11 @@ def test_java_imports(make_repo):
         "api/src/main/java/com/acme/api/Api.java":
             "package com.acme.api;\nimport com.acme.common.Db;\nimport com.acme.api.util.*;\nimport java.util.List;\n"
             "import javax.inject.Inject;\nimport org.springframework.web.bind.annotation.GetMapping;\n"
-            "import static org.springframework.http.HttpStatus.OK;\nimport static org.slf4j.LoggerFactory.getLogger;\n"
+            "import static org.springframework.http.HttpStatus.OK;\nimport static org.yaml.snakeyaml.Yaml.load;\n"
             "public class Api {}\n",
     }), "docs/viz-code")
     # Spring's wiring is the Java pack's to ignore; a library no pack covers is listed by its group
-    assert unrec(s) == {("java", "org.slf4j")}
+    assert unrec(s) == {("java", "org.yaml")}
     assert uses(s) == {("mod:api", "mod:common")}
 
 
@@ -89,10 +89,10 @@ def test_csharp_imports(make_repo):
         "Common/Common.csproj": "<Project/>", "Orders/Orders.csproj": "<Project/>",
         "Common/Db.cs": "namespace Acme.Common;\npublic class Db {}\n",
         "Orders/Api.cs": "using System;\nusing System.Linq;\nusing Acme.Common;\nusing Acme.Orders.Domain;\n"
-                         "using Microsoft.Extensions.Logging;\nusing Npgsql;\nusing Serilog;\n\nnamespace Acme.Orders;\npublic class Api {}\n",
+                         "using Microsoft.Extensions.Logging;\nusing Npgsql;\nusing Newtonsoft.Json;\n\nnamespace Acme.Orders;\npublic class Api {}\n",
     }), "docs/viz-code")
-    # Microsoft.Extensions (wiring) and Npgsql (sql-db) are the pack's; Serilog is not
-    assert unrec(s) == {("csharp", "Serilog")}
+    # Microsoft.Extensions (wiring) and Npgsql (sql-db) are the pack's; Newtonsoft.Json is not
+    assert unrec(s) == {("csharp", "Newtonsoft.Json")}
     assert uses(s) == {("mod:Orders", "mod:Common")}
 
 
@@ -142,11 +142,11 @@ def test_go_imports(make_repo):
         "common/db/db.go": "package db\n\nfunc Open() {}\n",
         "orders/go.mod": "// orders\nmodule github.com/acme/shop/orders\n",
         "orders/main.go": 'package main\n\nimport (\n\t"fmt"\n\t"net/http"\n\tpgx "github.com/jackc/pgx/v5/pgxpool"\n'
-                          '\t"github.com/sirupsen/logrus"\n\t"github.com/acme/shop/common/db"\n\t"github.com/acme/shop/orders/internal/x"\n)\n\nfunc main() {}\n',
+                          '\t"github.com/shopspring/decimal"\n\t"github.com/acme/shop/common/db"\n\t"github.com/acme/shop/orders/internal/x"\n)\n\nfunc main() {}\n',
         "orders/internal/x/x.go": "package x\n",
     }), "docs/viz-code")
-    # pgx is the pack's (sql-db); logrus is not
-    assert unrec(s) == {("go", "github.com/sirupsen/logrus")}
+    # pgx is the pack's (sql-db); decimal is not
+    assert unrec(s) == {("go", "github.com/shopspring/decimal")}
     assert uses(s) == {("mod:orders", "mod:common")}
 
 
@@ -248,3 +248,31 @@ def test_ruby_scoped_class_name(make_repo):
     classes = {n["id"]: n["name"] for n in s["nodes"] if n["kind"] == "class"}
     assert classes == {"app::Acme.Orders.Repo": "Acme.Orders.Repo", "app::Billing.Api.Client": "Api.Client"}
     assert "app::Acme.Orders.Repo#find/0" in {n["id"] for n in s["nodes"]}
+
+
+def test_telemetry_libraries_are_marked_so_and_a_shared_prefix_is_named(make_repo):
+    s = structure.build(make_repo({
+        "package.json": '{"name": "web"}',
+        "index.ts": 'import { NodeSDK } from "@opentelemetry/sdk-node";\n'
+                    'import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";\n'
+                    'import client from "prom-client";\nimport { Server } from "custom-server";\n',
+        "build.sbt": 'lazy val app = project',
+        "src/main/scala/acme/App.scala": "package acme\nimport akka.actor.ActorSystem\nimport akka.stream.Materializer\n"
+                                         "import akka.cluster.Cluster\nimport akka.util.Timeout\nobject App\n",
+    }), "docs/viz-code")
+    marks = {u["prefix"]: u.get("looks_like") for u in s["stack"]["unrecognised"]}
+    assert marks["@opentelemetry/sdk-node"] == marks["@opentelemetry/exporter-trace-otlp-grpc"] == "telemetry"
+    assert marks["prom-client"] == "telemetry" and marks["custom-server"] == "server"
+    assert s["stack"]["unrecognised"][0]["prefix"] == "custom-server"     # the marks that change the map first
+    md = structure.summary_md(s)
+    assert "- scala `akka` holds 4 of these lines: when they sort the same way, one entry for `akka` covers them all" in md
+    assert "`@opentelemetry`" not in md                                   # two lines: no family
+
+
+def test_a_shared_prefix_that_covers_the_repos_own_code_is_not_named(make_repo):
+    s = structure.build(make_repo({
+        "build.sbt": 'lazy val app = project',
+        "src/main/scala/akka/sample/App.scala": "package akka.sample\nimport akka.actor.ActorSystem\n"
+                                                "import akka.stream.Materializer\nimport akka.cluster.Cluster\nobject App\n",
+    }), "docs/viz-code")
+    assert not any("family" in u for u in s["stack"]["unrecognised"])

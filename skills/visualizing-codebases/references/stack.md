@@ -49,6 +49,13 @@ Sort each line into one group of its language:
 4. Files whose facts a new or changed pattern touches count as changed in
    this run: on an incremental run, review them with the stale facts.
 
+- A line marked `telemetry` (tracing, metrics, error reporting, a logger)
+  exports what the app records, not one of its requests, even with `grpc`
+  or `client` in its name: `ignore`, with the others like it in one edit.
+  It goes into `imports` (`grpc` or `http-out`) only when the map is asked
+  to show the telemetry flow to a collector the repo runs. A line naming a
+  shared prefix (`akka` holds 19 of these lines) means one entry for that
+  prefix covers them all, when they sort the same way.
 - A server library without routes whose module only starts a server for
   routes defined in another module (a shared module serving tapir
   endpoints) goes into `ignore`; that clears the line. So does a framework

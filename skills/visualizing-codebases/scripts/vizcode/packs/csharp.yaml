@@ -11,7 +11,7 @@
 # `MapGroup` is a mount). tables: EF Core `[Table("x")]` (defined on the class), `ToTable("x")` and `DbSet<T> X`.
 # queues: in-process queue creation sites (`System.Threading.Channels`, `BlockingCollection`): candidates the agent confirms (references/interactions.md).
 csharp:
-  ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions]
+  ignore: [System, Microsoft.AspNetCore, Microsoft.Extensions, Serilog, NLog, log4net]   # and the loggers
   imports:
   - {prefix: "MailKit", kind: mail}
   - {prefix: "MimeKit", kind: mail}

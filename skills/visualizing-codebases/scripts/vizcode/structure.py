@@ -1889,6 +1889,12 @@ def _stack_lines(rep: dict) -> list[str]:
         lines.append(f"Unrecognised imports ({len(unrec)}):")
         lines += [f"- {u['lang']} `{u['prefix']}` — {_plural(u['files'], 'file', 'files')}: {', '.join(u['examples'])}"
                   + (f" (looks like a {u['looks_like']} library)" if u.get("looks_like") else "") for u in unrec]
+        families: dict[tuple[str, str], int] = {}
+        for u in unrec:
+            if "family" in u:
+                families[(u["lang"], u["family"])] = families.get((u["lang"], u["family"]), 0) + 1
+        lines += [f"- {lang} `{family}` holds {n} of these lines: when they sort the same way, one entry for "
+                  f"`{family}` covers them all" for (lang, family), n in sorted(families.items())]
         lines.append("")
     if servers:
         lines.append(f"Server libraries without routes ({len(servers)}):")
