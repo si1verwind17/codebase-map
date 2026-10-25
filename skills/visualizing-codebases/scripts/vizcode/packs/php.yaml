@@ -7,7 +7,7 @@
 # routes: Laravel `Route::get('/x', [C::class, 'm'])` (regex; the handler is the action named; `Route::prefix`, or
 # a chain from `Route::` ending in `->prefix`, is a mount; not when a chained call's arguments hold parentheses). No `when`: a routes file may call the global `Route`
 # alias without a `use`, and `Route::verb('` is Laravel's alone; Symfony `#[Route('/x', methods: ['GET'])]` (`form: annotated`: a class
-# `Route` is the prefix, the method comes from `methods`, none: ANY). tables: Eloquent `protected $table = 'x'`,
+# `Route` is the prefix, the method comes from `methods`, none: ANY; also as a docblock annotation `@Route("/x", methods={"GET"})`). tables: Eloquent `protected $table = 'x'`,
 # Doctrine `ORM\Table(name: 'x')` (attribute or docblock annotation), both defined on the class.
 php:
   ignore: [Illuminate, Symfony, Carbon, Ramsey\Uuid, League\CommonMark, Psr\Log, Psr\Container, Monolog, Webmozart\Assert]

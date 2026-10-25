@@ -533,6 +533,38 @@ def parseable(src: bytes, grammar: str) -> bytes:
     return TS_TEMPLATE_ARGS.sub(_blank, TS_TYPE_STAR.sub(lambda m: _blank(m, 1), src))
 
 
+DOC_ANNOTATION = re.compile(r"@([A-Z][\w\\]*)\s*\(")
+
+
+def _docblock_annotations(decl) -> list[dict]:
+    """PHP annotations written in the docblock right above a declaration (`@Route("/x", methods={"PUT"})`, Doctrine
+    style, before attributes): {text, line} each, the `*` that starts each docblock line dropped."""
+    doc = decl.prev_named_sibling
+    if doc is None or doc.type != "comment" or not text(doc).startswith("/**") \
+            or decl.start_point[0] - doc.end_point[0] > 1:
+        return []
+    body, out = text(doc), []
+    for m in DOC_ANNOTATION.finditer(body):
+        depth, quote, i = 0, None, m.end() - 1
+        while i < len(body):
+            ch = body[i]
+            if quote:
+                quote = None if ch == quote else quote
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        if depth == 0 and i < len(body):
+            raw = re.sub(r"\n\s*\*+[ \t]?", " ", body[m.start():i + 1])
+            out.append({"text": raw, "line": doc.start_point[0] + 1 + body.count("\n", 0, m.start())})
+    return out
+
+
 def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None, *, spec: LangSpec) -> dict:
     """`st` is unused: route patterns run in structure.build on the method spans this returns."""
     root = _parser(spec.grammar).parse(parseable(src, spec.grammar)).root_node
@@ -569,6 +601,8 @@ def parse(src: bytes, rel_file: str, module: dict, reg: ids.IdRegistry, st=None,
             n["metrics"]["loc"] = decl.end_point[0] - annots[0].start_point[0] + 1
         res["nodes"].append(n)
         res["annotations"] += [{"node": nid, "text": text(a), "line": a.start_point[0] + 1} for a in annots]
+        if spec.lang == "php":
+            res["annotations"] += [{"node": nid, **a} for a in _docblock_annotations(decl)]
         return n
 
     def function(decl, fn, name_node, owner) -> str:

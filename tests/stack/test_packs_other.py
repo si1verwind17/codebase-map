@@ -568,6 +568,17 @@ def test_symfony_and_doctrine(make_repo):
     assert s["stack"]["unrecognised"] == []
 
 
+def test_symfony_routes_in_docblock_annotations(make_repo):
+    ctrl = ("<?php\n\nnamespace App\\Controller;\n\nuse Symfony\\Component\\Routing\\Annotation\\Route;\n\n"
+            "/**\n * @Route(\"/api\")\n */\nclass CartController\n{\n"
+            "    /**\n     * Updates the cart.\n     *\n     * @Route(\"/cart/{id}\", name=\"cart_put\",\n"
+            "     *     methods={\"PUT\"})\n     * @param string $id\n     */\n    public function put(string $id) {}\n\n"
+            "    /** a plain comment, no annotation */\n    public function helper() {}\n}\n")
+    s = build(make_repo, {"composer.json": "{}\n", "src/Controller/CartController.php": ctrl})
+    c = ".::App\\Controller.CartController"
+    assert routes(s, "src/Controller/CartController.php") == [("PUT", "/api/cart/{id}", f"{c}#put/1", 15, "symfony", "pack")]
+
+
 def test_rails_resources_expand_to_their_actions():
     plural = [("GET", "/users", None, "rails-resources"), ("GET", "/users/new", None, "rails-resources"),
               ("POST", "/users", None, "rails-resources"), ("GET", "/users/{id}", None, "rails-resources"),
