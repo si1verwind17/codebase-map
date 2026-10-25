@@ -418,7 +418,10 @@ schedule and tasks, each Flyte workflow's launch plan schedule and every
   (scheduled or one-shot bulk jobs), `db-read`, `db-write`, `ext-call`.
   Never add a runtime relation for an import, and never add `calls`: the
   scanner writes `uses-code` for imports and resolves method-to-method
-  `calls` by name itself.
+  `calls` by name itself. A call through an interface or trait ends at its
+  method in `relations`; a trace goes on from there into each class that
+  `implements` it (a Go type with the interface's methods too), so a
+  relation starting at an implementation is reached.
 - A generic job whose tables come from inputs (one replication task, many
   tables) is one relation with a wildcard key (`table sales.*`); list in
   `tables` the concrete tables its callers pass in (literal arguments, or
