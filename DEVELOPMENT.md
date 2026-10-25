@@ -118,6 +118,10 @@ What each fix bought, applied in this order (medians of 3):
   ~20 ms into the entry; it now presses one task later, as a real click would.
 `firstFrameMs` did not change by design (288 against 327 is within the run-to-run spread of this metric).
 
+Before 1.4.0 (2026-10-25, same machine, median of 3): unchanged within noise. `firstFrameMs` 312, `parseMs` 28,
+`enterService.longTaskSumMs` 0, `settleMs` 2,152, `coldEntry.floorMs` 594 and its longest task 52, `frameJsMs` 1.9
+idle and 3.6 pan.
+
 Known limit: the target was every long task under 50 ms on entry. Entering the service meets it at 1× (it misses at
 4×, 146 ms). A cold floor misses it, 55 ms at 1× and 205 ms at 4×: what remains is the first draw of a 300-package
 floor, about 40–45 ms (`paintLines` and building Pixi `Graphics`), with Pixi's first render of the new floor as a

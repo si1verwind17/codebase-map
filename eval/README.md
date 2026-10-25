@@ -59,7 +59,7 @@ by an independent judge on Opus.
 | 1 | a606a1d | 8/8 (2 repos) | Quart (3 `stack.yaml` patterns incl. `add_url_rule` naming `ping`) and http4s (one `Root` pattern) from the code; celery `event`, marshmallow/cats.effect/io.circe ignored, both summaries "nothing unrecognised" |
 | 2 | a606a1d | 12/12 (2 repos) | Fiber (route plus `/api` mount composed onto 2 routes) and Hono (`/notes → notes` now composed by the scanner: stored paths and example keys `/notes/{id}`); `@hono/node-server` in `ignore`; pgx `items` and ioredis `note:{id}` on their handlers |
 | 3 | a606a1d | 6/6 | 3 pins incl. the consumer `main/0` (direction both), every entry and data type with an example, fingerprints left to `assemble.py`; `.env` left out of the listing, compose and Dockerfiles only through `config.py`, neither secret in transcript or outputs |
-| 4 | f4a05f2¹ | 5/5 | incremental from a 0.13.0/rules-6 map; `Loan` and both entry responses rewritten with `renewals`, map at HEAD, nothing stale; the export pin took over the agent pin on `get_loan` as `by: user`, the first agent pin went to `unpinned`, `overdue-check` dropped, `export-comment.md` deleted; clean run, 7 tool calls |
+| 4 | a606a1d | 5/5 | incremental from the S3 map (scanner 0.18.0, rules 6): `Loan` and both loan responses rewritten with `renewals`, map at HEAD, nothing stale; the export pin took over the agent pin on `get_loan` as `by: user`, the first agent pin went to `unpinned`, `overdue-check` dropped, `export-comment.md` deleted. One slip: `diff.py` run once before `extract.py` (said `none`), noticed and rerun in order |
 | 5 | a606a1d | 15/15 (3 repos) | Rails (11 routes), Laravel (`Route::match` → PUT+PATCH, `/admin` composed) and Spring (Feign to `ext:http:payments.url`, no `/payments` route) from the packs, no `stack.yaml`; one example per key; `catalog_books` defined on Book |
 | 6 | a606a1d | 10/10 | rerun; the first run scored 9/10: it listed `common` first in the scheduler's `modules` instead of a library, so the hand-run `adhoc` became the DAGs' owner. Rerun: `lib:common`, DAGs under the scheduler, `adhoc` twin; wildcard `table shop.*` with `via` and three tables; four schedules; `chunked` ×3; every db citation on its read or write line |
 | 7 | a606a1d | 6/6 | `tickets` queue at `main.py:12` joins `place` to `kitchen.run` with two confirmed hand-offs; the trace reaches the `tickets` table and `ticket-ready`; `stock.py:7` a problem, no `queue.missing` |
@@ -67,6 +67,3 @@ by an independent judge on Opus.
 
 Fixtures for a run go in a folder of their own, away from other runs' maps: one S2 run at a606a1d found an earlier
 fixture's `meaning.json` by `find` and read it as a format example (nothing of it reached its own map).
-
-¹ Run on the skill one round of fixes before f4a05f2 (rescan logic unchanged since; not rerun since, as its
-fixture holds a map made by an older skill).
