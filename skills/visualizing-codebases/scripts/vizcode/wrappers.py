@@ -9,6 +9,7 @@ the wrapper's name (`get`), a verb literal (`'post'`, `method: 'POST'`), or the 
 """
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 
@@ -23,6 +24,7 @@ CLIENT_CALLS = {*VERBS, "request", "fetch", "send", "exchange", "execute", "retr
                 "PostAsJsonAsync", "PutAsJsonAsync", "PatchAsJsonAsync", "GetStringAsync", "GetStreamAsync",
                 "GetByteArrayAsync", "Get", "Post", "Head", "PostForm", "NewRequest", "NewRequestWithContext"}
 # client types known by name, also where no import names them (C# implicit usings)
+OBJECT_BINDING = re.compile(r"\s*(?:self|this)\s*\.\s*([A-Za-z_$][\w$]*)\s*(?::\s*[^=]+)?=(?!=)\s*([^;\n]*)")
 CLIENT_TYPES = {"HttpClient", "WebClient", "RestTemplate", "RestClient"}
 # a name bound to a client the code makes (Go `client := &http.Client{..}`, `var c = new HttpClient()`)
 BOUND_CLIENT = re.compile(r"(?:(?:self|this)\s*\.\s*)?([A-Za-z_]\w*)\s*(?::=|=)\s*&?\s*(?:new\s+)?"
@@ -259,14 +261,20 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
     for n in nodes.values():
         if n["kind"] == "method" and n.get("file"):
             methods.setdefault(n["file"], []).append(n)
-    object_clients: dict[str, set[tuple[str, str]]] = {}
+    object_clients: set[tuple[str, str]] = set()
+    object_bound: set[tuple[str, str]] = set()   # every (class id, name) a method binds on the object
     for f, ls in lines.items():
         for i, x in enumerate(ls, 1):
-            if ("Client" in x or "Rest" in x) and re.match(r"\s*(?:self|this)\s*\.", x) and (names := BOUND_CLIENT.findall(x)):
+            if (b := OBJECT_BINDING.match(x)) is not None:
                 here = max((m for m in methods.get(f, []) if (m.get("line") or 0) <= i),
                            key=lambda m: m.get("line") or 0, default=None)
+                value = b.group(2).strip()
+                if IDENT.fullmatch(value) and _words(value) & CLIENT_WORDS:
+                    continue   # an injected value named like a client (`self.api = client`): it may be the base's own
                 if here is not None and here.get("parent"):
-                    object_clients.setdefault(f, set()).update((here["parent"], n) for n in names)
+                    object_bound.add((here["parent"], b.group(1)))
+                    if "Client" in x or "Rest" in x:
+                        object_clients.update((here["parent"], n) for n in BOUND_CLIENT.findall(x))
 
     def resolver(f: str, c: dict):
         """A bare name's expression: its last assignment in the calling function before the call, else a file
@@ -298,19 +306,31 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
         return lit
 
     bases_of = {cid: names for r in results.values() for cid, names in r.get("bases", []) + r.get("supers", [])}
-    classes_in = {}
+    classes_in, classes_named = {}, {}
     for n in nodes.values():
         if n["kind"] == "class" and n.get("file"):
             classes_in.setdefault(n["file"], {}).setdefault(n["name"], n["id"])
+            classes_named.setdefault(n["name"], []).append(n["id"])
 
-    def lineage(f: str, cid: str | None) -> list[str]:
-        """A class and its bases written in the same file (`class Cart(Base)` holds what `Base.__init__` binds)."""
+    def base_class(f: str, base: str) -> str | None:
+        """The class a base names: one of the same file, else the repo's only class of that name (`Base[T]`,
+        `Base<T>` and `pkg.Base` name `Base`)."""
+        name = re.sub(r"[\[<(].*$", "", base).rsplit(".", 1)[-1].strip()
+        if (i := classes_in.get(f, {}).get(name)) is not None:
+            return i
+        return named[0] if len(named := classes_named.get(name, [])) == 1 else None
+
+    bound_names = {name for _, name in object_bound}
+
+    @functools.cache
+    def lineage(cid: str | None) -> list[str]:
+        """A class and its bases, nearest first (`class Cart(Base)` holds what `Base.__init__` binds)."""
         out, todo = [], [cid] if cid else []
         while todo and len(out) < 16:
-            k = todo.pop()
+            k = todo.pop(0)
             if k not in out:
                 out.append(k)
-                todo += [i for b in bases_of.get(k, []) if (i := classes_in.get(f, {}).get(b.rsplit(".", 1)[-1]))]
+                todo += [i for b in bases_of.get(k, []) if (i := base_class(nodes.get(k, {}).get("file", ""), b))]
         return out
 
     def typed_client(f: str, c: dict, receiver: str) -> bool:
@@ -323,7 +343,10 @@ def find(results: dict[str, dict], sources: dict[str, str], client_heads, new_fi
         start = m.get("line") or 1
         here = "\n".join(x for x in lines[f][max(start - 1, 0):c["line"]] if "Client" in x or "Rest" in x)
         made = {n for n in BOUND_CLIENT.findall(here)} | top_clients[f]   # in the calling function, or the file's top
-        if any((k, receiver) in object_clients.get(f, ()) for k in lineage(f, m.get("parent"))):
+        # the nearest class binding the name on the object decides (a subclass's `self.api = db` is no client)
+        if receiver in bound_names \
+                and (k := next((k for k in lineage(m.get("parent")) if (k, receiver) in object_bound), None)) is not None \
+                and (k, receiver) in object_clients:
             raw = _parts(c["callee"])
             if len(raw) > 2 and raw[0] in ("self", "this") and raw[1] == receiver:   # `self.api.get(..)`
                 return True

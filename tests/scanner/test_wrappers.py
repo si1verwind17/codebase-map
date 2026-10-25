@@ -543,3 +543,27 @@ def test_a_client_bound_in_a_base_class_holds_in_its_subclass(make_repo):
                          "        return self.api.get('/cart')\n"}
     s = structure.build(make_repo(files))
     assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/cart")]
+
+
+def test_a_client_bound_in_a_base_class_of_another_file(make_repo):
+    files = {"app/__init__.py": "",
+             "app/base.py": "from rest import RestClient\n\n\nclass Base:\n    def __init__(self):\n"
+                            "        self.api = RestClient('a')\n",
+             "app/cart.py": "from app.base import Base\n\n\nclass Cart(Base):\n    def view(self):\n"
+                            "        return self.api.get('/cart')\n",
+             "app/store.py": "from app.base import Base\n\n\nclass Store(Base):\n    def __init__(self, db):\n"
+                             "        self.api = db\n\n    def load(self):\n        return self.api.get('/user/1')\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/cart.py")] == [("GET", "/cart")]
+    # a subclass binding the name to something else: its own value, no client
+    assert clients(s, "app/store.py") == []
+
+
+def test_a_subclass_binding_an_injected_client_keeps_the_base_client(make_repo):
+    files = {"app/__init__.py": "",
+             "app/c.py": "from rest import RestClient\n\n\nclass Base:\n    def __init__(self):\n"
+                         "        self.api = RestClient('a')\n\n\nclass Cart(Base):\n    def __init__(self, client=None):\n"
+                         "        super().__init__()\n        if client:\n            self.api = client\n\n"
+                         "    def view(self):\n        return self.api.get('/cart')\n"}
+    s = structure.build(make_repo(files))
+    assert [(m, p) for m, p, _ in clients(s, "app/c.py")] == [("GET", "/cart")]
