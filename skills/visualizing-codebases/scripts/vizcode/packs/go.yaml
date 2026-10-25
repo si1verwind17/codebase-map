@@ -6,7 +6,7 @@
 # routes (regex, each gated on its import; a `handler` group when the handler argument is a name, also inside one
 # wrapping call such as `http.HandlerFunc(h)`): net/http `HandleFunc`/`Handle` (a Go 1.22 pattern
 # `"GET /orders/{id}"` gives method and path), Gin and Echo (`r.GET("/x", h)`), Chi (`r.Get("/x", h)`). Gin/Echo
-# `Group`, Chi `Route`/`Mount` are mounts (nested prefixes joined to the routes
+# `Group`, Chi `Route`/`Mount`, gorilla/mux `PathPrefix` are mounts (nested prefixes joined to the routes
 # registered on them in the same file; the agent composes the rest).
 # tables: gorm `func (T) TableName() string { return "x" }` (in the TableName method). No `when`: a model file
 # often imports nothing; the regex needs the whole method shape (receiver, no arguments, `string`, a literal return).
@@ -44,12 +44,19 @@ go:
   - {prefix: cloud.google.com/go, kind: cloud-sdk}
   - {prefix: google.golang.org/grpc, kind: grpc}
   routes:
-    # `mux.HandleFunc("GET /orders/{id}", h)`: the method is optional (none: ANY); the path starts with `/`
+    # `mux.HandleFunc("GET /orders/{id}", h)`: the method is optional (none: ANY); the path starts with `/`; a
+    # gorilla/mux route names its methods in a chained `.Methods("GET")`
     - name: net-http
       when: net/http
       path: literal
       method: ANY
-      regex: '\.(?:HandleFunc|Handle)\(\s*"(?:(?P<method>[A-Z]+)\s+)?(?P<path>/[^"\s]*)"\s*,(?:\s*(?:[\w.]+\(\s*)?(?P<handler>[\w.]+)\s*\)?\s*\))?'
+      regex: '\.(?:HandleFunc|Handle)\(\s*"(?:(?P<method>[A-Z]+)\s+)?(?P<path>/[^"\s]*)"\s*,(?:\s*(?:[\w.]+\(\s*)?(?P<handler>[\w.]+)\s*\)?\s*\)(?:\s*\.\s*Methods\((?P<methods>[^()]*)\))?)?'
+    # gorilla/mux `api := r.PathPrefix("/api").Subrouter()`
+    - name: gorilla-prefix
+      when: github.com/gorilla/mux
+      path: literal
+      mount: true
+      regex: '\.PathPrefix\(\s*"(?P<path>/[^"]*)"\s*\)'
     # `r.GET("/x", mw, h)`: the handler is the last argument when every argument is a name; `Any` is ANY
     - name: gin
       when: github.com/gin-gonic/gin

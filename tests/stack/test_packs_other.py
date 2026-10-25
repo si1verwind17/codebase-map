@@ -94,6 +94,19 @@ def test_go_gin_echo_chi():
         ("/v1", None, "chi-route"), ("/admin", "adminRouter", "chi-mount")]
 
 
+def test_go_gorilla_mux():
+    src = ('r := mux.NewRouter()\napi := r.PathPrefix("/api").Subrouter()\n'
+           'api.HandleFunc("/orders/{id:[0-9]+}", h.Get).Methods("GET", http.MethodHead)\n'
+           'api.HandleFunc("/orders", h.Add).Methods(http.MethodPost)\nr.HandleFunc("/health", health)\n')
+    imports = ["net/http", "github.com/gorilla/mux"]
+    st, ms = stack.default(), stack.find_mounts(stack.default(), "go", src, imports)
+    assert [(r["method"], r["path"], r.get("handler_name"), r["framework"])
+            for r in stack.find_routes(st, "go", src, imports, [], "f", ms)] == [
+        ("GET", "/api/orders/{id}", "h.Get", "net-http"), ("HEAD", "/api/orders/{id}", "h.Get", "net-http"),
+        ("POST", "/api/orders", "h.Add", "net-http"), ("ANY", "/health", "health", "net-http")]
+    assert [(m["path"], m["framework"], m.get("composed")) for m in ms] == [("/api", "gorilla-prefix", 3)]
+
+
 def test_go_negatives():
     """Look-alikes and missing imports give no route, mount or table."""
     http = ('q := r.URL.Query()\nq.Get("id")\nresp, _ := client.R().Get("/orders")\nh.Handle(event)\n'
