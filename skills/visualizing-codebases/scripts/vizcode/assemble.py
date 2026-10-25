@@ -101,6 +101,25 @@ def meaning_errors(meaning: dict, structure: dict) -> list[str]:
     errors += pins.errors(meaning)
     errors += examples.shape_errors(meaning.get("examples") or {})
     packages = {n["id"] for n in structure.get("nodes", []) if n.get("kind") == "package"}
+    package_module = {n["id"]: n.get("parent") for n in structure.get("nodes", []) if n.get("kind") == "package"}
+    claimed: dict[str, str] = {}
+    for n in meaning.get("nodes", []):
+        if not isinstance(n, dict) or "packages" not in n:
+            continue
+        mine = {m if str(m).startswith("mod:") else f"mod:{m}" for m in n.get("modules") or []}
+        if n.get("kind") != "service" or not isinstance(n["packages"], list):
+            errors.append(f"node {n.get('id')}: packages: a list of package ids, on a service only")
+            continue
+        for p in n["packages"]:
+            if not isinstance(p, str) or p not in packages:
+                errors.append(f"node {n['id']}: packages: {p}: no such package (find.py OUT/structure.json NAME "
+                              "--kind package)")
+            elif package_module[p] not in mine:
+                errors.append(f"node {n['id']}: packages: {p} is in {package_module[p]}: list that module in its "
+                              "modules too")
+            elif p in claimed and claimed[p] != n["id"]:
+                errors.append(f"node {n['id']}: packages: {p} is claimed by {claimed[p]} too: one service owns it")
+            claimed.setdefault(p, n["id"])
     for pkg, o in (meaning.get("roles") or {}).items():
         if pkg not in packages:
             errors.append(f"role override {pkg}: no such package")
@@ -186,26 +205,44 @@ def assemble(structure: dict, meaning: dict, previous: dict | None = None) -> di
             problems.append({"text": f"module {m['path']} not classified as service or library; defaulted to library",
                              "nodes": [lid], "source": "assemble"})
 
+    # packages a service claims (one module building several deployables, Go's `cmd/<svc>` and `internal/<svc>`):
+    # each, and every package below it, sits under that service and is no other service's twin
+    claims_pkg = {p: n["id"] for n in sem_nodes for p in n.get("packages") or []}
+
+    def claimant(pid: str) -> str | None:
+        # a package id ends with `/`; one below it continues its name with `/` (Go) or `.` (JVM, Python)
+        hits = [p for p in claims_pkg if pid == p or pid.startswith((p.rstrip("/") + "/", p.rstrip("/") + "."))]
+        return claims_pkg[max(hits, key=len)] if hits else None
+
     summaries = meaning.get("summaries", {})
     nodes = []
     twins: dict[str, list[str]] = {}
     for n in structure["nodes"]:
         n = dict(n)
-        for other in twin_of.get(n["parent"], []):
+        by = claimant(n["id"]) if n["kind"] == "package" and claims_pkg else None
+        for other in twin_of.get(n["parent"], []) if by is None else []:
             twins.setdefault(other, []).append(n["id"])
-        if n["parent"] in owner:
+        if by is not None:
+            n["parent"] = by
+        elif n["parent"] in owner:
             n["parent"] = owner[n["parent"]]
         if n["id"] in summaries:
             n["summary"] = summaries[n["id"]]
         nodes.append(n)
 
     relations: dict[str, dict] = {}
+    # a module's code use is each claiming service's too (its packages are part of that module)
+    pkg_module = {n["id"]: n["parent"] for n in structure["nodes"] if n["kind"] == "package"}
+    claimers: dict[str, set[str]] = {}
+    for p, svc in claims_pkg.items():
+        claimers.setdefault(pkg_module.get(p, ""), set()).add(svc)
     for r in structure["relations"]:
-        frm, to = owner.get(r["from"], r["from"]), owner.get(r["to"], r["to"])
-        if frm == to:
-            continue
-        rid = ids.relation_id("uses-code", frm, to, None)
-        relations.setdefault(rid, {**r, "id": rid, "from": frm, "to": to})
+        to = owner.get(r["to"], r["to"])
+        for frm in sorted({owner.get(r["from"], r["from"])} | claimers.get(r["from"], set())):
+            if frm == to:
+                continue
+            rid = ids.relation_id("uses-code", frm, to, None)
+            relations.setdefault(rid, {**r, "id": rid, "from": frm, "to": to})
     for r in meaning.get("relations", []):
         r = dict(r)
         r["id"] = ids.relation_id(r["kind"], r["from"], r["to"], r.get("key"))   # from content: an edit renames it

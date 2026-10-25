@@ -287,6 +287,13 @@ list the module first, its code sits under the one with the lowest id (stable
 across rescans): give the role that serves the traffic the id that sorts first
 (`svc:app` before `svc:worker`). An id need not repeat the `name`
 (`svc:trainer` named `trainer-http`, beside `svc:trainer-grpc`).
+When one module builds several deployables from code of their own (one
+go.mod with `cmd/<svc>` and `internal/<svc>`, each built by its own compose
+service or Dockerfile), each service lists the module and claims its own
+packages: `"packages": [".::cmd/orders/", ".::internal/orders/"]` (package
+ids from `structure.json`; a package claims those below it). Those sit under
+it and its relations end at their methods; the packages no service claims
+(shared `pkg/`) stay with the module's owner and show as twins in the others.
 
 A browser app (an SPA, a WASM frontend) is a `service` even when the backend
 builds it into its image or serves its files: it runs elsewhere, in the

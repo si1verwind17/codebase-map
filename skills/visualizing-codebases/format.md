@@ -35,8 +35,9 @@ Fields: `id`, `kind`, `parent`, `name`, plus `lang`, `file`, `line`,
 (`{params: [{name, type, refs, optional}], returns, returns_refs}`; `refs` and `returns_refs` only where a type names a
 repo class; `optional: true` on a parameter a call may leave out, recorded for Python and Scala) on methods, `fields`
 on a class that declares fields, `ctor` on a class (all three: § Fields and type links), `modules` on services
-and libraries (`defaulted: true` marks a library `assemble.py` created for an
-unclaimed module), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
+and libraries (`defaulted: true` marks a library `assemble.py` created for an unclaimed module), `packages` on a
+service (package ids of a module it lists that sit under it, with the packages below them, instead of under the
+module's owner; one service per package), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
 body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::city.parking.billing.InvoiceRepo"]`;
 in Go, every repo interface whose methods it has, by name and arity; `calls` counts a trait method and its
 implementations' same-named methods as one target, drawn to the trait method, also when the implementation sits

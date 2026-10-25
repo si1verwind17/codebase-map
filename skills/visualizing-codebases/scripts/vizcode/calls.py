@@ -329,6 +329,18 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
     for r in relations:
         if r["kind"] == "uses-code":
             uses.setdefault(r["from"], set()).add(r["to"])
+    # services that list one module share its code (each claiming its own packages): one call scope
+    listing: dict[str, set[str]] = {}
+    for n in nodes:
+        if n["kind"] in ("service", "library"):
+            for m in n.get("modules") or []:
+                listing.setdefault(str(m).removeprefix("mod:"), set()).add(n["id"])
+    peers: dict[str, set[str]] = {}
+    for ids_ in listing.values():
+        for x in ids_:
+            peers.setdefault(x, set()).update(ids_)
+    for x, ks in peers.items():
+        uses[x] = set().union(uses.get(x, set()), *(uses.get(k, set()) for k in ks)) - ks
     index: dict[str, dict[str, list[str]]] = {}
     spans: dict[str, list[dict]] = {}   # file -> its methods, for the declarations around a caller
     for n in nodes:
@@ -359,7 +371,7 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                 receiver = "self"      # the method's own object under the name it gives it (Go receiver)
             elif receiver == "Self" and len(parts) == 2 and "::" in c["callee"]:
                 receiver = "self"      # Rust `Self::x()` inside an `impl`: the caller's own type
-            cands = list(index.get(rt, {}).get(name, []))
+            cands = [m for k in sorted(peers.get(rt, {rt})) for m in index.get(k, {}).get(name, [])]
             if not cands:
                 for lib in sorted(uses.get(rt, ())):
                     cands += index.get(lib, {}).get(name, [])
@@ -462,7 +474,7 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
                     continue
             if typed is None and receiver and len(parts) == 2 and receiver not in SELF_RECEIVERS | {"super", "?"} \
                     and not receiver[:1].isupper() and (held := [c for c in by_lower.get(receiver.lower(), [])
-                                                                 if (root(c) == rt or root(c) in uses.get(rt, ()))
+                                                                 if (root(c) in peers.get(rt, {rt}) or root(c) in uses.get(rt, ()))
                                                                  and by_id[c].get("lang") not in OPEN_LINEAGE]):
                 # `userModel.insert`: a value named after a repo class holds that class or one of its kin; none
                 # of theirs means the method reaches it some way the scan does not follow

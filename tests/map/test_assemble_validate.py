@@ -333,3 +333,60 @@ def test_one_call_through_two_library_methods_is_one_relation():
     errors = meaning_errors({"relations": [rel("lib::c#get/1"), rel("lib::c#fetch/1")]}, {"nodes": []})
     assert len(errors) == 1 and "two library methods (lib::c#get/1, lib::c#fetch/1)" in errors[0]
     assert "job queue" not in errors[0]
+
+
+GO_TWO_SERVICES = {
+    "go.mod": "module shop\n",
+    "cmd/orders/main.go": 'package main\n\nimport "shop/internal/orders"\n\nfunc main() { orders.Run() }\n',
+    "cmd/billing/main.go": 'package main\n\nimport "shop/internal/billing"\n\nfunc main() { billing.Run() }\n',
+    "internal/orders/run.go": 'package orders\n\nimport "shop/pkg/log"\n\nfunc Run() { log.Info() }\n',
+    "internal/orders/store/db.go": "package store\n\nfunc Save() {}\n",
+    "internal/billing/run.go": "package billing\n\nfunc Run() {}\n",
+    "pkg/log/log.go": "package log\n\nfunc Info() {}\n",
+    "compose.yml": "services:\n  orders:\n    build: .\n  billing:\n    build: .\n",
+}
+
+
+def test_services_of_one_module_claim_their_packages(make_repo):
+    s = structure.build(make_repo(GO_TWO_SERVICES))
+    pk = {n["name"].strip("/"): n["id"] for n in s["nodes"] if n["kind"] == "package"}
+    meaning = {"nodes": [
+        {"id": "svc:orders", "kind": "service", "name": "orders", "modules": ["."],
+         "packages": [pk["cmd/orders"], pk["internal/orders"]], "evidence": [{"file": "compose.yml", "line": 2}]},
+        {"id": "svc:billing", "kind": "service", "name": "billing", "modules": ["."],
+         "packages": [pk["cmd/billing"], pk["internal/billing"]], "evidence": [{"file": "compose.yml", "line": 4}]}],
+        "relations": []}
+    assert meaning_errors(meaning, s) == []
+    cmap = assemble(s, copy.deepcopy(meaning))
+    assert mapcheck.check(cmap) == []
+    parent = {n["id"]: n.get("parent") for n in cmap["nodes"]}
+    assert parent[pk["internal/orders"]] == parent[pk["internal/orders/store"]] == parent[pk["cmd/orders"]] == "svc:orders"
+    assert parent[pk["internal/billing"]] == parent[pk["cmd/billing"]] == "svc:billing"
+    # the shared package sits with the module's owner (the lowest id), a twin in the other
+    by_id = {n["id"]: n for n in cmap["nodes"]}
+    assert parent[pk["pkg/log"]] == "svc:billing" and by_id["svc:orders"]["twins"] == [pk["pkg/log"]]
+    bad = copy.deepcopy(meaning)
+    bad["nodes"][1]["packages"] = [pk["cmd/orders"], "nope"]
+    bad["nodes"][0]["modules"] = []
+    errors = meaning_errors(bad, s)
+    assert any("no such package" in e for e in errors) and any("list that module" in e for e in errors)
+
+    # a claiming service's calls into the shared code it does not own still resolve
+    calls = {(r["from"], r["to"]) for r in cmap["relations"] if r["kind"] == "calls"}
+    assert any(f.endswith("internal/orders/run.go#Run/0") and t.endswith("log.go#Info/0") for f, t in calls), calls
+
+
+def test_a_claimed_package_takes_the_packages_below_it_in_python(make_repo):
+    s = structure.build(make_repo({
+        "shop/__init__.py": "", "shop/orders/__init__.py": "", "shop/orders/store/__init__.py": "",
+        "shop/orders/store/db.py": "def save():\n    pass\n", "shop/billing/__init__.py": "",
+        "shop/billing/run.py": "def run():\n    pass\n", "shop/orders/run.py": "def run():\n    pass\n"}))
+    pk = {n["name"].strip("/"): n["id"] for n in s["nodes"] if n["kind"] == "package"}
+    meaning = {"nodes": [
+        {"id": "svc:orders", "kind": "service", "name": "orders", "modules": ["shop"], "packages": [pk["shop.orders"]],
+         "evidence": [{"file": "shop/orders/run.py", "line": 1}]},
+        {"id": "svc:billing", "kind": "service", "name": "billing", "modules": ["shop"],
+         "packages": [pk["shop.billing"]], "evidence": [{"file": "shop/billing/run.py", "line": 1}]}], "relations": []}
+    assert meaning_errors(meaning, s) == []
+    parent = {n["id"]: n.get("parent") for n in assemble(s, copy.deepcopy(meaning))["nodes"]}
+    assert parent[pk["shop.orders.store"]] == parent[pk["shop.orders"]] == "svc:orders"
