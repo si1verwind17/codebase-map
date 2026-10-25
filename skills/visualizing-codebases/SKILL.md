@@ -285,7 +285,8 @@ the receiving role's service. Why: a relation from a method under the first
 service would credit that role with what another one does. When several roles
 list the module first, its code sits under the one with the lowest id (stable
 across rescans): give the role that serves the traffic the id that sorts first
-(`svc:app` before `svc:worker`).
+(`svc:app` before `svc:worker`). An id need not repeat the `name`
+(`svc:trainer` named `trainer-http`, beside `svc:trainer-grpc`).
 
 A browser app (an SPA, a WASM frontend) is a `service` even when the backend
 builds it into its image or serves its files: it runs elsewhere, in the
@@ -359,7 +360,8 @@ helpers (a function passing its parameter on as a client call's address, so
 `http.get(`albums/${id}`)` is `GET /albums/{id}`), client calls with a path, and
 request objects holding a `method` and a `url`/`path`/`endpoint` (a generated client's
 `request(cfg, {..})`, a query definition's `({method, url})`); § Likely requests pairs each such call, and each
-gRPC client call, with the repo routes or rpc servers it likely reaches (by method and path, or proto key), every
+gRPC client call, with the repo routes or rpc servers it likely reaches (by method and path, or proto key; a
+parameter or a `*` segment of one side matches a parameter of the other; the `key` is the route's spelling), every
 match listed: the scanner never writes the `request`, you confirm each pair against the code and the address the
 caller is given and write it (the audit's `request.unmatched` names a paired call that starts none);
 SQL kept outside the code (a mapper XML's statements, as SQL facts of the interface

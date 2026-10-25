@@ -2005,8 +2005,9 @@ def _table_line(t: tuple, names: dict[str, str]) -> str:
 
 
 def _route_shape(path: str) -> tuple[str, ...]:
-    """A route's segments with every parameter alike: `/api/cart/{id}/` -> ('api', 'cart', '{}')."""
-    return tuple(re.sub(r"\{[^}]*\}", "{}", x) for x in path.split("/") if x)
+    """A route's segments with every parameter alike, a `*` segment (any one segment) among them:
+    `/api/cart/{id}/` -> ('api', 'cart', '{}')."""
+    return tuple("{}" if x == "*" else re.sub(r"\{[^}]*\}", "{}", x) for x in path.split("/") if x)
 
 
 def _reaches(client: tuple[str, ...], route: tuple[str, ...]) -> str | None:

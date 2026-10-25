@@ -31,3 +31,10 @@ def test_request_unmatched_until_a_request_starts_at_the_caller(make_repo):
     assert [w for w in mapcheck.warnings(cmap, md) if w["id"] == "request.unmatched"] == []
     cmap = {"nodes": [], "relations": [], "problems": [{"text": f"{caller} only runs in tests"}]}
     assert [w for w in mapcheck.warnings(cmap, md) if w["id"] == "request.unmatched"] == []
+
+
+def test_a_star_segment_matches_one_segment():
+    assert structure._reaches(structure._route_shape("/owners/{ownerId}/pets/{petId}"),
+                              structure._route_shape("/owners/*/pets/{petId}")) == "exact"
+    assert structure._reaches(structure._route_shape("/owners/7/x/pets/{petId}"),
+                              structure._route_shape("/owners/*/pets/{petId}")) is None
