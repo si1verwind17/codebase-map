@@ -1266,3 +1266,15 @@ def test_a_generated_route_handler_is_no_call_target_of_other_files(make_repo):
                             "func (s TrainerGrpc) CancelTraining(ctx X, id string) {\n\ts.client.CancelTraining(ctx, id)\n}\n"},
         ["."])
     assert not any(to.endswith("ServerInterfaceWrapper#CancelTraining/2") for _, to in got)
+
+
+def test_a_constructor_parameter_types_its_receiver_over_a_class_of_the_same_name(make_repo):
+    # `db: Jdbc` is a class parameter; a `case class Db` elsewhere must not claim `db.update`
+    got = _calls(make_repo, {
+        "build.sbt": 'lazy val app = project in file(".")\n',
+        "src/main/scala/acme/Jdbc.scala": "package acme\ntrait Jdbc:\n  def update(sql: String, params: Any*): Int\n",
+        "src/main/scala/acme/Config.scala": "package acme\nfinal case class Db(host: String):\n  def url: String = host\n",
+        "src/main/scala/acme/Repo.scala": "package acme\nfinal class Live(db: Jdbc):\n"
+                                          "  def insert(id: String): Int =\n    db.update(\"INSERT\", id)\n"},
+        ["."])
+    assert any(f.endswith("Live#insert/1") and t.endswith("Jdbc#update/2") for f, t in got), got

@@ -131,10 +131,14 @@ def _param_type(method: dict, name: str) -> tuple[str, list[str]] | None:
 
 
 def _field_type(owner: dict | None, name: str) -> tuple[str, list[str]] | None:
-    """(outer type name, no refs) of the caller's class field called `name` that declares a type."""
+    """(outer type name, repo class ids it names) of the caller's class field, or constructor parameter (Scala and
+    Kotlin class parameters, a C# primary constructor: `class Live(db: Jdbc)`), called `name` that declares a type."""
     for f in (owner or {}).get("fields") or []:
         if f.get("name") == name and (outer := _outer_type(f.get("type"))):
             return outer, []
+    for p in ((owner or {}).get("ctor") or {}).get("params") or []:
+        if p.get("name") == name and (outer := _outer_type(p.get("type"))):
+            return outer, p.get("refs") or []
     return None
 
 
