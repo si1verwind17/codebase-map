@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import bisect
 import fnmatch
+import json
 import posixpath
 import os
 import re
@@ -11,7 +12,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
                routes, sqlfiles, stack, typelinks, unscanned, wrappers)
@@ -1381,6 +1382,104 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
                 route["handler"] = found
 
 
+FS_VERBS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+FS_SUFFIXES = (".ts", ".js", ".mts", ".mjs", ".tsx", ".jsx")
+FS_EXPORT = re.compile(r"^\s*export\s+(?:async\s+)?(?:function\s*\*?\s*|(?:const|let|var)\s+)(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b",
+                       re.M)
+FS_EXPORT_LIST = re.compile(r"^\s*export\s*\{([^}]*)\}", re.M)   # `export { handler as GET, handler as POST }`
+# `export default function handler(..)`, `export default handler`, `export default withAuth(handler)`; anything else
+# exported by default (an arrow, `defineEventHandler(..)`) has no name: the file is the handler
+FS_DEFAULT = re.compile(r"^\s*export\s+default\b(?:\s+(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][\w$]*)"
+                        r"|([A-Za-z_$][\w$]*)\s*;?\s*$|(?:[\w$.]+\(\s*)+([A-Za-z_$][\w$]*)\s*\)+\s*;?\s*$))?", re.M)
+# file-system routers: the framework's package, the folder its routes sit under, and how a file there serves
+FS_ROUTERS = (("next", "pages/api", "default"), ("next", "app", "route"), ("@sveltejs/kit", "routes", "server"),
+              ("nuxt", "server/api", "nuxt"), ("nuxt", "server/routes", "nuxt"))
+
+
+def _fs_segment(seg: str) -> str | None:
+    """A file-system route segment in the key form: `[id]` and `[id=int]` -> `{id}`, a catch-all `[...slug]` or
+    `[[...slug]]` -> `{slug}`; a route group `(admin)` or a parallel slot `@modal` adds none."""
+    if (seg.startswith("(") and seg.endswith(")")) or seg.startswith("@"):
+        return None
+    if m := re.fullmatch(r"\[{1,2}(?:\.\.\.)?([A-Za-z_$][\w$]*)(?:=\w+)?\]{1,2}", seg):
+        return "{" + m.group(1) + "}"
+    return seg
+
+
+def _package_deps(root: Path, tree: list[str]) -> dict[str, set[str]]:
+    """Folder -> the dependencies its package.json names (dependencies, devDependencies, peerDependencies)."""
+    out = {}
+    for f in tree:
+        if PurePosixPath(f).name == "package.json":
+            try:
+                doc = json.loads((root / f).read_text(encoding="utf-8", errors="replace"))
+            except ValueError:
+                doc = {}
+            out[PurePosixPath(f).parent.as_posix()] = {d for k in ("dependencies", "devDependencies", "peerDependencies")
+                                                        for d in ((doc.get(k) or {}) if isinstance(doc, dict) else {})}
+    return out
+
+
+def _file_system_routes(pkg_deps: dict[str, set[str]], results: dict[str, dict], sources: dict[str, str]) -> None:
+    """Routes a framework derives from file paths, for a project whose package.json names it: Next.js `pages/api/x/
+    [id].ts` (its default export, ANY) and `app/x/[id]/route.ts` (each exported verb function), SvelteKit
+    `src/routes/x/+server.ts` (each exported verb), Nuxt `server/api/x/[id].get.ts` (the verb in the name, else ANY).
+    The handler is the function of that name, else the file. pkg_deps: _package_deps."""
+    for f, r in results.items():
+        if not f.endswith(FS_SUFFIXES) or f not in sources:
+            continue
+        parts = PurePosixPath(f).parts
+        deps = None
+        for package, under, how in FS_ROUTERS:
+            base = tuple(under.split("/"))
+            at = next((i for i in range(len(parts) - len(base)) if parts[i:i + len(base)] == base), None)
+            if at is None:
+                continue
+            if deps is None:   # the nearest package.json at or above the routes folder
+                deps = next((pkg_deps[d] for i in range(at, -1, -1)
+                             if (d := PurePosixPath(*parts[:i]).as_posix() if i else ".") in pkg_deps), set())
+            if package not in deps:
+                continue
+            # the name without its extension; `[...nextauth].ts` keeps its dots, a Nuxt `x.get.ts` its verb apart
+            folders, stem = list(parts[at + len(base):-1]), PurePosixPath(f).name.rsplit(".", 1)[0]
+            verb = "ANY"
+            if how == "nuxt" and (v := re.search(r"\.(get|post|put|patch|delete|head|options)$", stem)):
+                stem, verb = stem[:v.start()], v.group(1).upper()
+            src, verbs = sources[f], []
+            if how == "route" and stem == "route" or how == "server" and stem == "+server":
+                verbs = [(m.group(1), m.group(1), src.count("\n", 0, m.start()) + 1) for m in FS_EXPORT.finditer(src)]
+                for m in FS_EXPORT_LIST.finditer(src):
+                    for item in m.group(1).split(","):
+                        local, _, public = (x.strip() for x in item.partition(" as "))
+                        if (public or local) in FS_VERBS:
+                            verbs.append((public or local, local, src.count("\n", 0, m.start()) + 1))
+            elif how == "default" and not stem.startswith("_"):
+                folders += [] if stem == "index" else [stem]
+                if d := FS_DEFAULT.search(src):
+                    verbs = [("ANY", d.group(1) or d.group(2) or d.group(3), src.count("\n", 0, d.start()) + 1)]
+            elif how == "nuxt":
+                folders += [] if stem == "index" else [stem]
+                if d := FS_DEFAULT.search(src):
+                    verbs = [(verb, d.group(1) or d.group(2) or d.group(3), src.count("\n", 0, d.start()) + 1)]
+            if not verbs:
+                break
+            prefix = list(base[1:]) if how == "default" or (how == "nuxt" and base[-1] == "api") else []
+            segs = [x for x in (_fs_segment(p) for p in prefix + folders) if x]
+            path = stack.normalise("/".join(segs))
+            seen = set()
+            for method, fn, line in verbs:
+                if method in seen:
+                    continue
+                seen.add(method)
+                handler = next((n["id"] for n in r["nodes"] if n["kind"] == "method" and fn and n["name"] == fn
+                                and n.get("parent", "").endswith(PurePosixPath(f).name)), None) \
+                    or next((n["id"] for n in r["nodes"] if n["kind"] == "method" and fn and n["name"] == fn), None) \
+                    or NEW_FILE_NODE
+                r["routes"].append({"method": method, "path": path, "handler": handler, "line": line,
+                                    "framework": f"{package.split('/')[-1]}-files"})
+            break
+
+
 def _base_paths(st: stack.Stack, results: dict[str, dict]) -> None:
     """Prefix each route with the stack.yaml base path of the longest folder holding its file."""
     for f, r in results.items():
@@ -1715,6 +1814,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         py_deps = python_dependencies(root)
         not_scanned = unscanned.report(tree, set(results), lambda f: excluded(f, patterns + BUILD_EXCLUDES),
                                        lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
+        pkg_deps = _package_deps(root, tree)
         mapper_sql, sql_files = sqlfiles.read(root, tree, lambda f: excluded(f, patterns + BUILD_EXCLUDES)
                                               or (root / f).stat().st_size > MAX_BYTES)
 
@@ -1724,6 +1824,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
     _resolve_handlers(results, file_mod, reg, names)
     _compose_includes(results)
     _compose_mounts(results, sources)
+    _file_system_routes(pkg_deps, results, sources)
     for f, r in results.items():
         if f in lines:
             _file_node(r, f, file_mod[f], LANGS[Path(f).suffix][0], lines[f], reg)

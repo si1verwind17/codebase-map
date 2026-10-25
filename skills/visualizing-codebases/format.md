@@ -637,7 +637,9 @@ decorator on a class, past its other decorators) is one route per HTTP-verb meth
 verb; a class with an invoke method (`__invoke`, `__call__`) keeps the route's method; a Laravel `::class` that has
 none, or a class with no verb method, is itself the handler. A handler class is told from a same-named one by the
 file's imports (an alias too); one imported from a library is no repo class. A file's `routes` facts are `[{method, path, handler, line, framework,
-source}]` (`framework` is the pattern's name; `method` upper-cased; a handler outside any method is the
+source}]` (`framework` is the pattern's name, `next-files`, `kit-files` or `nuxt-files` for a route a framework derives
+from the file's path, `pages/api/x/[id].ts`, `app/x/route.ts`, `src/routes/x/+server.ts`, `server/api/x.get.ts`, when
+the nearest package.json names the framework; `method` upper-cased; a handler outside any method is the
 file node, made for a generic-walker file that has none; `after` the name a path literal is added to in the call,
 `options.BaseURL` from `r.Get(options.BaseURL+"/x", h)`: the path is the literal alone; such a call on a receiver
 named like a client, `http.Post(base+"/x", ..)`, is a request, no route); its `mounts` facts (key
