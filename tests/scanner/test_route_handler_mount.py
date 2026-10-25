@@ -252,6 +252,31 @@ def test_a_path_after_a_name_and_a_plus_keeps_its_route(make_repo):
     assert got == [("GET", "/trainer/calendar", "options.BaseURL"), ("POST", "/trainer/hours", "base")]
     assert "GET /trainer/calendar (after `options.BaseURL`) → " in structure.summary_md(s)
 
+
+def test_a_qualified_handler_takes_the_class_named_like_its_qualifier(make_repo):
+    # three same-file methods named X: the interface's, a stub's and the wrapper's; `wrapper.X` is the wrapper's
+    files = {"go.mod": "module shop\n",
+             "ports/api.go": 'package ports\n\nimport "github.com/go-chi/chi/v5"\n\n'
+                             'type ServerInterface interface {\n\tGetHours(w W, r R)\n}\n\n'
+                             'type Unimplemented struct{}\n\nfunc (_ Unimplemented) GetHours(w W, r R) {}\n\n'
+                             'type ServerInterfaceWrapper struct {\n\tHandler ServerInterface\n}\n\n'
+                             'func (siw *ServerInterfaceWrapper) GetHours(w W, r R) {\n\tsiw.Handler.GetHours(w, r)\n}\n\n'
+                             'func Handler(r chi.Router, wrapper ServerInterfaceWrapper) {\n'
+                             '\tr.Get("/hours", wrapper.GetHours)\n}\n'}
+    s = structure.build(make_repo(files))
+    assert [r["handler"] for r in s["facts"]["ports/api.go"]["routes"]] == [".::ports.ServerInterfaceWrapper#GetHours/2"]
+
+
+def test_the_qualifier_breaks_a_tie_only_and_names_a_whole_word(make_repo):
+    # the handler of the same file wins over a class elsewhere named like the qualifier; `h` names no class `OAuth`
+    files = {"package.json": '{"name": "api", "dependencies": {"express": "4"}}\n',
+             "src/app.ts": "import express from 'express'\nconst app = express()\nclass Handlers {\n  list() {}\n}\n"
+                           "const controller = new Handlers()\napp.get('/users', controller.list)\n",
+             "src/other.ts": "export class UserController {\n  list() {}\n}\n"}
+    s = structure.build(make_repo(files))
+    assert [r["handler"].rsplit("::", 1)[-1] for r in s["facts"]["src/app.ts"]["routes"]] == ["src.app.Handlers#list/0"]
+
+
 def test_a_client_call_with_a_built_address_is_no_route_and_a_mount_keeps_its_head(make_repo):
     files = {"go.mod": "module shop\n",
              "svc/notify.go": 'package svc\n\nimport (\n\t"net/http"\n\t"github.com/go-chi/chi/v5"\n)\n\n'

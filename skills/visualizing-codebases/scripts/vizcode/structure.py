@@ -1280,6 +1280,7 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
     for (_, name), found in methods.items():
         anywhere.setdefault(name, []).extend(found)
     parent = {n["id"]: n.get("parent") for r in results.values() for n in r["nodes"]}
+    owner_name = {n["id"]: _segments(n["name"])[-1] for r in results.values() for n in r["nodes"] if n["kind"] == "class"}
     classes: dict[tuple[str, str], list[str]] = {}       # (module, class name) -> class ids
     any_classes: dict[str, list[str]] = {}               # class name -> class ids in every module
     members: dict[tuple[str, str], list[str]] = {}       # (class id, method name) -> method ids
@@ -1353,11 +1354,20 @@ def _resolve_handlers(results: dict[str, dict], file_mod: dict[str, str], reg: i
             if len(parts) > 1 and len(cands) > 1:   # `articles::list`: the file the qualifier names (`articles/mod.rs`)
                 cands = [c for c in cands if (Path(c[0]).parent.name if Path(c[0]).stem in ("mod", "index", "__init__")
                                               else Path(c[0]).stem) == parts[-2]] or cands
+
+            def qualified(hit: list) -> list:
+                """`wrapper.X` among several of one level: the class named like the qualifier, whole or as its last
+                word (`ServerInterfaceWrapper`)."""
+                q = parts[-2].lower() if len(parts) > 1 else ""
+                return [c for c in hit if (o := owner_name.get(parent.get(c[2]) or "", "")) and (
+                    o.lower() == q or (len(q) >= 3 and o.lower().endswith(q) and o[-len(q)].isupper()))]
             if len(parts) == 1:
                 cands = [c for c in cands if owner_kind.get(parent.get(c[2]) or "") == "file"] or cands
             found = None
             for level in (lambda c: c[0] == f, lambda c: c[1] == r["package"], lambda c: True):
                 hit = [c for c in cands if level(c)]
+                if len(hit) > 1:
+                    hit = qualified(hit) or hit
                 if len(hit) == 1:
                     found = hit[0][2]
                 if hit:
