@@ -37,7 +37,8 @@ repo class; `optional: true` on a parameter a call may leave out, recorded for P
 on a class that declares fields, `ctor` on a class (all three: § Fields and type links), `modules` on services
 and libraries (`defaulted: true` marks a library `assemble.py` created for an unclaimed module), `packages` on a
 service (package ids of a module it lists that sit under it, with the packages below them, instead of under the
-module's owner; one service per package), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
+module's owner; one service per package), `generated: true` on a method a generated file keeps as a route handler
+(entered through its router: no call from another file reaches it), `implements` on a class (scanner: the class or trait ids it extends or, for an anonymous
 body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::city.parking.billing.InvoiceRepo"]`;
 in Go, every repo interface whose methods it has, by name and arity; `calls` counts a trait method and its
 implementations' same-named methods as one target, drawn to the trait method, also when the implementation sits

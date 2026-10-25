@@ -76,6 +76,9 @@ def keep_needed(r: dict, handlers: set[str], lang: str) -> None:
                 nid = by_id[nid]["parent"]
     r["nodes"] = [n for n in r["nodes"] if n["id"] in kept]
     for n in r["nodes"]:
+        if n["kind"] == "method":
+            n["generated"] = True   # a route handler kept from generated code: no call from another file reaches it
+    for n in r["nodes"]:
         if n["kind"] == "class" and "methods" in n["metrics"]:
             n["metrics"]["methods"] = sum(1 for m in r["nodes"] if m["kind"] == "method" and m["parent"] == n["id"])
     for key in INNER_FACTS:

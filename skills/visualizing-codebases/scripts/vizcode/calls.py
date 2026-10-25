@@ -375,7 +375,8 @@ def resolve(nodes: list[dict], relations: list[dict], facts: dict[str, dict]) ->
             if not cands:
                 for lib in sorted(uses.get(rt, ())):
                     cands += index.get(lib, {}).get(name, [])
-            cands = [m for m in cands if m != caller]
+            # a generated file's handler is entered through its router, never called from the app's other files
+            cands = [m for m in cands if m != caller and not (by_id[m].get("generated") and by_id[m].get("file") != file)]
             # a parameter with a declared type: only its outer type's methods; a library type has none of ours
             typed = (_param_type(by_id[caller], receiver)
                      if receiver and len(parts) == 2 and receiver not in SELF_RECEIVERS else None)
