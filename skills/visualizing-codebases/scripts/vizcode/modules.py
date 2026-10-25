@@ -204,19 +204,28 @@ def detect_modules(root: Path, files: list[str]) -> tuple[list[dict], dict[str, 
     file_mod: dict[str, str] = {}
     unassigned: list[str] = []
 
-    sbt = root / "build.sbt"
-    sbt_paths = [_norm(m) for m in SBT_PROJECT.findall(_read(sbt))] if sbt.exists() else []
+    # every sbt build of the tree (a repo of samples has one per folder): its projects' folders, relative to the
+    # build's own; a build naming none is one project in its folder
+    root_sbt = False   # a build.sbt at the top that names projects: a Scala file outside them is no module's
+    sbt_paths: list[str] = []
+    for rel in sorted({d for f in files if f.endswith(".scala") for d in _folders(f)}):
+        if not (sbt := root / rel / "build.sbt").is_file() or sbt.is_symlink():
+            continue
+        found = [_norm(posixpath.normpath(posixpath.join(rel, m))) for m in SBT_PROJECT.findall(_read(sbt))]
+        root_sbt = root_sbt or (rel == "." and bool(found))
+        found = found or ([] if rel == "." else [rel])
+        sbt_paths += [p for p in found if p not in sbt_paths and not p.startswith("..")]
     for p in sbt_paths:
         modules[f"mod:{p}"] = _module(p, "scala", "sbt")
 
     for f in files:
         if f.endswith(".scala"):
-            if sbt_paths:
-                owners = [p for p in sbt_paths if _under(f, p)]
-                if not owners:
-                    unassigned.append(f)
-                    continue
+            owners = [p for p in sbt_paths if _under(f, p)]
+            if owners:
                 file_mod[f] = f"mod:{max(owners, key=len)}"
+            elif root_sbt:
+                unassigned.append(f)
+                continue
             else:
                 top = f.split("/")[0] if "/" in f else "."
                 modules.setdefault(f"mod:{top}", _module(top, "scala", "dir"))

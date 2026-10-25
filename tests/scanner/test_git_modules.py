@@ -51,6 +51,34 @@ def test_detect_modules(shop_repo):
     assert unassigned == ["project/Deps.scala"]
 
 
+def test_nested_sbt_builds_give_their_projects_and_loose_scala_keeps_its_folder(make_repo):
+    # a repo of samples: no build at the top, one per sample folder, a sample of several projects
+    repo = make_repo({
+        "kafka-sample/build.sbt": 'lazy val root = project.in(file(".")).aggregate(producer, client)\n'
+                                  'lazy val producer = project\n  .in(file("producer"))\nlazy val client = project\n'
+                                  '  .in(file("client"))\n',
+        "kafka-sample/producer/src/main/scala/P.scala": "object P",
+        "kafka-sample/client/src/main/scala/C.scala": "object C",
+        "cluster-sample/build.sbt": 'name := "cluster"\n',
+        "cluster-sample/src/main/scala/A.scala": "object A",
+        "loose/src/B.scala": "object B",
+    })
+    files = ["kafka-sample/producer/src/main/scala/P.scala", "kafka-sample/client/src/main/scala/C.scala",
+             "cluster-sample/src/main/scala/A.scala", "loose/src/B.scala"]
+    _, file_mod, unassigned = detect_modules(Path(repo), files)
+    assert file_mod == {"kafka-sample/producer/src/main/scala/P.scala": "mod:kafka-sample/producer",
+                        "kafka-sample/client/src/main/scala/C.scala": "mod:kafka-sample/client",
+                        "cluster-sample/src/main/scala/A.scala": "mod:cluster-sample",
+                        "loose/src/B.scala": "mod:loose"}
+    assert unassigned == []
+    from vizcode import structure
+    (Path(repo) / "cluster-sample/project").mkdir()
+    (Path(repo) / "cluster-sample/project/Deps.scala").write_text("object Deps")
+    from conftest import commit_all
+    commit_all(Path(repo))
+    assert "cluster-sample/project/Deps.scala" not in structure.build(Path(repo))["facts"]
+
+
 def test_detect_modules_empty_sbt_root(make_repo):
     """Empty sbt projects with no source files are not included as modules."""
     repo = make_repo({

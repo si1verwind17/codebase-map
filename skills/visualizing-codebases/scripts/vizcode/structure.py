@@ -1723,9 +1723,11 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         root = Path(tmp)
         for name in gitsrc.export_tree(repo, commit, root):
             skipped.append({"file": name, "reason": "link points outside the repository; not extracted"})
-        if (root / "build.sbt").exists():
-            patterns.append(SBT_BUILD_DIR)
         tree = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file() and not p.is_symlink())
+        # the `project/` folder beside each build.sbt (a repo of samples has one per folder)
+        patterns += sorted({SBT_BUILD_DIR if d == "." else f"{d}/{SBT_BUILD_DIR}" for f in tree
+                            if f.endswith("/build.sbt") or f == "build.sbt"
+                            for d in [PurePosixPath(f).parent.as_posix()]})
         files = [f for f in tree if Path(f).suffix in LANGS]
         excluded_files = [f for f in files if excluded(f, patterns) or generated.bundle(f, root / f)]
         dropped = set(excluded_files)
