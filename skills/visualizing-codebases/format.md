@@ -650,6 +650,13 @@ file's routes whose path the scanner prefixed with it (`references/stack.md`). T
 route (method, path, handler) or table (table, line, in) give one fact,
 named after the pattern listed first (packs before `stack.yaml`).
 
+`structure.json` `gateways` (the key only when a config has one): `[{file, line, prefix, target, rewrite, kind}]`, a
+route a proxy or gateway config sends on: `kind` `nginx` (`location` with `proxy_pass` or `grpc_pass`),
+`spring-gateway` (`uri` with `Path=` predicates and `StripPrefix=`), `envoy` (`match` `prefix` with a `cluster`,
+the cluster's address when the file gives one) or `yarp` (`ReverseProxy` routes and clusters); `target` the host
+and port with any user name and password dropped; `rewrite` what replaces the prefix (`/` when it is stripped),
+null when the path goes on whole. `summary.md` lists them in § Gateway routes.
+
 A file a queue pattern matched carries a `queues` fact (the key is absent when nothing matched): `[{line, in,
 delivery, pattern, source}]`, `in` the innermost method around the match, else the file; `summary.md` lists them
 per module as `in-process queues`. Two patterns matching at one (line, in) give one fact.

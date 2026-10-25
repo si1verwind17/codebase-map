@@ -14,8 +14,8 @@ import time
 import tomllib
 from pathlib import Path, PurePosixPath
 
-from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, generated, gitsrc, ids, proto, queue_use, readme,
-               routes, sqlfiles, stack, typelinks, unscanned, wrappers)
+from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, gateways, generated, gitsrc, ids, proto, queue_use,
+               readme, routes, sqlfiles, stack, typelinks, unscanned, wrappers)
 from .adapters import generic
 from .adapters import python as py_adapter
 from .adapters import scala as scala_adapter
@@ -1817,6 +1817,9 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         not_scanned = unscanned.report(tree, set(results), lambda f: excluded(f, patterns + BUILD_EXCLUDES),
                                        lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
         pkg_deps = _package_deps(root, tree)
+        gateway_routes = gateways.read(tree, lambda f: excluded(f, patterns + BUILD_EXCLUDES)
+                                       or (root / f).stat().st_size > MAX_BYTES,
+                                       lambda f: (root / f).read_text(encoding="utf-8", errors="replace"))
         mapper_sql, sql_files = sqlfiles.read(root, tree, lambda f: excluded(f, patterns + BUILD_EXCLUDES)
                                               or (root / f).stat().st_size > MAX_BYTES)
 
@@ -1968,6 +1971,7 @@ def build(repo: Path, out_dir: str | None = None, extra_excludes: list[str] | No
         "generated": gen_files,
         "unscanned": not_scanned,
         "sql_files": sql_files,
+        **({"gateways": gateway_routes} if gateway_routes else {}),   # the key only when a config has one
         "stats": {"files": len(results), "modules": len(modules),
                   "classes": sum(1 for n in nodes if n["kind"] == "class"),
                   "methods": sum(1 for n in nodes if n["kind"] == "method"),
@@ -2198,6 +2202,13 @@ def summary_md(s: dict) -> str:
                   "whatever the code shows; "
                   "name them in the map where code reads or writes them:"]
         lines += [f"- {d['table']} ({d['file']}:{d['line']})" for d in defined] + [""]
+    if gw := s.get("gateways"):
+        lines += [f"## Gateway routes — {len(gw)}", "",
+                  "Path prefixes a proxy or gateway config sends on (SKILL.md § Deployables, not folders): each is a "
+                  "`request` from the gateway's service to the service the target names, citing the line; the "
+                  "rewrite replaces the prefix on the way (none: the path goes on whole):"]
+        lines += [f"- {g['prefix']} → {g['target']} ({g['file']}:{g['line']}, {g['kind']}"
+                  + (f", rewrite {g['rewrite']})" if g.get("rewrite") else ")") for g in gw] + [""]
     lines += _likely_requests(s)
     names = {n["id"]: n["name"] for n in s["nodes"]}
     job_defs: dict[str, list[str]] = {}   # a job's name -> the nodes that define it, anywhere in the repo

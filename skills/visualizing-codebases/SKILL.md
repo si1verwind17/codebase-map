@@ -318,6 +318,8 @@ Dockerfile).
 
 Hosts written as service-registry or gateway route names resolve through the
 registry or gateway config the repo has: a route the gateway's config declares
+(`summary.md` § Gateway routes lists the ones the scanner reads; a target
+written `${CART_HOST}` resolves through the env or compose file that sets it)
 is a `request` from the gateway service to the target service, citing the
 config line. A call to infrastructure with no route of its own (a config
 server, a service registry, a tracing collector) is an `ext-call` to that
@@ -376,7 +378,8 @@ caller is given and write it (the audit's `request.unmatched` names a paired cal
 SQL kept outside the code (a mapper XML's statements, as SQL facts of the interface
 method each names; the tables `.sql` files and ORM schemas and migrations create (Rails `create_table`, Laravel
 `Schema::create`, Knex/Sequelize, EF Core, Liquibase, Django `CreateModel`), in § Tables defined in SQL, schema and
-migration files), framework-implemented interfaces (a repository or a
+migration files), the routes proxy and gateway configs send on (nginx `location` + `proxy_pass`, Spring Cloud
+Gateway, Envoy, YARP: prefix, target, rewrite, in § Gateway routes), framework-implemented interfaces (a repository or a
 declarative HTTP client: every method bodyless, in a file importing a database or
 HTTP client library) with their bases, annotation and methods: each method is
 where a `db-read`/`db-write` (the table from the entity type the base names) or a
