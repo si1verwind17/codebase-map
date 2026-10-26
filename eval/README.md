@@ -36,7 +36,6 @@ One file each in [`scenarios/`](scenarios/): its fixture, prompt and checks.
 | [Scenario 5](scenarios/5-known-packs.md) | packs that know the stack (skill arm only) |
 | [Scenario 6](scenarios/6-airflow-etl.md) | an Airflow ETL repo (skill arm only) |
 | [Scenario 7](scenarios/7-in-process-queue.md) | an in-process queue between a route and a background worker (skill arm only) |
-| [Scenario 8](scenarios/8-send-feedback.md) | send feedback: the notice, no names in the issue, a yes to the exact text (skill arm only; one headless session per user turn) |
 
 ## Editing this skill
 

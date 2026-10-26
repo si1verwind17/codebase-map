@@ -27,8 +27,6 @@ Framework knowledge is data: built-in packs plus the `OUT/stack.yaml` you
 write for each repo (§ Stack).
 Field-by-field format, ids and a complete example: `format.md`. The files in
 `references/` hold detail a step needs only sometimes: read one when a step says so.
-Asked to send feedback on the skill (`send-feedback`, or in plain words):
-follow `feedback.md` instead of a run.
 
 ## Setup
 
@@ -185,10 +183,9 @@ very first command.
    When the run left something the skill could not handle — an audit
    error, a map limit, a content warning you could not clear, a Stack line
    left unresolved, a note "not supported yet", a script that failed — end
-   the report with one paragraph: the skill's maintainers would like to
-   hear about it to improve the skill; the user can send it with
-   `send-feedback`; nothing goes without their review and yes. Do not start
-   it yourself.
+   the report by telling the user they can report the issue or feedback at
+   https://github.com/si1verwind17/codebase-map/issues. Reporting it is up
+   to the user; you do not open an issue.
 
 Read `summary.md`, not `structure.json` (it can be megabytes). Look up ids with
 `$PY SKILL_DIR/scripts/find.py OUT/structure.json TEXT [--kind method]`.

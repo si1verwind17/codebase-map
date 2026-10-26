@@ -24,15 +24,13 @@ FILES: list[tuple[str, str, str, bool]] = [
     ("stale.json", "the agent's working facts and the incremental plan", "the agent, `diff.py`", False),
     ("export-comment.md", "review comments and pin changes exported from the viewer", "the viewer, by you", False),
     ("code-map.invalid.json", "a rejected map, kept for fixing", "`assemble.py`", False),
-    ("feedback.md", "a draft issue for the skill's maintainers, sent only after you agree", "the agent, with you",
-     False),
 ]
 
 # several files share one table row
 _ROWS = [["code-map.json"], ["stack.yaml"], ["map-notes.md"], ["README.md"], [".gitignore"], [".gitattributes"],
          ["index.html"],
          ["audit.md"], ["structure.json", "summary.md"], ["meaning.json", "meaning.previous.json", "stale.json"],
-         ["export-comment.md"], ["code-map.invalid.json"], ["feedback.md"]]
+         ["export-comment.md"], ["code-map.invalid.json"]]
 
 
 def header(file: str) -> str:

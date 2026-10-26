@@ -64,11 +64,8 @@ The map lands in `docs/viz-code/`, and nothing outside it is touched. Open `docs
 `code-map.json`, `stack.yaml`, `README.md`, `.gitignore` and `.gitattributes` from that folder; the rest are working
 files, already gitignored.
 
-**Found something it gets wrong?** Run the skill with `send-feedback`
-(`/codebase-map:visualizing-codebases send-feedback`), or ask your agent to send feedback on the code map. It drafts
-an issue for this repository with your code's names left out, shows you the exact text, and opens GitHub's form; you
-read it and submit it yourself. Or [open an issue](https://github.com/si1verwind17/codebase-map/issues/new/choose)
-directly.
+**Found something it gets wrong?** [Open an issue](https://github.com/si1verwind17/codebase-map/issues/new). When a
+run hits something the skill could not handle, the agent says so at the end of its report.
 
 **Languages:** Scala, Python, Java, Kotlin, TypeScript, JavaScript (Vue and Svelte script blocks too), Go, C#, Rust,
 Ruby and PHP. A generic reader

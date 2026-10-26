@@ -18,4 +18,3 @@ How to read the map: the field guide at https://si1verwind17.github.io/codebase-
 | `meaning.json`, `meaning.previous.json`, `stale.json` | the agent's working facts and the incremental plan | the agent, `diff.py` | no |
 | `export-comment.md` | review comments and pin changes exported from the viewer | the viewer, by you | no |
 | `code-map.invalid.json` | a rejected map, kept for fixing | `assemble.py` | no |
-| `feedback.md` | a draft issue for the skill's maintainers, sent only after you agree | the agent, with you | no |
