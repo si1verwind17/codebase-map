@@ -1,6 +1,6 @@
 """include_router across files: the scanner joins each including router's prefixes onto the included router's
 routes, so a FastAPI app's routes carry their full path (format.md § routes)."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def paths(s, f):
@@ -61,6 +61,6 @@ def test_a_fastapi_router_in_a_file_importing_flask_gives_one_route(make_repo):
 
 
 def test_a_bracket_in_a_string_argument_does_not_hide_the_prefix():
-    from vizcode import routes
+    from vizcode.scan import routes
     src = "router = APIRouter(tags=['a(b'], prefix='/v1')\nother = APIRouter(prefix='/v2')\n"
     assert routes.fastapi_prefixes(src) == {"router": "/v1", "other": "/v2"}

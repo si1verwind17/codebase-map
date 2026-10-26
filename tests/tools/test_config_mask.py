@@ -2,7 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from vizcode import secrets
+from vizcode.scan import secrets
 
 SCRIPT = Path(__file__).resolve().parents[2] / "skills/visualizing-codebases/scripts/config.py"
 
@@ -82,6 +82,6 @@ def test_a_password_holding_at_signs_is_hidden_whole():
 
 
 def test_a_url_found_in_code_drops_its_whole_userinfo():
-    from vizcode import facts
+    from vizcode.scan import facts
     assert facts.USERINFO.sub(r"\1***@", "amqp://guest:a@b@rabbit:5672/x") == "amqp://***@rabbit:5672/x"
     assert facts.USERINFO.sub(r"\1***@", "https://example.com/@user") == "https://example.com/@user"

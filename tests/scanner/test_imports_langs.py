@@ -1,8 +1,8 @@
 """Imports per language: separator-aware prefixes, internal names, group roots, standard libraries, uses-code."""
 import pytest
 
-from vizcode import stack, structure
-from vizcode.assemble import assemble
+from vizcode.scan import stack, structure
+from vizcode.map.assemble import assemble
 
 
 def unrec(s) -> set[tuple[str, str]]:

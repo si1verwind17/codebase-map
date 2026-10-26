@@ -2,7 +2,7 @@
 table patterns, and the Spring Boot and Ktor fixtures mapped with packs only (no stack.yaml)."""
 import pytest
 
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 from helpers import routes, sinks, tables, write
 

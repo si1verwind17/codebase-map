@@ -20,9 +20,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from guide_maps import SCANNED_AT, Code, ev, rel, service  # noqa: E402
-from vizcode import mapcheck  # noqa: E402
-from vizcode.assemble import assemble  # noqa: E402
-from vizcode.roles import GROUP_THRESHOLD, RANGE_MIN  # noqa: E402
+from vizcode.map import mapcheck  # noqa: E402
+from vizcode.map.assemble import assemble  # noqa: E402
+from vizcode.map.roles import GROUP_THRESHOLD, RANGE_MIN  # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / ".profile" / "big.code-map.json"
 PACKAGES = 300       # in `api`, at scale 1

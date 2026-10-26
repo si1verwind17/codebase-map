@@ -1,6 +1,7 @@
-from vizcode import ids, structure
-from vizcode.adapters import generic
-from vizcode.adapters.langs import BY_SUFFIX, SPECS
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters.langs import BY_SUFFIX, SPECS
 
 GO = SPECS["go"]
 MOD = {"id": "mod:svc", "path": "svc", "lang": "go", "build": "dir"}

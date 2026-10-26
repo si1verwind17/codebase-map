@@ -2,8 +2,8 @@
 import copy
 import re
 
-from vizcode import structure
-from vizcode.fingerprint import entry_fingerprint, type_fingerprint
+from vizcode.scan import structure
+from vizcode.map.fingerprint import entry_fingerprint, type_fingerprint
 
 QUOTE = {"id": "svc::a.Quote", "kind": "class", "name": "Quote",
          "fields": [{"name": "bay", "type": "BayId"}, {"name": "total", "type": "Long"}]}

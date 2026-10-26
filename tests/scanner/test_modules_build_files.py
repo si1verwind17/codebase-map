@@ -4,9 +4,10 @@ from pathlib import Path
 
 from conftest import write_files
 
-from vizcode import calls, structure
-from vizcode.modules import BUILD_FILES, ECOSYSTEMS, detect_modules
-from vizcode.roles import family
+from vizcode.map import calls
+from vizcode.scan import structure
+from vizcode.scan.modules import BUILD_FILES, ECOSYSTEMS, detect_modules
+from vizcode.map.roles import family
 
 
 def mods(tmp_path: Path, files: dict[str, str]) -> tuple[dict[str, tuple[str, str, str]], dict[str, str]]:

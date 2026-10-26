@@ -1,6 +1,6 @@
 """A mount handed to a function in another package (`users.Register(v1.Group("/users"))`): the routes that function
 registers on its router parameter get the mount's full prefix."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def test_gin_groups_passed_to_register_functions(make_repo):

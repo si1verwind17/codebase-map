@@ -20,8 +20,9 @@ sys.path[:0] = [str(SCRIPTS), str(HERE.parents[2] / "tests")]
 from conftest import GIT_ENV, SHOP  # noqa: E402
 from meaning_fixture import MEANING  # noqa: E402
 
-from vizcode import mapcheck, structure  # noqa: E402
-from vizcode.assemble import assemble  # noqa: E402
+from vizcode.map import mapcheck  # noqa: E402
+from vizcode.scan import structure  # noqa: E402
+from vizcode.map.assemble import assemble  # noqa: E402
 
 EXTRA_NODES = [{"id": "3p:feed", "kind": "external", "name": "price feed"},
                {"id": "topic:kafka:orders", "kind": "topic", "name": "orders", "delivery": "fan-out",

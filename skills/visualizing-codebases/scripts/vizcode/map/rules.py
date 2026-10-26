@@ -8,9 +8,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import RULES_VERSION
+from .. import RULES_VERSION
 
-CHANGES = Path(__file__).resolve().parent.parent.parent / "CHANGES.md"
+CHANGES = Path(__file__).resolve().parent.parent.parent.parent / "CHANGES.md"
 HEADING = re.compile(r"^## Rules (\d+) — \d{4}-\d{2}-\d{2}$")
 
 

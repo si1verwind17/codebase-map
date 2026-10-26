@@ -1,5 +1,6 @@
 """What the scan leaves out: source in languages without a reader, and deployables made mostly of it."""
-from vizcode import mapcheck, structure
+from vizcode.map import mapcheck
+from vizcode.scan import structure
 
 COMPOSE = ("services:\n  shop:\n    build: ./shop\n  ui:\n    build:\n      context: ./ui\n"
            "  db:\n    image: postgres:16\n")
@@ -124,7 +125,7 @@ def test_tooling_images_apart_and_a_large_unread_share_counts(make_repo):
 def test_env_keys_of_release_and_ci_scripts_have_a_line_of_their_own(make_repo):
     """A key only release, CI or test files read is no runtime setting: it is listed apart, and ext.missing,
     which reads the `env keys` line, never asks for it."""
-    from vizcode import mapcheck
+    from vizcode.map import mapcheck
     files = {"package.json": '{"name": "app"}\n',
              "src/api.ts": "export const base = process.env.BILLING_URL\n",
              "release/src/slack.ts": "export const hook = process.env.SLACK_WEBHOOK_URL\n",

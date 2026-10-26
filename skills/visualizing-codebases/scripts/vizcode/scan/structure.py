@@ -14,8 +14,9 @@ import time
 import tomllib
 from pathlib import Path, PurePosixPath
 
-from . import (SCANNER_VERSION, SCHEMA_VERSION, constructors, facts, gateways, generated, gitsrc, ids, proto, queue_use,
-               readme, routes, sqlfiles, stack, typelinks, unscanned, wrappers)
+from .. import SCANNER_VERSION, SCHEMA_VERSION, gitsrc, ids, readme
+from . import (constructors, facts, gateways, generated, proto, queue_use, routes, sqlfiles, stack, typelinks,
+               unscanned, wrappers)
 from .adapters import generic
 from .adapters import python as py_adapter
 from .adapters import scala as scala_adapter

@@ -8,11 +8,12 @@ from pathlib import Path
 
 import yaml
 
-from . import SCANNER_VERSION, SCHEMA_VERSION, examples, gitsrc, rules
-from .adapters import SOURCE_SUFFIXES  # noqa: F401  (diff.py reads it from here)
+from .. import SCANNER_VERSION, SCHEMA_VERSION, gitsrc
+from . import examples, rules
+from ..scan.adapters import SOURCE_SUFFIXES  # noqa: F401  (diff.py reads it from here)
 from .assemble import SEMANTIC_KINDS, languages
-from .modules import BUILD_FILES
-from .unscanned import compose_services
+from ..scan.modules import BUILD_FILES
+from ..scan.unscanned import compose_services
 
 # build files of packs/modules.yaml too: a `*` stays within the file name
 DEPLOYABLE_FILES = re.compile(

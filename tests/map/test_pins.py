@@ -1,7 +1,7 @@
 """Pins (format.md § Pins): the slug rule and the shape checks assemble.py makes before assembling."""
 import pytest
 
-from vizcode import pins
+from vizcode.map import pins
 
 
 def pin(**over):

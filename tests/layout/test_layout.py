@@ -6,9 +6,10 @@ import extract
 from conftest import commit_all, write_files
 from meaning_fixture import MEANING
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
-from vizcode.layout import layered, site
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
+from vizcode.layout.layout import layered, site
 
 
 def built(repo, meaning=MEANING, previous=None):
@@ -139,7 +140,7 @@ def test_assemble_cli_keeps_positions_and_relayout_resets(shop_repo):
 
 
 def test_a_tall_layer_wraps_into_extra_columns():
-    from vizcode.layout import MAX_ROWS, wrap_columns
+    from vizcode.layout.layout import MAX_ROWS, wrap_columns
     lay = {f"m{i:02d}": (0, i) for i in range(20)} | {"tail": (1, 0)}
     cells = wrap_columns(lay)
     assert max(r for _, r in cells.values()) < MAX_ROWS

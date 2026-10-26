@@ -5,7 +5,7 @@ import re
 import pytest
 
 import guide_maps
-from vizcode import mapcheck
+from vizcode.map import mapcheck
 
 NAMES = list(guide_maps.EXAMPLES)
 

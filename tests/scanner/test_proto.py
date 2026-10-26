@@ -1,6 +1,6 @@
 import pytest
 
-from vizcode import proto, structure
+from vizcode.scan import proto, structure
 
 OCCUPANCY_PROTO = '''syntax = "proto3";
 

@@ -1,6 +1,6 @@
 """Final-review fixes of the language packs: stacked attribute groups, client interfaces, Axum chained method
 routers, EF Core migrations, inline handlers, framework wiring, the default path reader, small table fixes."""
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 from helpers import routes
 

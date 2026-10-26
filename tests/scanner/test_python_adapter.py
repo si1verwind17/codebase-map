@@ -1,7 +1,7 @@
 from conftest import SHOP
 
 from vizcode import ids
-from vizcode.adapters import python as py
+from vizcode.scan.adapters import python as py
 
 WORKER = {"id": "mod:worker", "path": "worker", "lang": "python", "build": "python-package"}
 SCRIPTS = {"id": "mod:scripts", "path": "scripts", "lang": "python", "build": "python-scripts"}
@@ -203,7 +203,7 @@ def test_flyte_launch_plans_and_reference_tasks():
 
 
 def test_dag_and_flyte_facts_in_summary(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     repo = make_repo({"jobs/dags/bq_bay_events_export.py": BQ_BAY_EVENTS,
                       "forecast/workflows.py": FORECAST_WF})
     md = structure.summary_md(structure.build(repo))

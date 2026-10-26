@@ -1,5 +1,5 @@
 """Flask routes from the built-in pack: `route` with `methods`, the Flask 2 verb decorators and `add_url_rule`."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def test_flask_decorators_and_url_rules(make_repo):

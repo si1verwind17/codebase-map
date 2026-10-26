@@ -8,7 +8,7 @@ import extract
 from conftest import commit_all, write_files
 from meaning_fixture import MEANING
 from helpers import OUT, scan
-from vizcode import mapcheck, rules
+from vizcode.map import mapcheck, rules
 from vizcode import RULES_VERSION
 
 TEXT = """# Meaning-rules changes

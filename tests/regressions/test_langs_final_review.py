@@ -6,8 +6,8 @@ from pathlib import Path
 
 from conftest import with_stack
 
-from vizcode import stack, structure
-from vizcode.assemble import assemble
+from vizcode.scan import stack, structure
+from vizcode.map.assemble import assemble
 
 
 def unrec(s) -> set[tuple[str, str]]:
@@ -101,7 +101,7 @@ def test_every_listed_prefix_clears_its_line_when_ignored(make_repo):
 # --- 4. Windows: BOM build files, posix paths -------------------------------------------------------------
 
 def test_bom_package_json_and_go_mod(tmp_path):
-    from vizcode.modules import detect_modules, names_from_build_files
+    from vizcode.scan.modules import detect_modules, names_from_build_files
     bom = b"\xef\xbb\xbf"
     (tmp_path / "packages/a").mkdir(parents=True)
     (tmp_path / "package.json").write_bytes(bom + json.dumps({"workspaces": ["packages/*"]}).encode())

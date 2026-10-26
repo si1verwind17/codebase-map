@@ -6,8 +6,8 @@ from pathlib import Path
 
 from examples_fixture import (AUDIT, BARE, CONSUME, CREATE, LINE, LOG, ORDER, PRICE, READ, RECEIPT, ROW, TABLE, TAX,
                               cmap, method, rel)
-from vizcode import examples
-from vizcode.fingerprint import entry_fingerprint, type_fingerprint
+from vizcode.map import examples
+from vizcode.map.fingerprint import entry_fingerprint, type_fingerprint
 
 
 def nodes(m):
@@ -238,7 +238,7 @@ def test_downstream_of_a_container_walks_from_its_seeds():
 def test_a_type_example_may_fill_the_fields_its_class_inherits():
     """`class UserCreate(UserBase)`: email comes from the base, so the value may carry it; a key no class in the
     lineage declares is still refused."""
-    from vizcode import examples as ex
+    from vizcode.map import examples as ex
     nodes = [{"id": "a::m.UserBase", "kind": "class", "name": "UserBase", "fields": [{"name": "email", "type": "str"}]},
              {"id": "a::m.UserCreate", "kind": "class", "name": "UserCreate", "implements": ["a::m.UserBase"],
               "fields": [{"name": "password", "type": "str"}]}]

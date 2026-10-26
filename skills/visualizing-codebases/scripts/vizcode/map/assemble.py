@@ -6,10 +6,11 @@ import re
 import datetime as dt
 from pathlib import Path
 
-from . import RULES_VERSION, calls, examples, ids, pins, readme
-from .stack import LANGS
-from .direction import apply_defaults
-from .layout import layout
+from .. import RULES_VERSION, ids, readme
+from . import calls, examples, pins
+from ..scan.stack import LANGS
+from ..layout.direction import apply_defaults
+from ..layout.layout import layout
 from .roles import ROLES, package_roles
 
 SEMANTIC_KINDS = {"service", "library", "datastore", "table", "external", "topic", "in-process-queue"}

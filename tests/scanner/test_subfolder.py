@@ -8,7 +8,8 @@ import pytest
 from conftest import SHOP, commit_all, git, write_files
 from meaning_fixture import MEANING
 
-from vizcode import gitsrc, mapcheck
+from vizcode import gitsrc
+from vizcode.map import mapcheck
 
 PREFIX = "projects/shop"
 OUT = ("docs", "viz-code")

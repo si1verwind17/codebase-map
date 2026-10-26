@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from vizcode import findings
+from vizcode.map import findings
 
 DEMO = Path(__file__).resolve().parents[2] / "demo/parking-city/docs/viz-code/code-map.json"
 

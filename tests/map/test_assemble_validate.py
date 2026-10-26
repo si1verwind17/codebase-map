@@ -7,8 +7,9 @@ import extract
 import validate as validate_cli
 from meaning_fixture import MEANING, POST
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble, meaning_errors
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble, meaning_errors
 
 
 def built(shop_repo, meaning=MEANING):
@@ -93,7 +94,7 @@ def test_git_applies_the_output_folders_gitattributes(shop_repo):
 
 
 def test_audit_md_is_gitignored():
-    from vizcode.assemble import GITIGNORE
+    from vizcode.map.assemble import GITIGNORE
     assert "audit.md" in GITIGNORE
 
 

@@ -1,4 +1,4 @@
-// audit-inputs: c0a1060c81e7d31d72be3e0e6c829a413fbf93ea7fa242b2dd4a96b317cdc39d
+// audit-inputs: 3d41dd47524183e964c1681e0a88326aba90618cd81a39b88e89dd0d126f0bbb
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";

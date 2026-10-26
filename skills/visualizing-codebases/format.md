@@ -141,7 +141,7 @@ a Java enum have none, whatever constructors they declare. A Kotlin secondary co
 A class with none of these has no `ctor` key.
 
 Fingerprints of data types and entry points are computed from `fields` and signatures by
-`scripts/vizcode/fingerprint.py` (a class's fields; a handler's signature plus the fields of the classes in its
+`scripts/vizcode/map/fingerprint.py` (a class's fields; a handler's signature plus the fields of the classes in its
 `refs` and `returns_refs`, one level); they are never stored on nodes.
 
 ### Ids
@@ -245,7 +245,7 @@ Examples).
 - `fingerprint`: stamped by `assemble.py`, overwriting any written: for a
   type, a digest of the class's fields in order (name and type text); for an
   entry, of the handler's signature text plus the type fingerprint of each
-  class in its `refs` and `returns_refs` (`scripts/vizcode/fingerprint.py`).
+  class in its `refs` and `returns_refs` (`scripts/vizcode/map/fingerprint.py`).
 - `stale`: set by `diff.py` when the stored fingerprint differs from the one
   recomputed against the new structure, or the class or handler is gone;
   `assemble.py` refuses the map while any remains.
@@ -579,7 +579,7 @@ it as `<path>#<lang>`. `build` is where the module came from:
 | `dir` | none found: the file's top folder |
 
 A file belongs to the nearest folder above it with a build file of its
-language's ecosystem (`scripts/vizcode/packs/modules.yaml`). The next
+language's ecosystem (`scripts/vizcode/scan/packs/modules.yaml`). The next
 `diff.py` run is `full` when a build file is added, removed or renamed, when
 the set of modules changes ("modules changed"), and when a language the map's
 `meta.languages` lacks is scanned ("new languages scanned"); an edit inside a
@@ -588,7 +588,7 @@ build file that leaves the modules as they were (a dependency bump) is not.
 ## Stack
 
 `OUT/stack.yaml` adds libraries, route styles and table patterns to the
-built-in packs (`scripts/vizcode/packs/<lang>.yaml`, same format): per
+built-in packs (`scripts/vizcode/scan/packs/<lang>.yaml`, same format): per
 language (`python`, `scala`, `java`, `kotlin`, `csharp`, `typescript`,
 `javascript`, `go`, `rust`, `ruby`, `php`) the groups `imports`
 (`{prefix, kind}`), `routes`, `effects` (Scala type names; Scala only),

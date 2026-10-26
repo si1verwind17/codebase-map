@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from vizcode import mapcheck  # noqa: E402
+from vizcode.map import mapcheck  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -7,7 +7,7 @@ import statistics
 import pytest
 
 import big_map
-from vizcode import mapcheck
+from vizcode.map import mapcheck
 
 
 def test_small_map_passes_mapcheck():

@@ -6,7 +6,8 @@ from pathlib import PurePosixPath
 
 from tree_sitter_language_pack import get_parser
 
-from .. import ids, routes
+from ... import ids
+from .. import routes
 from . import (arg_count, callee_text, declared_type_params, decode, enclosing_id, fields, make_node, new_result,
                text, walk)
 

@@ -6,10 +6,11 @@ import pytest
 
 from test_layout import MAIN_BUS, synthetic
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
-from vizcode.layout import site
-from vizcode.roles import GROUP_THRESHOLD, group_children
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
+from vizcode.layout.layout import site
+from vizcode.map.roles import GROUP_THRESHOLD, group_children
 
 
 def test_service_with_thirty_packages_assembles(make_repo):
@@ -157,7 +158,7 @@ def test_an_external_with_no_lines_is_not_a_source():
 
 
 def test_layered_handles_a_long_chain():
-    from vizcode.layout import layered
+    from vizcode.layout.layout import layered
     chain = [f"n{i:05d}" for i in range(3000)]
     lay = layered(chain, list(zip(chain, chain[1:])))
     assert lay[chain[-1]][0] == 2999

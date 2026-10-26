@@ -7,7 +7,7 @@ import pytest
 
 import audit
 from vizcode import readme
-from vizcode.notes import parse_notes
+from vizcode.map.notes import parse_notes
 
 DEMO = Path(__file__).resolve().parents[2] / "demo/parking-city/docs/viz-code"
 SKIP = "drawing checks skipped: "
@@ -384,7 +384,7 @@ def test_a_crashed_drawing_check_is_an_audit_error_not_a_map_limit():
 
 
 def test_an_acceptance_for_a_crashing_check_is_not_stale():
-    from vizcode import notes
+    from vizcode.map import notes
     rep = {"checked": ["S3"], "skipped": [], "results": [
         {"check": "lines.trunks", "floor": "S3", "code": "S3·P1", "row": "9", "ok": False,
          "detail": "the check crashed: boom"}]}

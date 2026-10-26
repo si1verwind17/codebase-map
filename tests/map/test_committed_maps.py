@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from vizcode import mapcheck
+from vizcode.map import mapcheck
 
 SKILL = Path(__file__).resolve().parents[2]
 MAPS = [SKILL / "viewer/test/fixtures/shop.code-map.json",

@@ -1,6 +1,7 @@
-from vizcode import ids, structure
-from vizcode.adapters import generic
-from vizcode.adapters.langs import BY_SUFFIX, SPECS
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters.langs import BY_SUFFIX, SPECS
 
 JS = SPECS["javascript"]
 MOD = {"id": "mod:api", "path": "api", "lang": "javascript", "build": "dir"}

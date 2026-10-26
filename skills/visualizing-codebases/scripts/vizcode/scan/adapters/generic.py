@@ -8,7 +8,7 @@ from typing import Callable
 
 from tree_sitter_language_pack import get_parser
 
-from .. import ids
+from ... import ids
 from . import callee_text, count_args, declared_type_params, decode, fields, make_node, new_result, text, walk
 from .langs import LangSpec
 

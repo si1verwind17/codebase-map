@@ -10,8 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 REPO = Path(os.environ.get("VIZCODE_REAL_REPO", "/nonexistent"))
 EXPECT = Path(os.environ.get("VIZCODE_REAL_REPO_EXPECT", Path.home() / ".config/viz-code/real-repo-expect.json"))

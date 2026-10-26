@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from vizcode import secrets  # noqa: E402
+from vizcode.scan import secrets  # noqa: E402
 
 ENV_FILES = (".env", ".env.*", "*.env")
 TEMPLATES = ("*.example", "*.sample", "*.template", "*.example.*", "*.sample.*", "*.template.*")

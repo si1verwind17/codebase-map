@@ -10,9 +10,10 @@ import extract
 from conftest import SHOP, commit_all, write_files
 from meaning_fixture import MEANING
 
-from vizcode import ids, structure
-from vizcode.adapters import python as py
-from vizcode.adapters import scala
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import python as py
+from vizcode.scan.adapters import scala
 
 
 def test_symlink_outside_repo_is_skipped_not_fatal(make_repo):
@@ -63,7 +64,7 @@ def test_tapir_val_endpoints_and_path_capture_nodes():
     reg = ids.IdRegistry()
     rb = scala.parse(base.encode(), "svc/src/main/scala/io/demo/api/BaseEndpoint.scala", mod, reg)
     ra = scala.parse(api.encode(), "svc/src/main/scala/io/demo/api/GetInvoiceApi.scala", mod, reg)
-    from vizcode import routes
+    from vizcode.scan import routes
     resolved = routes.resolve_tapir({**rb["tapir"]["vals"], **ra["tapir"]["vals"]})
     assert resolved["BaseEndpoint.V1.Invoices.invoiceById"] == ["v1", "invoices", "{id}"]
     found = [(m, p, h) for h, _, body in ra["tapir"]["bodies"] for m, p in routes.tapir_uses(body, resolved)]

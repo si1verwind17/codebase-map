@@ -1,9 +1,9 @@
 """Declared fields of data types on class nodes (spec: traces §1.1), one case per language."""
 from vizcode import ids
-from vizcode.adapters import generic
-from vizcode.adapters import python as py
-from vizcode.adapters import scala
-from vizcode.adapters.langs import SPECS, TSX
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters import python as py
+from vizcode.scan.adapters import scala
+from vizcode.scan.adapters.langs import SPECS, TSX
 
 
 def fields_by_name(res) -> dict:

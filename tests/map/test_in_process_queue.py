@@ -4,8 +4,9 @@ import copy
 import pytest
 from meaning_fixture import MEANING
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 EV = [{"file": "worker/main.py", "line": 1}]
 Q = "inq:worker:jobs"

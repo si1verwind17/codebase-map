@@ -1,6 +1,7 @@
-from vizcode import ids, structure
-from vizcode.adapters import generic
-from vizcode.adapters.langs import BY_SUFFIX, SPECS
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters.langs import BY_SUFFIX, SPECS
 
 RUST = SPECS["rust"]
 MOD = {"id": "mod:core", "path": "core", "lang": "rust", "build": "dir"}

@@ -4,7 +4,7 @@ import pytest
 from conftest import commit_all, git, write_files
 
 from vizcode import gitsrc
-from vizcode.modules import detect_modules
+from vizcode.scan.modules import detect_modules
 
 
 def test_export_tree_has_committed_content_only(shop_repo, tmp_path):
@@ -71,7 +71,7 @@ def test_nested_sbt_builds_give_their_projects_and_loose_scala_keeps_its_folder(
                         "cluster-sample/src/main/scala/A.scala": "mod:cluster-sample",
                         "loose/src/B.scala": "mod:loose"}
     assert unassigned == []
-    from vizcode import structure
+    from vizcode.scan import structure
     (Path(repo) / "cluster-sample/project").mkdir()
     (Path(repo) / "cluster-sample/project/Deps.scala").write_text("object Deps")
     from conftest import commit_all

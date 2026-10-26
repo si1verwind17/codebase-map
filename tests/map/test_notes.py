@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from vizcode.notes import KNOWN_CHECKS, Acceptance, parse_notes
+from vizcode.map.notes import KNOWN_CHECKS, Acceptance, parse_notes
 
 
 def one(text):

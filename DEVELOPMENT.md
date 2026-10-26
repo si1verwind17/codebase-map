@@ -5,6 +5,7 @@
 | Path | What it is |
 |---|---|
 | `skills/visualizing-codebases/` | The skill as installed: `SKILL.md`, `format.md`, `references/` (detail a step of `SKILL.md` opens only when it applies), the scanner (`scripts/`) and the built viewer (`viewer/dist/`) |
+| `skills/visualizing-codebases/scripts/` | One file per command `SKILL.md` runs (`extract.py`, `diff.py`, `assemble.py`, …); their logic lives in the `vizcode` package beside them: `scan/` reads a repository into `structure.json` (language `adapters/` and `packs/` included), `map/` assembles and checks `code-map.json`, `layout/` places the buildings and belts, and the top level holds the versions and helpers every stage uses (`ids`, `gitsrc`, `readme`). A new module goes in the stage it serves |
 | `viewer/` | The viewer's source (Svelte, PixiJS), its tests, and the field guide's source |
 | `tests/` | The scanner's tests, grouped by area |
 | `demo/parking-city/` | A fictional city parking network and its map, page included: a showcase for people. Agents never read it |

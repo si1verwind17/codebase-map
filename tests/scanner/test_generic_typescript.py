@@ -1,6 +1,7 @@
-from vizcode import ids, structure
-from vizcode.adapters import generic
-from vizcode.adapters.langs import BY_SUFFIX, SPECS
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters.langs import BY_SUFFIX, SPECS
 
 TS = SPECS["typescript"]
 MOD = {"id": "mod:web", "path": "web", "lang": "typescript", "build": "dir"}
@@ -188,7 +189,7 @@ def test_a_function_valued_property_of_an_object_is_a_method():
 
 
 def test_vue_and_svelte_script_blocks_are_scanned_with_their_lines(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     vue = ("<template>\n  <button @click=\"save\">{{ label }}</button>\n</template>\n\n<script setup lang=\"ts\">\n"
            "import { http } from '@/services/http'\n\nfunction save() {\n  return http.post('songs', {})\n}\n"
            "</script>\n\n<style scoped>\n.x { color: red }\n</style>\n")

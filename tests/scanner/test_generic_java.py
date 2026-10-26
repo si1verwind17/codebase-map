@@ -1,9 +1,10 @@
 import dataclasses
 import re
 
-from vizcode import ids, stack, structure
-from vizcode.adapters import generic
-from vizcode.adapters.langs import BY_SUFFIX, SPECS
+from vizcode import ids
+from vizcode.scan import stack, structure
+from vizcode.scan.adapters import generic
+from vizcode.scan.adapters.langs import BY_SUFFIX, SPECS
 
 JAVA = SPECS["java"]
 MOD = {"id": "mod:svc", "path": "svc", "lang": "java", "build": "dir"}

@@ -1,8 +1,9 @@
 """The map schema takes `fields`, `refs` and `returns_refs` (spec: traces §1.1, §1.2) and refuses bad shapes."""
 import copy
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 FILES = {"build.sbt": 'lazy val app = (project in file("."))\n',
          "src/main/scala/a/Api.scala": "package a\n\nfinal case class Quote(bay: String, total: Long)\n\n"

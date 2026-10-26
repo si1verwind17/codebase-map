@@ -11,7 +11,7 @@ import jsonschema
 from . import examples, pins
 from .assemble import default_store
 
-SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schema" / "code-map.schema.json").read_text(encoding="utf-8"))
+SCHEMA = json.loads((Path(__file__).resolve().parent.parent.parent / "schema" / "code-map.schema.json").read_text(encoding="utf-8"))
 RUNTIME_KINDS = {"request", "event", "stream", "batch", "db-read", "db-write", "ext-call"}
 STALE_HINT = "stale — re-resolve it: keep it (delete the flag), change it, or drop it"
 PARENT_KINDS = {

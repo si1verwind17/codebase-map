@@ -2,9 +2,10 @@ import copy
 
 from meaning_fixture import MEANING, POST, WRITE
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
-from vizcode.direction import apply_defaults, oriented
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
+from vizcode.layout.direction import apply_defaults, oriented
 
 
 def test_data_defaults_and_orientation():

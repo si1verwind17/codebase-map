@@ -3,7 +3,7 @@ import json
 import extract
 from conftest import commit_all, write_files
 
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def test_build_structure(shop_repo):
@@ -72,7 +72,7 @@ def test_exclude_flags_are_kept_in_stack_yaml_for_the_next_run(shop_repo):
 
 
 def test_exclude_list_is_rewritten_in_place_of_the_old_one(tmp_path):
-    from vizcode import stack
+    from vizcode.scan import stack
     p = tmp_path / "stack.yaml"
     p.write_text("python:\n  ignore: [attrs]\nexclude:\n- gen/*\n# routes below\ngo:\n  ignore: [x]\n")
     assert stack.add_excludes(p, ["gen/*", "it's/*"]) == ["it's/*"]

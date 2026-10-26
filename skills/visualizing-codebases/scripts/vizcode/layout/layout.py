@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .direction import oriented
 from .lanes import pick_lanes
-from .roles import HUB_FAN_IN, group_children
+from ..map.roles import HUB_FAN_IN, group_children
 
 RUNTIME = {"request", "event", "stream", "batch", "ext-call", "db-read", "db-write"}
 CITY_GRID_ABOVE = 20

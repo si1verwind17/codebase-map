@@ -2,8 +2,8 @@
 can order a method's callees. One case per language: `run` calls `second` on line 3 and `first` on line 4."""
 import pytest
 
-from vizcode import structure
-from vizcode.assemble import assemble
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 CASES = {
     "scala": ("build.sbt", 'lazy val app = (project in file("."))\n', "src/main/scala/a/O.scala",

@@ -1,4 +1,4 @@
-from vizcode import facts, routes, stack
+from vizcode.scan import facts, routes, stack
 
 
 def test_sql_reads_and_writes():
@@ -117,7 +117,7 @@ def test_url_literals_drop_credentials_and_query_strings():
 
 def test_structure_keeps_no_url_secret_anywhere(make_repo):
     import json
-    from vizcode import structure
+    from vizcode.scan import structure
     repo = make_repo({"app/__init__.py": "", "app/hook.py": 'URL = "https://bot:s3cr3t@hooks.example.com/api/v1/send?token=abc"\n'})
     s = structure.build(repo, "docs/viz-code")
     text = json.dumps(s)
@@ -197,7 +197,7 @@ def test_tapir_method_after_inputs_and_method_less_endpoint():
 
 
 def test_sql_written_out_as_text_is_no_database_access(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     repo = make_repo({
         "tools/requirements.txt": "",
         "tools/gen_seed.py": 'import json\n\nfor row in json.load(open("rows.json")):\n'
@@ -214,7 +214,7 @@ def test_sql_written_out_as_text_is_no_database_access(make_repo):
 
 
 def test_interpolated_table_names_stay_out_of_the_facts(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     repo = make_repo({
         "jobs/requirements.txt": "",
         "jobs/py_job.py": 'def load(read, table):\n'

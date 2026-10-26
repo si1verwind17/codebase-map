@@ -28,8 +28,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import audit  # noqa: E402
 import view  # noqa: E402
-from vizcode import gitsrc, rules  # noqa: E402
-from vizcode.incremental import SOURCE_SUFFIXES, plan  # noqa: E402
+from vizcode import gitsrc  # noqa: E402
+from vizcode.map import rules  # noqa: E402
+from vizcode.map.incremental import SOURCE_SUFFIXES, plan  # noqa: E402
 
 PREVIOUS = "meaning.previous.json"
 

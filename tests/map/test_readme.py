@@ -4,7 +4,7 @@ import subprocess
 import assemble as assemble_cli
 import extract
 from meaning_fixture import MEANING
-from vizcode import assemble as vassemble
+from vizcode.map import assemble as vassemble
 from vizcode import readme
 
 

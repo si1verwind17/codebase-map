@@ -6,8 +6,9 @@ import pytest
 from conftest import commit_all, with_stack
 from meaning_fixture import MEANING
 
-from vizcode import mapcheck, stack, structure
-from vizcode.assemble import assemble
+from vizcode.map import mapcheck
+from vizcode.scan import stack, structure
+from vizcode.map.assemble import assemble
 
 from helpers import write
 

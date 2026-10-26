@@ -24,7 +24,7 @@ export const defaultTitle = (name: string, direction?: PinDirection, existing: r
   return direction && existing.some((p) => pinTitle(p.title) === t) ? `${t} · ${direction}` : t;
 };
 
-/** Plan 2's pin id rule (scripts/vizcode/pins.py `slug`): runs of lower-case letters and digits joined by `-`; `pin` when none. */
+/** Plan 2's pin id rule (scripts/vizcode/map/pins.py `slug`): runs of lower-case letters and digits joined by `-`; `pin` when none. */
 export const slug = (t: string): string => (t.toLowerCase().match(/[a-z0-9]+/g) ?? []).join("-") || "pin";
 
 const isDirection = (d: unknown): d is PinDirection => typeof d === "string" && (DIRECTIONS as readonly string[]).includes(d);

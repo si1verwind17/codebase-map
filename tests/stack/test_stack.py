@@ -5,7 +5,7 @@ import json
 import pytest
 import yaml
 
-from vizcode import stack
+from vizcode.scan import stack
 
 OLD_SINKS = [
     ("python", "psycopg", "sql-db"),
@@ -288,7 +288,8 @@ from pathlib import Path
 from helpers import write
 from conftest import QUART_STACK, HTTP4S_STACK, with_stack
 
-from vizcode import roles, structure
+from vizcode.map import roles
+from vizcode.scan import structure
 
 EXTRACT = Path(__file__).resolve().parents[2] / "skills" / "visualizing-codebases" / "scripts" / "extract.py"
 
@@ -449,7 +450,7 @@ def test_extract_prints_stack_count(quart_repo):
 
 
 def test_summary_stack_section_position(shop_repo):
-    from vizcode import mapcheck
+    from vizcode.map import mapcheck
     s = structure.build(shop_repo, "docs/viz-code")
     md = structure.summary_md(s)
     assert md.index("Stats:") < md.index("## Stack") < md.index("## mod:")

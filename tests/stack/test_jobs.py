@@ -1,6 +1,6 @@
 """Job systems from the packs' `jobs` group: where a job is defined, enqueued and scheduled, each enqueue paired in
 summary.md with the definitions of its job (references/interactions.md § Queues in a store or a job system)."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def jobs(s, f):
@@ -163,7 +163,7 @@ def test_a_constant_cased_local_stays_local_and_a_one_line_body_keeps_its_bindin
 
 
 def test_a_class_head_or_a_control_statement_is_no_function_head():
-    from vizcode.stack import FUNCTION_HEAD
+    from vizcode.scan.stack import FUNCTION_HEAD
     for head in ("open class P(val t: String) {", "data class P(val t: String) {", "abstract class P(x: Int) {",
                  "public record P(String t) {", "public class Orders(IBus bus) {", "if ready(x):", "while (go(x)) {",
                  "for (x in xs) {"):
@@ -173,7 +173,7 @@ def test_a_class_head_or_a_control_statement_is_no_function_head():
 
 
 def test_a_method_named_like_a_keyword_and_a_block_inside_a_function():
-    from vizcode.stack import FUNCTION_HEAD, file_literals
+    from vizcode.scan.stack import FUNCTION_HEAD, file_literals
     for head in ("public void record(Event e) {", "record(event) {", "object(x) {", "match(path) {", "catch(onRejected) {"):
         assert FUNCTION_HEAD.match(head), head
     # a block inside a method or a function holds the method's locals, not the file's
@@ -184,7 +184,7 @@ def test_a_method_named_like_a_keyword_and_a_block_inside_a_function():
 
 
 def test_a_class_extending_a_call_and_a_loop_over_a_keyword_named_value():
-    from vizcode.stack import file_literals
+    from vizcode.scan.stack import file_literals
     assert file_literals('export class Foo extends mixin(Base) {\n  static readonly TOPIC = "orders"\n}\n') == {
         "TOPIC": "orders"}
     assert file_literals('class Foo extends Bar(x) {\n  val TOPIC = "orders"\n}\n') == {"TOPIC": "orders"}
@@ -192,7 +192,7 @@ def test_a_class_extending_a_call_and_a_loop_over_a_keyword_named_value():
 
 
 def test_more_class_modifiers_and_a_kotlin_fun_interface():
-    from vizcode.stack import CLASS_HEAD, FUNCTION_HEAD
+    from vizcode.scan.stack import CLASS_HEAD, FUNCTION_HEAD
     for head in ("public readonly record struct P(int X) {", "declare class X {", "const enum E {", "expect class P {",
                  "public readonly struct P {"):
         assert CLASS_HEAD.match(head), head
@@ -200,7 +200,7 @@ def test_more_class_modifiers_and_a_kotlin_fun_interface():
 
 
 def test_locals_of_brace_on_next_line_heads_multi_line_signatures_and_initializers_are_no_file_constants():
-    from vizcode.stack import file_literals
+    from vizcode.scan.stack import file_literals
     # C# Allman: the brace on its own line under the head
     assert file_literals('class A\n{\n    public void Run(string x)\n    {\n        const string TOPIC = "l";\n    }\n}\n') == {}
     # a signature over several lines
@@ -220,13 +220,13 @@ def test_locals_of_brace_on_next_line_heads_multi_line_signatures_and_initialize
 
 
 def test_a_rust_const_with_a_reference_type_is_a_literal():
-    from vizcode.stack import file_literals
+    from vizcode.scan.stack import file_literals
     assert file_literals('pub const TOPIC: &str = "orders";\nstatic QUEUE: &\'static str = "jobs";\n') == {
         "TOPIC": "orders", "QUEUE": "jobs"}
 
 
 def test_more_class_heads_and_a_method_returning_object():
-    from vizcode.stack import CLASS_HEAD
+    from vizcode.scan.stack import CLASS_HEAD
     for head in ("private[this] class P {", "@JsonSerialize(using = classOf[X]) class P {", "pub(in crate::a) struct P {",
                  "impl<T> Service<T> for P {", "pub mod api {", "public @interface Marker {", "extension Foo {",
                  "actor Store {", "@Target(value = [AnnotationTarget.CLASS]) annotation class Marker"):

@@ -1,5 +1,5 @@
 """Gateway routes read from proxy and gateway configs (nginx, Spring Cloud Gateway, Envoy, YARP)."""
-from vizcode import structure
+from vizcode.scan import structure
 
 FILES = {
     "web/default.conf.template": "server {\n    listen 8080;\n    location / {\n        root /usr/share/nginx/html;\n    }\n"

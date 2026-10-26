@@ -1,7 +1,8 @@
 """A long callee (a fluent chain, long arguments) keeps the called name at its end and that name's line."""
-from vizcode import calls, ids
-from vizcode.adapters import CALLEE_MAX, callee_text, generic, python as py, scala
-from vizcode.adapters.langs import SPECS
+from vizcode.map import calls
+from vizcode import ids
+from vizcode.scan.adapters import CALLEE_MAX, callee_text, generic, python as py, scala
+from vizcode.scan.adapters.langs import SPECS
 
 STEPS = "".join(f'\n      .step{i}("a fairly long literal argument number {i}", options)' for i in range(8))
 

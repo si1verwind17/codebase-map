@@ -1,7 +1,7 @@
 from conftest import SHOP
 
 from vizcode import ids
-from vizcode.adapters import scala
+from vizcode.scan.adapters import scala
 
 SHOP_MOD = {"id": "mod:shop", "path": "shop", "lang": "scala", "build": "sbt"}
 
@@ -206,7 +206,7 @@ def _parse(rel):
 
 
 def test_tapir_routes_from_demo_endpoints(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     s = structure.build(make_repo(PC))
     got = {(r["method"], r["path"]): r["handler"] for ff in s["facts"].values() for r in ff["routes"]}
     assert got == {
@@ -252,7 +252,7 @@ def test_anonymous_implementations_get_named_classes():
 
 
 def test_tapir_client_endpoint_is_not_a_route(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     # scala-zio example message/.../client/notify/v1/SendNotification.scala
     src = '''package com.example.message.client.notify.v1
 
@@ -289,7 +289,7 @@ def test_behaviour_heuristic_edges():
 
 
 def test_tapir_handler_may_be_a_behavioural_val(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     # scala-zio example common/.../HealthCheck.scala
     src = '''package com.example.common.http.api
 
@@ -379,7 +379,7 @@ object StockClient extends Calls:
 
 
 def test_tapir_endpoint_bound_in_another_module_is_served_there(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     s = structure.build(make_repo(SPLIT_API))
     got = [(r["method"], r["path"], r["handler"], f.rsplit("/", 1)[-1], r["line"])
            for f, ff in s["facts"].items() for r in ff["routes"]]
@@ -387,7 +387,7 @@ def test_tapir_endpoint_bound_in_another_module_is_served_there(make_repo):
 
 
 def test_tapir_endpoint_only_called_is_a_client_and_a_bare_contract_is_neither(make_repo):
-    from vizcode import structure
+    from vizcode.scan import structure
     s = structure.build(make_repo(SPLIT_API))
     clients = [(c["method"], c["path"]) for ff in s["facts"].values() for c in ff.get("clients", [])]
     assert clients == [("GET", "/shop/v1/stock")]                      # called through the client helper
@@ -397,7 +397,7 @@ def test_tapir_endpoint_only_called_is_a_client_and_a_bare_contract_is_neither(m
 
 def test_tapir_binding_follows_the_import_among_same_named_endpoints(make_repo):
     """v1 and v2 each define `object Quote` with a `def endpoint`; each server binds the one it imports."""
-    from vizcode import structure
+    from vizcode.scan import structure
     files = {"build.sbt": 'lazy val api = project in file("api")\nlazy val shop = (project in file("shop")).dependsOn(api)\n'}
     for v in ("v1", "v2"):
         files[f"api/src/main/scala/acme/api/{v}/Quote.scala"] = (

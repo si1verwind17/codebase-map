@@ -2,7 +2,7 @@
 and mounts, TypeORM/Prisma/Sequelize tables), and the NestJS and Express fixtures mapped with packs only."""
 import pytest
 
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 from helpers import routes, sinks, tables
 
@@ -271,7 +271,7 @@ def test_nest_library_module_is_not_a_server(make_repo):
 def test_a_constant_route_prefix_or_path_keeps_its_routes_with_a_named_segment(make_repo):
     """`@Controller(RouteKey.Asset)`: the routes stay, the constant written as a named segment `{Asset}` for the
     agent to resolve, never dropped."""
-    from vizcode import structure
+    from vizcode.scan import structure
     files = {"package.json": '{"name": "srv"}\n',
              "src/a.controller.ts": "import { Controller, Get } from '@nestjs/common';\n\n"
                                     "@Controller(RouteKey.Asset)\nexport class AssetController {\n"

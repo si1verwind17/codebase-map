@@ -3,7 +3,7 @@ path literal is a request (format.md § http clients), so a frontend's calls thr
 from conftest import with_stack
 
 
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def clients(s, f):

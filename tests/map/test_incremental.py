@@ -521,7 +521,7 @@ def test_a_method_whose_parameters_changed_names_its_successor_and_causes_are_co
 
 
 def test_only_a_test_projects_build_file_is_skipped():
-    from vizcode import incremental
+    from vizcode.map import incremental
     assert incremental.TEST_BUILD.search("tests/Orders.UnitTests/Orders.UnitTests.csproj")
     assert incremental.TEST_BUILD.search("src/Orders.Tests.csproj")
     for kept in ("orders/build.gradle.kts", ".docker/web/Dockerfile", "docs/docker-compose.yml", "src/Orders.csproj"):

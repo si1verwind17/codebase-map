@@ -1,6 +1,6 @@
 """A route a class handles is one route per HTTP-verb method of the class (its repo bases' too); a class with an
 invoke method keeps the route's method (structure._class_routes)."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def routes(s, f):

@@ -1,7 +1,8 @@
-from vizcode import ids, structure
-from vizcode.adapters import generic, python
-from vizcode.adapters.langs import SPECS
-from vizcode.assemble import assemble
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic, python
+from vizcode.scan.adapters.langs import SPECS
+from vizcode.map.assemble import assemble
 
 MOD = {"id": "mod:.", "path": ".", "build": "dir"}
 

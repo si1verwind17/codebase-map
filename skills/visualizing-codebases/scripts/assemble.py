@@ -18,8 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import audit  # noqa: E402
 import view  # noqa: E402
-from vizcode import gitsrc, mapcheck  # noqa: E402
-from vizcode.assemble import assemble, ensure_repo_files, evidence_errors, meaning_errors  # noqa: E402
+from vizcode import gitsrc  # noqa: E402
+from vizcode.map import mapcheck  # noqa: E402
+from vizcode.map.assemble import assemble, ensure_repo_files, evidence_errors, meaning_errors  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:

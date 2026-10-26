@@ -1,5 +1,5 @@
 """Routes a framework derives from file paths (Next.js, SvelteKit, Nuxt), for a project whose package.json names it."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def routes(s, f):

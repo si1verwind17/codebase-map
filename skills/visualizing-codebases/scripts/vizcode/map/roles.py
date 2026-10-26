@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from .adapters import without_suffix
+from ..scan.adapters import without_suffix
 
 ROLES = ("entry", "logic", "outbound", "storage", "model")
 STORAGE_SINKS = {"sql-db", "doc-db", "cache"}

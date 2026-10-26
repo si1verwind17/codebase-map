@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from conftest import GIT_ENV, commit_all, git, with_stack
 
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 SKILL = Path(__file__).resolve().parents[2]   # the repo root: demo/ sits here
 SCRIPTS = SKILL / "skills" / "visualizing-codebases" / "scripts"

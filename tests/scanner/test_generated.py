@@ -1,6 +1,6 @@
 import pytest
 
-from vizcode import structure
+from vizcode.scan import structure
 
 # one generated file per language, by its generator's header marker: a data type with fields, a method and a call
 MARKED = {

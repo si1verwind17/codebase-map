@@ -1,7 +1,7 @@
 """TypeScript the grammar cannot parse (`export type * from`, object-type arguments before a tagged template) is
 blanked before parsing, same length, so the file parses whole and every offset still points at the source."""
-from vizcode import structure
-from vizcode.adapters import generic
+from vizcode.scan import structure
+from vizcode.scan.adapters import generic
 
 
 def test_the_forms_are_blanked_in_place():

@@ -20,8 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from vizcode import findings, gitsrc, mapcheck, readme  # noqa: E402
-from vizcode.notes import parse_notes  # noqa: E402
+from vizcode.map import findings, mapcheck  # noqa: E402
+from vizcode import gitsrc, readme  # noqa: E402
+from vizcode.map.notes import parse_notes  # noqa: E402
 
 AUDIT_MJS = Path(__file__).resolve().parent.parent / "viewer" / "dist" / "audit.mjs"
 SKIP = "drawing checks skipped: "

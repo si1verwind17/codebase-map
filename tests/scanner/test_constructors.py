@@ -2,8 +2,9 @@
 or the class's own parameter list (Scala class parameters, a Kotlin or C# primary constructor)."""
 import copy
 
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 
 def build(make_repo, files: dict[str, str]) -> dict:

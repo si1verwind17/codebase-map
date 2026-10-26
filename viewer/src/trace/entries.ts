@@ -2,7 +2,7 @@
 // datastore at its tables; a service, library, package, file, class or floor group at the entry points inside it, else
 // at its boundary methods (methods inside it at one end of a traced relation whose other end is outside it), else at
 // itself; a line at the nodes at both ends of what it carries. An entry point is a route's handler (`files[].routes`) or
-// a method a request, event, stream or batch arrives at. The Python checklist uses the same rule (vizcode/examples.seeds).
+// a method a request, event, stream or batch arrives at. The Python checklist uses the same rule (vizcode/map/examples.seeds).
 import { numericCollator, type Model } from "../model/model";
 import type { Target } from "../floor/state";
 import type { Relation } from "../model/types";
@@ -21,7 +21,7 @@ export const traceable = (model: Model, id: string): boolean => {
 
 export interface EntryPoint { node: string; keys: string[] }
 
-/** Is relation key `key` the route `method path`, with or without a mount prefix (vizcode/examples._mounted)? */
+/** Is relation key `key` the route `method path`, with or without a mount prefix (vizcode/map/examples._mounted)? */
 const mounted = (key: string, method: string, path: string): boolean => {
   const i = key.indexOf(" ");
   const [verb, full] = i < 0 ? [key, ""] : [key.slice(0, i), key.slice(i + 1)];

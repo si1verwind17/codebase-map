@@ -4,7 +4,7 @@ import pytest
 import yaml
 from conftest import ASPNET_SERVICE, AXUM_SERVICE, LARAVEL_SERVICE, SINATRA_SERVICE, with_stack
 
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 from helpers import routes, sinks, tables
 from helpers import write
@@ -515,7 +515,7 @@ def test_route_looking_lines_no_pattern_matched_are_listed(make_repo):
     assert s["stack"]["routes_unmatched"] == [
         {"lang": "php", "file": "routes/api.php", "lines": [12, 13],
          "example": "Route::apiResource('songs', SongController::class);"}]
-    from vizcode import structure as st_mod
+    from vizcode.scan import structure as st_mod
     text = "\n".join(st_mod._stack_lines(s["stack"]))
     assert "Route-looking lines with no route (2 in 1 file)" in text
     assert "- php routes/api.php: lines 12, 13 — `Route::apiResource('songs', SongController::class);`" in text
@@ -530,7 +530,7 @@ def test_entity_looking_classes_with_no_table_are_listed(make_repo):
     s = build(make_repo, files)
     assert s["stack"]["entities_without_table"] == [
         {"lang": "php", "file": "app/Models/Song.php", "classes": ["Song"], "lines": [7]}]
-    from vizcode import structure as st_mod
+    from vizcode.scan import structure as st_mod
     text = "\n".join(st_mod._stack_lines(s["stack"]))
     assert "Entity-looking classes with no table (1 in 1 file; not counted above)" in text
     assert "- php app/Models/Song.php: Song (line 7)" in text

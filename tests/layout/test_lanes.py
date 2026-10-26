@@ -1,4 +1,4 @@
-from vizcode.lanes import crossings, pick_lanes
+from vizcode.layout.lanes import crossings, pick_lanes
 
 
 def test_crossings_counts_proper_intersections_only():
@@ -47,8 +47,10 @@ def test_at_most_two_lanes_and_sticky_ones_stay():
 def test_layout_puts_a_picked_item_on_its_own_lane(shop_repo, monkeypatch):
     import copy
     from meaning_fixture import MEANING
-    from vizcode import layout as layout_mod, mapcheck, structure
-    from vizcode.assemble import assemble
+    from vizcode.layout import layout as layout_mod
+    from vizcode.map import mapcheck
+    from vizcode.scan import structure
+    from vizcode.map.assemble import assemble
     picked = []
 
     def fake_pick(pos, edges, sticky=frozenset(), cap=2, too_busy=None, eligible=None):
@@ -69,8 +71,9 @@ def test_layout_puts_a_picked_item_on_its_own_lane(shop_repo, monkeypatch):
 def test_a_lane_item_without_its_lane_is_refused(shop_repo):
     from meaning_fixture import MEANING
     import copy
-    from vizcode import mapcheck, structure
-    from vizcode.assemble import assemble
+    from vizcode.map import mapcheck
+    from vizcode.scan import structure
+    from vizcode.map.assemble import assemble
     cmap = assemble(structure.build(shop_repo, "docs/viz-code"), copy.deepcopy(MEANING))
     floor = cmap["layout"]["containers"]["svc:shop"]
     item = next(iter(floor["items"]))
@@ -79,7 +82,7 @@ def test_a_lane_item_without_its_lane_is_refused(shop_repo):
 
 
 def test_lanes_keep_their_order_and_rows_on_a_rescan():
-    from vizcode.layout import _lift_busy
+    from vizcode.layout.layout import _lift_busy
     # two lanes, the busier one (zhub) sorting last: picked busiest-first, so sticky order must not re-sort
     pos = {"zhub": (6, 0), "ahub": (6, 1)}
     pos.update({f"c{k}": (k, 4) for k in range(5)})

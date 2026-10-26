@@ -1,8 +1,8 @@
 """Type links on method signatures (spec: traces §1.2): `refs` per parameter, `returns_refs` on the signature."""
 import pytest
 
-from vizcode import structure
-from vizcode.typelinks import dotted, names_import, qualified, type_names
+from vizcode.scan import structure
+from vizcode.scan.typelinks import dotted, names_import, qualified, type_names
 
 
 def build(make_repo, files: dict[str, str]) -> dict:

@@ -1,6 +1,6 @@
 """A mount whose router comes from another file (`app.use('/users', router)`) joins its prefix onto that file's
 routes, through the import that names it, chains composing outward (format.md § routes)."""
-from vizcode import structure
+from vizcode.scan import structure
 
 
 def paths(s, f):

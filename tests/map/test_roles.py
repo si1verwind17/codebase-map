@@ -2,9 +2,9 @@ import copy
 
 from meaning_fixture import MEANING
 
-from vizcode import structure
-from vizcode.assemble import assemble
-from vizcode.roles import family, group_children
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
+from vizcode.map.roles import family, group_children
 
 
 def built(repo, meaning=MEANING):

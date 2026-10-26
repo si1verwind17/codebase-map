@@ -2,8 +2,10 @@ import copy
 
 from meaning_fixture import MEANING
 
-from vizcode import calls, ids, mapcheck, structure
-from vizcode.assemble import assemble
+from vizcode.map import calls, mapcheck
+from vizcode import ids
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
 
 
 def test_calls_resolved_across_relative_import_and_library(shop_repo):
@@ -162,12 +164,12 @@ def test_a_scala_repeated_parameter_takes_any_count():
 
 
 def test_python_and_scala_call_sites_record_their_argument_count():
-    from vizcode.adapters import python as py
+    from vizcode.scan.adapters import python as py
     W = {"id": "mod:w", "path": "w", "lang": "python", "build": "python-package"}
     res = py.parse(b"def f():\n    g(1, 2, k=3)\n    h(*xs)\n", "w/a.py", W, ids.IdRegistry())
     args = {c["callee"]: c.get("args") for c in res["calls"]}
     assert args == {"g": 3, "h": None}
-    from vizcode.adapters import scala as sc
+    from vizcode.scan.adapters import scala as sc
     S = {"id": "mod:s", "path": "s", "lang": "scala", "build": "sbt"}
     res = sc.parse(b"package p\nobject O {\n  def f = g(1, 2)\n}\n", "s/O.scala", S, ids.IdRegistry())
     assert {c["callee"]: c.get("args") for c in res["calls"]}["g"] == 2
@@ -177,7 +179,7 @@ def test_python_and_scala_call_sites_record_their_argument_count():
 
 
 def test_python_and_scala_mark_the_parameters_a_call_may_leave_out():
-    from vizcode.adapters import python as py, scala as sc
+    from vizcode.scan.adapters import python as py, scala as sc
     W = {"id": "mod:w", "path": "w", "lang": "python", "build": "python-package"}
     res = py.parse(b"def f(a, b=1, *, c, d: int = 2):\n    pass\n", "w/a.py", W, ids.IdRegistry())
     sig = next(n for n in res["nodes"] if n["name"] == "f")["signature"]["params"]
@@ -746,7 +748,7 @@ with DAG("legacy", schedule_interval="@daily") as d:
 
 
 def test_qualified_nested_tasks_are_seen_only_inside_their_dag():
-    from vizcode.adapters import python as py
+    from vizcode.scan.adapters import python as py
     mod = {"id": "mod:jobs", "path": "jobs", "lang": "python", "build": "python-scripts"}
     res = py.parse(DAG_CLASH.encode(), "jobs/etl.py", mod, ids.IdRegistry())
     f = "jobs::jobs.etl"

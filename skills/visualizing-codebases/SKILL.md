@@ -386,7 +386,7 @@ relation starts at the calling method, the gRPC services and rpcs of every `.pro
 `grpc <package>.<Service>/<Rpc>` (each once, with every `.proto` that declares it)
 with the client and server ends tied to them, named as protoc's gRPC plugin names
 generated code in Python, Java, Kotlin, Scala, Go, C# and JavaScript/TypeScript
-(table in `scripts/vizcode/proto.py`; both ends found and keys equal →
+(table in `scripts/vizcode/scan/proto.py`; both ends found and keys equal →
 `confirmed`; copy a key exactly as `summary.md` writes it), and each Airflow DAG's id,
 schedule and tasks, each Flyte workflow's launch plan schedule and every
 `reference_task`.
@@ -467,7 +467,7 @@ without. Node facts go stale like relations when an evidence line changes.
 ## Stack
 
 What the scanner knows about libraries and route styles is data: the
-built-in packs (`scripts/vizcode/packs/<lang>.yaml`) and `OUT/stack.yaml`,
+built-in packs (`scripts/vizcode/scan/packs/<lang>.yaml`) and `OUT/stack.yaml`,
 which you create and write for this repo without asking; it is committed
 and reused on later runs. The Stack section at the top of `summary.md` lists what neither
 covers, total first: unrecognised imports (two `file:line` examples each; names

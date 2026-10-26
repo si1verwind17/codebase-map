@@ -8,9 +8,10 @@ import diff as diff_cli
 import extract
 from conftest import commit_all, write_files
 from meaning_fixture import MEANING, RUN
-from vizcode import mapcheck, structure
-from vizcode.assemble import assemble
-from vizcode.fingerprint import entry_fingerprint, type_fingerprint
+from vizcode.map import mapcheck
+from vizcode.scan import structure
+from vizcode.map.assemble import assemble
+from vizcode.map.fingerprint import entry_fingerprint, type_fingerprint
 
 OUT = ("docs", "viz-code")
 ORDER = "orders::orders.models.Order"

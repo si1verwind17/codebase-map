@@ -666,7 +666,7 @@ def packs_without_patterns(monkeypatch, tmp_path):
     """The built-in packs minus their routes and tables groups: for tests of the stack.yaml mechanism that
     write their own patterns for frameworks a pack now covers."""
     import yaml
-    from vizcode import stack
+    from vizcode.scan import stack
     d = tmp_path / "packs"
     d.mkdir()
     for p in stack.PACKS.glob("*.yaml"):

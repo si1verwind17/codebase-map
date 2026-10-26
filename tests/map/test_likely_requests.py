@@ -1,6 +1,7 @@
 """summary.md § Likely requests pairs client calls with the repo routes and rpc servers they likely reach, and the
 audit's `request.unmatched` names a paired call whose method starts no request."""
-from vizcode import mapcheck, structure
+from vizcode.map import mapcheck
+from vizcode.scan import structure
 
 FILES = {
     "package.json": '{"name": "web"}\n',

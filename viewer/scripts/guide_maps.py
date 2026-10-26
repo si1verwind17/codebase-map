@@ -15,8 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "skills" / "visualizing-codebases" / "scripts"))
 
-from vizcode import SCHEMA_VERSION, mapcheck  # noqa: E402
-from vizcode.assemble import assemble  # noqa: E402
+from vizcode import SCHEMA_VERSION  # noqa: E402
+from vizcode.map import mapcheck  # noqa: E402
+from vizcode.map.assemble import assemble  # noqa: E402
 
 OUT = Path(__file__).resolve().parent.parent / "guide" / "maps"
 COMMIT = "0" * 39 + "1"

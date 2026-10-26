@@ -4,8 +4,8 @@ from __future__ import annotations
 import functools
 import re
 
-from . import ids
-from .adapters import without_suffix
+from .. import ids
+from ..scan.adapters import without_suffix
 
 MAX_CANDIDATES = 3
 SELF_RECEIVERS = {"self", "this", "cls"}

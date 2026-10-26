@@ -2,7 +2,7 @@
 import pytest
 from conftest import with_stack
 
-from vizcode import stack, structure
+from vizcode.scan import stack, structure
 
 from helpers import write
 

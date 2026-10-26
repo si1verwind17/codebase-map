@@ -5,7 +5,7 @@ import time
 import pytest
 from conftest import commit_all, git, write_files
 
-from vizcode import structure
+from vizcode.scan import structure
 
 pytestmark = pytest.mark.skipif(os.environ.get("VIZ_PERF") != "1", reason="VIZ_PERF=1 not set")
 

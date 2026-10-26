@@ -2,7 +2,7 @@ import copy
 import json
 from pathlib import Path
 
-from vizcode import examples, mapcheck
+from vizcode.map import examples, mapcheck
 
 DEMO_DIR = Path(__file__).resolve().parents[2] / "demo/parking-city/docs/viz-code"
 DEMO = json.loads((DEMO_DIR / "code-map.json").read_text())
