@@ -2,6 +2,9 @@ import fontUrl from "@fontsource-variable/archivo/files/archivo-latin-wdth-norma
 import { mount } from "svelte";
 import App from "./App.svelte";
 import "./app.css";
+import { THEME } from "./floor/palette";
+
+document.documentElement.dataset.theme = THEME;
 
 async function start() {
   try {

@@ -22,7 +22,7 @@ export function wireDoor(st: SceneState, model: Model, m: Machine, v: Container,
   const d = st.doors.get(m.id)!;
   const hint = new Container();
   const shows = model.doorShows(st.container, d.anchor), named = (id: string) => `${model.codes.get(id) ?? ""} ${model.label(id)}`;
-  const ht = new Text({ resolution: 2, text: `Double-click to go to ${named(shows)}${shows === d.anchor ? "" : ` in ${named(d.anchor)}`}`, style: label(11.5, "600", C.paper) });
+  const ht = new Text({ resolution: 2, text: `Double-click to go to ${named(shows)}${shows === d.anchor ? "" : ` in ${named(d.anchor)}`}`, style: label(11.5, "600", C.onInk) });
   const hx = d.side === "out" ? m.x + m.w - ht.width - 12 : m.x;
   hint.addChild(new Graphics().rect(hx, m.y - 26, ht.width + 12, 20).fill(C.ink), ht);
   ht.position.set(hx + 6, m.y - 23);
@@ -59,7 +59,7 @@ export function wireMachine(st: SceneState, m: Machine, v: Container, hl: Graphi
   hoverRing(st, m, v);
   if (hasFloor(st, m.id)) {   // one click to go inside the selected building
     const tab = new Container();
-    const t = new Text({ resolution: 2, text: "OPEN", style: label(12, "700", C.paper) });
+    const t = new Text({ resolution: 2, text: "OPEN", style: label(12, "700", C.onInk) });
     const x0 = m.x + m.w - t.width - 32;
     const bg = new Graphics().rect(x0, m.y + m.h + 6, t.width + 28, 21).fill(C.blue);
     arrow(bg, { x: x0 + t.width + 10, y: m.y + m.h + 16.5 }, { x: x0 + t.width + 22, y: m.y + m.h + 16.5 }, C.paper, 7);

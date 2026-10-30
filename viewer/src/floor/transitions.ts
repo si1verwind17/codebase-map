@@ -33,7 +33,7 @@ export function travel(st: SceneState, from: string, to: string, done?: () => vo
     r = routeTiles(st.tf, [ghost])[0];
     if (r) {
       temp = new Graphics();
-      dashed(temp, r.points, 6, 5, { width: 2.5, color: C.ink });
+      dashed(temp, r.points, 6, 5, { width: 2.5, color: C.text });
       st.layers.motion.addChild(temp);
     }
   }
@@ -60,8 +60,8 @@ export function travel(st: SceneState, from: string, to: string, done?: () => vo
   let tag: Container | undefined;
   if (payload) {
     tag = new Container();
-    const t = new Text({ resolution: 2, text: payload, style: label(12, "700") });
-    tag.addChild(new Graphics().rect(-4, -2, t.width + 8, 19).fill(C.yellow).stroke({ width: 1.5, color: C.ink }), t);
+    const t = new Text({ resolution: 2, text: payload, style: label(12, "700", C.ink) });
+    tag.addChild(new Graphics().rect(-4, -2, t.width + 8, 19).fill(C.yellow).stroke({ width: 1.5, color: C.edge }), t);
     st.layers.motion.addChild(tag);
   }
   const total = lengths[lengths.length - 1];
@@ -99,11 +99,11 @@ export async function enter(st: SceneState, show: Show, model: Model, container:
   const to = cam.toScreen(st, cam.floorRect(st));
   const dim = new Graphics().rect(0, 0, st.app.screen.width, st.app.screen.height).fill({ color: C.page, alpha: 1 });
   const box = new Graphics();
-  const tab = new Text({ resolution: 2, text: `SUB-ASSEMBLY  ${code}  ${name}`, style: label(13, "700", C.paper) });
+  const tab = new Text({ resolution: 2, text: `SUB-ASSEMBLY  ${code}  ${name}`, style: label(13, "700", C.onInk) });
   st.overlay.addChild(still, dim, box, tab);
   await cam.animate(st, 560, (t, r = morphRect(from, to, t)) => {
     dim.alpha = 0.75 * t;                                // the old floor recedes as the box takes the page
-    box.clear().rect(r.x, r.y, r.w, r.h).fill(C.paper).stroke({ width: 2, color: C.ink });
+    box.clear().rect(r.x, r.y, r.w, r.h).fill(C.paper).stroke({ width: 2, color: C.edge });
     box.rect(r.x, r.y, Math.min(r.w, tab.width + 28), 28).fill(C.ink);
     tab.position.set(r.x + 14, r.y + 6);
   });

@@ -1,7 +1,7 @@
 // Painting one line tile: belts curve round corners with a chevron riding the curve; pipes and taps
 // get elbows, flanges and clamps; rails get ties; a hood stands beside every underground run.
 import type { Graphics } from "pixi.js";
-import { C, F } from "../floor/palette";
+import { BELT_GUARDS, C, F } from "../floor/palette";
 import type { LineKind } from "./router";
 import { shape, type V } from "./shape";
 import { DIRS, OPP, STEP, T, joinEdge, type Dir, type Piece } from "./tiles";
@@ -20,7 +20,7 @@ function arc(g: Graphics, s: S, r: number) {
 }
 
 /** A chevron at (px, py) pointing along (ux, uy). */
-function chevron(g: Graphics, px: number, py: number, ux: number, uy: number, a: number, color: number = C.paper, width = 2) {
+function chevron(g: Graphics, px: number, py: number, ux: number, uy: number, a: number, color: number = F.chev, width = 2) {
   const nx = -uy, ny = ux;
   g.moveTo(px - ux * a + nx * a, py - uy * a + ny * a).lineTo(px + ux * a, py + uy * a).lineTo(px - ux * a - nx * a, py - uy * a - ny * a)
     .stroke({ width, color, cap: "round", join: "round" });
@@ -31,7 +31,12 @@ export function paintPiece(g: Graphics, p: Piece, kind: LineKind, both: boolean)
   const { x, y, cx, cy, straight } = s;
   const [ox, oy] = s.outEdge;
   if (kind === "belt") {
-    g.rect(x + 1, y + 1, T - 2, T - 2).fill(C.ink);
+    g.rect(x + 1, y + 1, T - 2, T - 2).fill(F.belt);
+    if (BELT_GUARDS) {   // light side guards along both edges
+      if (straight) { for (const o of [-(T / 2 - 2.5), T / 2 - 2.5]) { if (ox) g.moveTo(x, cy + o).lineTo(x + T, cy + o); else g.moveTo(cx + o, y).lineTo(cx + o, y + T); } }
+      else for (const r of [2.5, T - 2.5]) arc(g, s, r);
+      g.stroke({ width: 1.5, color: F.guard });
+    }
     if (straight) {
       for (const o of [-6, 6]) {
         if (ox) g.moveTo(x + 1, cy + o).lineTo(x + T - 1, cy + o); else g.moveTo(cx + o, y + 1).lineTo(cx + o, y + T - 1);
@@ -68,12 +73,12 @@ export function paintPiece(g: Graphics, p: Piece, kind: LineKind, both: boolean)
   } else {
     const pipe = kind === "pipe";
     const col = pipe ? C.blue : kind === "tapW" ? C.red : C.slate;
-    halves(g, s, 0, pipe ? 12 : 6, pipe ? C.ink : col);
+    halves(g, s, 0, pipe ? 12 : 6, pipe ? F.casing : col);
     if (pipe) halves(g, s, 0, 6, col);
     if (straight) {   // a flange (pipe) or a clamp (tap) at every tile joint
       const [ex, ey] = s.edge(s.outEdge), half = pipe ? 9 : 6;
       if (ox) g.rect(ex - 2, cy - half, 4, 2 * half); else g.rect(cx - half, ey - 2, 2 * half, 4);
-      g.fill(C.ink);
+      g.fill(F.clamp);
     }
   }
 }
@@ -109,7 +114,7 @@ function railRails(g: Graphics, p: Piece) {
   const s = shape(p), { x, y, cx, cy } = s, [ox] = s.outEdge;
   if (s.straight) for (const o of [-5, 5]) { if (ox) g.moveTo(x, cy + o).lineTo(x + T, cy + o); else g.moveTo(cx + o, y).lineTo(cx + o, y + T); }
   else for (const r of [7, 17]) arc(g, s, r);
-  g.stroke({ width: 2, color: C.ink });
+  g.stroke({ width: 2, color: C.edge });
 }
 
 /** The rail pieces on top at each tile that holds more than one shape of rail (a junction where a destination peels
@@ -173,7 +178,7 @@ function housing(g: Graphics, s: S, kind: LineKind, e: V, dir: number, lane?: V)
     const p = (a: number, b: number): V => [ex + ax * a + bx * b, ey + ay * a + by * b];
     return g.poly([...p(a0, b0), ...p(a1, b0), ...p(a1, b1), ...p(a0, b1)]);
   };
-  rect(0, d, -w, w).fill(C.steel).stroke({ width: 1.5, color: C.ink });
+  rect(0, d, -w, w).fill(C.steel).stroke({ width: 1.5, color: C.edge });
   if (kind === "belt") {   // a chevron filling the housing half; a two-way belt shows both lanes', forward on the right of travel
     const cx = ex - e[0] * 7.5, cy = ey - e[1] * 7.5;
     if (lane) { chevron(g, cx + lane[0], cy + lane[1], ux, uy, 3.5, C.ink, 2.2); chevron(g, cx - lane[0], cy - lane[1], -ux, -uy, 3.5, C.ink, 2.2); }
@@ -224,9 +229,9 @@ export { joinEdge };   // lives in tiles.ts, which imports no Pixi (the map audi
  *  hides it. The router gives a junction room (a straight trunk, plain tiles round it), so nothing else stands on its tile. */
 export function paintPlate(g: Graphics, p: Piece) {
   const x = p.x * T + 1, y = p.y * T + 1, w = T - 2, h = T - 2;
-  g.rect(x, y, w, h).fill(C.yellow).stroke({ width: 1.5, color: C.ink });
+  g.rect(x, y, w, h).fill(C.yellow).stroke({ width: 1.5, color: C.edge });
   for (let sx = x + 3; sx + 4 < x + w - 1; sx += 6) g.moveTo(sx, y + h - 3).lineTo(sx + 4, y + 3);
-  g.stroke({ width: 1.4, color: C.ink });
+  g.stroke({ width: 1.4, color: C.edge });
 }
 
 /** The edges one belt tile is entered or left by, over every route on top of it. */
@@ -301,7 +306,7 @@ export function paintInferred(g: Graphics, p: Piece) {
     const [bx, by] = at(e >= ring ? ring - 0.001 : e);
     g.lineTo(bx, by);
   }
-  g.stroke({ width: 1.5, color: C.paper });
+  g.stroke({ width: 1.5, color: F.guess });
 }
 
 /** One painting step of a factory floor. Steps come in layer order: every body (and shared belt and rail tile), then every housing, then plates, then

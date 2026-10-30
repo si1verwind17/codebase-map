@@ -4,6 +4,7 @@
 // VIZ_CHROMIUM=/usr/bin/chromium npx vitest run test/trace_sync_e2e.test.ts
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { setStill } from "../still";
 import { Model, SITE } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { fitZoom } from "../../src/trace/panzoom";
@@ -289,7 +290,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("the floor and the trace pane i
       const page = await openViewer(browser, demoText(), errors);
       await traceFromInspector(page, m, FOCUS);
       for (const still of [false, true]) {
-        if (still) await page.getByLabel("Still motion").check();
+        if (still) await setStill(page, true);
         await toSite(page);
         const floors = await recordFloors(page);
         await page.locator(".trace .row.focus .rname").click();

@@ -71,7 +71,8 @@ zoom level the reviewer chooses.
   belt, event = drone through a topic hub, stream = pipe, batch = train,
   datastore = warehouse; Factorissimo-style nested floors entered by zooming,
   2D not 3D; at most one line between two things per floor; private helpers hidden by default; a trace pane under the floor
-  that shows only the lineage around a chosen node.
+  that shows only the lineage around a chosen node; the booklet's light theme by default, a dark theme for the
+  evening chosen in Settings, never following the OS.
 - **Traces:** a trace is computed, not authored: from any box — a method, table,
   topic, external or datastore, a service, library, package, file or class
   through the entry points inside it (else its boundary methods), or a line

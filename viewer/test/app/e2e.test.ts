@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { describe, expect, it } from "vitest";
+import { setStill } from "../still";
 import { Model } from "../../src/model/model";
 import { floorLayers, listEntry } from "../../src/model/layers";
 import type { CodeMap } from "../../src/model/types";
@@ -564,14 +565,13 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       const c0 = await clock();
       await page.waitForTimeout(1200);   // the canvas shows the clock about once a second
       expect(await clock(), "the drone clock runs").toBeGreaterThan(c0);
-      const still = page.getByLabel("Still motion");
-      await still.check();
+      await setStill(page, true);
       await page.waitForFunction(() => document.querySelector("canvas")?.getAttribute("data-drones") === "0", null, { timeout: 5_000 });
       const c1 = await clock();
       await page.waitForTimeout(700);
       expect(await clock(), "nothing advances under Still motion").toBe(c1);
       await expect(page.locator("canvas").getAttribute("data-drones")).resolves.toBe("0");
-      await still.uncheck();
+      await setStill(page, false);
       await page.waitForTimeout(1200);
       expect(await clock(), "and moves again without it").toBeGreaterThan(c1);
     } finally {
@@ -671,7 +671,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       await page.addInitScript(() => { (globalThis as { vizMeasureTexts?: boolean }).vizMeasureTexts = true; });   // the word measure (labels.ts)
       await page.goto("file://" + file);
       await page.waitForSelector("canvas");
-      await page.getByLabel("Still motion").check();
+      await setStill(page, true);
       const attr = (n: string) => page.locator("canvas").getAttribute(n);
       const frames = () => page.evaluate(() => new Promise<void>((r) => { let k = 3; const f = () => (--k ? requestAnimationFrame(f) : r()); requestAnimationFrame(f); }));
       /** The words as measured at the zoom now on floor `c` (two frames: the labels sync, then the measure), checked. */
@@ -768,7 +768,7 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto("file://" + file);
       await page.waitForSelector("canvas");
-      await page.getByLabel("Still motion").check();
+      await setStill(page, true);
       const attr = (n: string) => page.locator("canvas").getAttribute(n);
       await page.waitForFunction(() => document.querySelector("canvas")?.getAttribute("data-plans-queued") === "0", null, { timeout: 60_000 });
       expect(Number(await attr("data-plans")), "F0 and the first MAX_NEARBY floors its machines open").toBe(1 + Math.min(kids.length, MAX_NEARBY));
@@ -926,13 +926,12 @@ describe.runIf(CHROMIUM && existsSync(CHROMIUM))("built viewer in a browser", ()
       expect(f0).toBeGreaterThan(0);
       await trains(f0);
       // Still motion: every train parks at its yard (or door) end and nothing advances
-      const still = page.getByLabel("Still motion");
-      await still.check();
+      await setStill(page, true);
       await trains(0);
       const c1 = await clock();
       await page.waitForTimeout(700);
       expect(await clock(), "nothing advances under Still motion").toBe(c1);
-      await still.uncheck();
+      await setStill(page, false);
       await trains(f0);
       // nightly-jobs' dags/ floor, opened with nothing selected: ten trains, one per DAG rail
       const search = page.getByRole("searchbox", { name: "Find a node by name or code" });

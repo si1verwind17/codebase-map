@@ -20,7 +20,7 @@ import type { TileRoute } from "./router";
 import { T, type Piece } from "./tiles";
 import type { StationBox } from "./yards";
 
-const KEY = { width: 1.4, color: C.ink };
+const KEY = { width: 1.4, color: C.edge };
 const LABEL = 10;   // platform codes and badges, px: they follow the 9 px rule
 const text = (s: string, size: number, fill: number) =>
   new Text({ resolution: 2, text: s, style: new TextStyle({ fontFamily: FONT, fontSize: size, fontWeight: "700", fill, lineHeight: size + 4 }) });
@@ -109,12 +109,12 @@ export function paintRails(model: Model, container: string, tf: TileFloor, route
       const t = mine.find((q) => q.station.dest === s.dest), plat = sched.platforms.find((p) => p.dest === s.dest)!;
       const key = t?.key ?? yardKey(y.source);
       const L = s.r.x1 - s.r.x0, D = s.r.y1 - s.r.y0;
-      const strip = new Container(), bg = new Graphics().rect(0, 0, L, D).fill(C.paper).stroke({ width: 1, color: C.ink });
+      const strip = new Container(), bg = new Graphics().rect(0, 0, L, D).fill(C.paper).stroke({ width: 1, color: C.edge });
       const inner = new Container();
-      const badge = text(`×${plat.jobs.length}`, LABEL, C.paper), bw = badge.width + 6;
+      const badge = text(`×${plat.jobs.length}`, LABEL, C.onInk), bw = badge.width + 6;
       const bb = new Graphics().rect(L - bw - 2, 2, bw, D - 4).fill(C.ink);
       badge.position.set(L - bw + 1, (D - badge.height) / 2);
-      const code = text(shortCode(model, container, s.dest), LABEL, C.ink);
+      const code = text(shortCode(model, container, s.dest), LABEL, C.text);
       const room = L - bw - 8;
       if (code.width > room) code.scale.set(room / code.width);
       code.position.set(3, (D - code.height * code.scale.y) / 2);
@@ -147,15 +147,15 @@ export function paintRails(model: Model, container: string, tf: TileFloor, route
     // the sign: a clock on its tile; its summary beside it where there was room; hover or tap lists every job
     if (y.sign) {
       const sx = y.sign.x * T, sy = y.sign.y * T;
-      const sg = new Graphics().rect(sx + 1, sy + 1, T - 2, T - 2).fill(C.paper).stroke({ width: 1.2, color: C.ink });
-      sg.circle(sx + T / 2, sy + T / 2, 7.5).stroke({ width: 1.4, color: C.ink });
-      sg.moveTo(sx + T / 2, sy + T / 2 - 5).lineTo(sx + T / 2, sy + T / 2).lineTo(sx + T / 2 + 4, sy + T / 2).stroke({ width: 1.4, color: C.ink });
+      const sg = new Graphics().rect(sx + 1, sy + 1, T - 2, T - 2).fill(C.paper).stroke({ width: 1.2, color: C.edge });
+      sg.circle(sx + T / 2, sy + T / 2, 7.5).stroke({ width: 1.4, color: C.edge });
+      sg.moveTo(sx + T / 2, sy + T / 2 - 5).lineTo(sx + T / 2, sy + T / 2).lineTo(sx + T / 2 + 4, sy + T / 2).stroke({ width: 1.4, color: C.edge });
       sg.label = `sign:${y.source}`;
       v.lines.addChild(sg);
       for (const k of keys) join(k, sg);
       wire(sg, yardKey(y.source), () => signList(model, sched), { x: sx, y: sy });
       for (const p of labels.signs.filter((q) => q.source === y.source)) {
-        const { outer, inner } = labelBox(p, PLATE_FONT, C.paper, C.ink, C.ink);
+        const { outer, inner } = labelBox(p, PLATE_FONT, C.paper, C.text, C.ink);
         v.lines.addChild(outer);
         for (const k of keys) join(k, outer);
         v.smalls.push({ objs: [inner], size: PLATE_FONT });
@@ -175,7 +175,7 @@ export function paintRails(model: Model, container: string, tf: TileFloor, route
     join(t.key, sv);
     wire(g, t.key, () => platformList(model, plat), { x: s.x * T, y: s.y * T });
     for (const p of labels.stations.filter((q) => q.key === t.key)) {
-      const { outer, inner } = labelBox(p, STATION_FONT, C.paper, C.ink, C.ink);
+      const { outer, inner } = labelBox(p, STATION_FONT, C.paper, C.text, C.ink);
       v.lines.addChild(outer);
       join(t.key, outer);
       v.smalls.push({ objs: [inner], size: STATION_FONT });
@@ -188,7 +188,7 @@ export function paintRails(model: Model, container: string, tf: TileFloor, route
  *  green signal on the open side of the end the rail comes in by. */
 export function paintStation(g: Graphics, s: StationBox, siding: Piece[]) {
   const x0 = s.x * T, y0 = s.y * T, w = s.w * T, h = s.h * T;
-  g.rect(x0, y0, w, h).fill(F.amberSoft).stroke({ width: 1.2, color: C.ink });
+  g.rect(x0, y0, w, h).fill(F.amberSoft).stroke({ width: 1.2, color: C.edge });
   for (const p of siding) paintRailTile(g, [p]);
   const last = siding[siding.length - 1], first = siding[0];
   if (!last || !first) return;
@@ -201,5 +201,5 @@ export function paintStation(g: Graphics, s: StationBox, siding: Piece[]) {
   const open: Record<string, [number, number]> = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] };
   const [ox, oy] = open[s.side];
   const cx = first.x * T + T / 2 + ox * 8 + (horiz ? (d === "e" ? -6 : 6) : 0), cy = first.y * T + T / 2 + oy * 8 + (horiz ? 0 : d === "s" ? -6 : 6);
-  g.circle(cx, cy, 3).fill(C.green).stroke({ width: 1, color: C.ink });
+  g.circle(cx, cy, 3).fill(C.green).stroke({ width: 1, color: C.edge });
 }

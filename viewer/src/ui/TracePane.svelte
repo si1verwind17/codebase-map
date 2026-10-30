@@ -290,22 +290,22 @@
 <style>
   .trace { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--page); border-top: 1px solid var(--ink); }
   .trace > header { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--paper); border-bottom: 1px solid var(--ink); flex-wrap: wrap; }
-  .tab { display: inline-block; padding: 1px 6px; background: var(--ink); color: var(--paper); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+  .tab { display: inline-block; padding: 1px 6px; background: var(--ink); color: var(--on-ink); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
   h2 { margin: 0; font-size: 15px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
   h2 .start { font-weight: 600; color: var(--slate); }
-  .code { font-size: 10px; font-weight: 700; background: var(--ink); color: var(--paper); padding: 1px 5px; vertical-align: middle; }
+  .code { font-size: 10px; font-weight: 700; background: var(--ink); color: var(--on-ink); padding: 1px 5px; vertical-align: middle; }
   .count { color: var(--slate); font-size: 12px; }
   .dir { display: flex; }
   .dir button { border: 1px solid var(--ink); background: var(--paper); padding: 3px 10px; font-weight: 600; margin-left: -1px; }
-  .dir button[aria-checked="true"] { background: var(--ink); color: var(--paper); }
+  .dir button[aria-checked="true"] { background: var(--ink); color: var(--on-ink); }
   .tools { display: flex; gap: 6px; margin-left: auto; }
   .tools button, .naming button, .acts button { border: 1px solid var(--ink); background: var(--paper); padding: 3px 10px; font-weight: 600; }
-  .tools button:hover, .naming button:hover, .acts button:hover, .dir button:hover:not([aria-checked="true"]) { background: var(--yellow); }
-  .tools button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .tools button:hover, .naming button:hover, .acts button:hover, .dir button:hover:not([aria-checked="true"]) { background: var(--yellow); color: var(--ink); }
+  .tools button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
   .naming { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--paper); border-bottom: 1px solid var(--rule); }
   .naming label { font-size: 12px; font-weight: 700; }
   .naming input { flex: 1; max-width: 48ch; border: 1px solid var(--ink); padding: 4px 8px; background: var(--paper); }
-  .naming .primary { background: var(--ink); color: var(--paper); }
+  .naming .primary { background: var(--ink); color: var(--on-ink); }
   .naming .primary:hover { background: var(--blue); }
   .body { flex: 1; min-height: 0; display: flex; }
   .graph { flex: 1; min-width: 0; overflow: auto; cursor: grab; }
@@ -320,7 +320,7 @@
   svg { position: absolute; left: 0; top: 0; overflow: visible; z-index: 1; pointer-events: none; }
   .arrow { cursor: pointer; }
   .arrow .hit { fill: none; stroke: transparent; stroke-width: 10; pointer-events: stroke; }
-  .arrow .line { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+  .arrow .line { fill: none; stroke: var(--text); stroke-width: 1.6; }
   .arrow.dashed .line { stroke-dasharray: 5 4; }
   .arrow.k-event .line, .arrow.k-hand-off .line { stroke: var(--green); }
   .arrow.k-stream .line { stroke: var(--blue); stroke-width: 2.4; }
@@ -332,7 +332,7 @@
   .arrow:focus { outline: none; }
   .box { position: absolute; background: var(--paper); border: 1px solid var(--ink); box-shadow: 6px 6px 0 var(--shade); }
   .box.k-library { background: var(--shelf); }
-  .box.k-external { background: var(--yellow); }
+  .box.k-external { background: var(--yellow); color: var(--ink); }
   .bhead { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-bottom: 1px solid var(--ink); }
   .bname { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bkind { color: var(--slate); font-size: 11px; }
@@ -349,7 +349,8 @@
   .rname { grid-column: 1; grid-row: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rname:hover { text-decoration: underline; text-underline-offset: 3px; }
   .sub { grid-column: 1 / -1; grid-row: 2; color: var(--slate); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .focus .sub, .k-external .sub { color: var(--ink); }
+  .focus .sub { color: var(--text); }
+  .k-external .sub { color: var(--ink); }
   .loop { font-weight: 700; }
   .chips { grid-column: 2; grid-row: 1; display: flex; gap: 4px; align-items: center; }
   /* the focus row's label takes the whole first line; its chips sit on the second, after the data */
@@ -358,7 +359,7 @@
   .row.focus .chips { grid-row: 2; }
   .total { font-size: 11px; font-weight: 700; }
   .chip { border: 1px solid var(--ink); background: var(--paper); padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 16px; }
-  .chip:hover { background: var(--yellow); }
+  .chip:hover { background: var(--yellow); color: var(--ink); }
   .detail { width: 320px; flex: none; overflow: auto; background: var(--paper); border-left: 1px solid var(--ink); }
   .detail header { padding: 10px 12px; border-bottom: 1px solid var(--ink); position: relative; }
   .detail h3 { margin: 6px 0 2px; font-size: 16px; overflow-wrap: anywhere; padding-right: 54px; }

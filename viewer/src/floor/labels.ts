@@ -12,7 +12,7 @@ import type { SceneState } from "./state";
 import type { TileRoute } from "../factory/router";
 import type { Piece } from "../factory/tiles";
 
-export const label = (size: number, weight: "400" | "500" | "600" | "700", fill = C.ink) =>
+export const label = (size: number, weight: "400" | "500" | "600" | "700", fill = C.text) =>
   new TextStyle({ fontFamily: FONT, fontSize: size, fontWeight: weight, fill });
 
 /** Every word drawn on the floor, and how many are turned (tests read both; every word reads left to
@@ -106,7 +106,7 @@ export function linesRead(st: SceneState) {
 /** The full name beside a machine, in the door hint's style, readable at any zoom. */
 export function nameTag(st: SceneState, model: Model, m: Machine): Container {
   const tag = new Container();
-  const t = new Text({ resolution: 2, text: `${model.codes.get(m.id) ?? ""} ${model.itemName(m.id)}`.trim(), style: label(11.5, "600", C.paper) });
+  const t = new Text({ resolution: 2, text: `${model.codes.get(m.id) ?? ""} ${model.itemName(m.id)}`.trim(), style: label(11.5, "600", C.onInk) });
   t.position.set(6, -23);
   tag.addChild(new Graphics().rect(0, -26, t.width + 12, 20).fill(C.ink), t);
   tag.position.set(m.x, m.y);   // grows up and to the right from the machine's top-left corner
@@ -155,7 +155,7 @@ export function tabHint(st: SceneState, model: Model, id: string, tab: Graphics,
   code.eventMode = "none";   // the code on top would otherwise take the hit and hand it to the machine
   const hint = new Container();
   const text = `${model.codes.get(id) ?? ""} ${model.label(id)}: used by many services, so no line is drawn`;
-  const ht = new Text({ resolution: 2, text, style: label(11.5, "600", C.paper) });
+  const ht = new Text({ resolution: 2, text, style: label(11.5, "600", C.onInk) });
   hint.addChild(new Graphics().rect(x, y - 24, ht.width + 12, 20).fill(C.ink), ht);
   ht.position.set(x + 6, y - 21);
   hint.visible = false;

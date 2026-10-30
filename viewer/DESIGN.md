@@ -205,6 +205,18 @@ A cool, paper-pale field with black keylines, where saturated brick colours appe
 
 **The Ink on Yellow Rule.** Anything on yellow is set in ink. An external's endpoint lives in its subline in ink, never slate.
 
+### Evening theme
+The booklet page is the default and the product's look. A dark theme, chosen in Settings, is the same booklet for an evening or a dark room: same factory, same stroke forms, same rules; only the values move. It is never the category's dark canvas of rounded cards and bezier edges.
+
+- **A tonal ladder, darkest first.** Ink (#0c0e12) stays the darkest value and keeps its fills: code tabs, section tabs, chimneys, flags, primary buttons. The floor (#181c22, rail #1f242b) sits one step up, machine faces and panels (#2a3038) one step above that; the shade plate (#0f1216) stays darker than the floor, so every raised thing still casts it.
+- **Rims, not keylines.** On dark, a black keyline reads as a gap. Keylines become a rim one step lighter than the face (#4a535e); pipe casings and tile clamps go grey (#2f363f, #4a535e).
+- **Words get their own value.** Words on a face or a tab are #dde4ec (the stylesheet's `--text` and `--on-ink`; on light they are ink and paper). Ink on yellow still holds.
+- **Belts keep their dark body** (#0e1014) between light guard rails (#5f6975), so the band reads as a conveyor on the floor, never a slot in it; treads #1f242b, chevrons #8a95a2.
+- **Colours keep their jobs**, retuned for a dark room: write #d95a52, outside world #d9b43a, stream #3f80d8, event #4fa75a, read #8d98a5, batch #c8962e, unrouted #a57fe0, lit windows #bcb08a (cream, never the outside world's yellow). Picked is a lighter blue (#69b1ff), with a #1d3350 wash; links and focus share it.
+- **Plain arrows are light.** The trace pane's call arrows and every mark drawn straight on the floor (Still motion's heads, door arrows, a travel's ghost route, implementation dots) are #dde4ec; a door's dashed edge is read slate.
+
+The floor bakes its colours when it draws, so a theme change is saved in browser storage and the page reloads.
+
 ## Typography
 
 **Display Font:** Archivo (bundled variable font, weight 100 to 900, width 62% to 125%; system-ui fallback)
@@ -234,7 +246,7 @@ Sizes are chosen to stay legible when floor 0 is fitted to the window.
 
 ## Layout
 
-Desktop only, 1024px minimum width; there is no phone or narrow layout. A three-column shell fills the viewport: left rail (232px), the floor canvas (fluid, ink-keylined left and right), and the inspector (312px, collapsible to a 36px vertical tab, open by default). The floor switcher F0 to Fn lives at the top of the left rail, newest floor on top, followed by Find, the floor's item list (On this floor) and the pinned traces, each section folding to its heading and count, with "Save for the agent (N)" (comments plus pin changes), problems and still-motion pinned at the rail foot. The legend sits top-left over the canvas; Fit sits bottom-right. A trace opens a pane under the floor and inspector, split from them by an 8px divider (drag it, or focus it and press ↑/↓ for 5% steps; 20 to 80% of the window, 45% to start, remembered in browser storage); Maximize fills the whole window and Restore returns it. The floor keeps its zoom above the pane.
+Desktop only, 1024px minimum width; there is no phone or narrow layout. A three-column shell fills the viewport: left rail (232px), the floor canvas (fluid, ink-keylined left and right), and the inspector (312px, collapsible to a 36px vertical tab, open by default). The floor switcher F0 to Fn lives at the top of the left rail, newest floor on top, followed by Find, the floor's item list (On this floor) and the pinned traces, each section folding to its heading and count, with "Save for the agent (N)" (comments plus pin changes), Problems and Settings pinned at the rail foot. Settings holds what is rarely changed: the theme (Light or Dark, a two-way switch) and Still motion; it opens above its button and closes on Esc or a click outside. The legend sits top-left over the canvas; Fit sits bottom-right. A trace opens a pane under the floor and inspector, split from them by an 8px divider (drag it, or focus it and press ↑/↓ for 5% steps; 20 to 80% of the window, 45% to start, remembered in browser storage); Maximize fills the whole window and Restore returns it. The floor keeps its zoom above the pane.
 
 Spacing runs on a tight 4/6/8/10/12/14px rhythm: section padding 10px 12px in the rail and 10px 14px in the inspector, overlays inset 12px from the canvas edge. On the floor, positions come from the map's layout; the camera fits floor 0 at 94% of the visible area.
 

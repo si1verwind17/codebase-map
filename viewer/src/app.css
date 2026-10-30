@@ -3,6 +3,9 @@
   --page-deep: #d3dfe9;
   --ink: #1b1d21;
   --paper: #ffffff;
+  --text: #1b1d21;         /* words on paper and page */
+  --on-ink: #ffffff;       /* words on an ink tab or button */
+  --legend-bg: rgb(255 255 255 / 0.92);
   --shade: #c4d1dc;
   --red: #d01012;
   --yellow: #f5cd2f;
@@ -19,10 +22,33 @@
   color-scheme: light;
 }
 
+:root[data-theme="dark"] {
+  --page: #181c22;
+  --page-deep: #1f242b;
+  --ink: #0c0e12;          /* the darkest value: keylines, tabs, primary buttons */
+  --paper: #2a3038;        /* panels, cards, inputs: one step up */
+  --text: #dde4ec;
+  --on-ink: #dde4ec;
+  --legend-bg: rgb(31 36 43 / 0.94);
+  --shade: #0f1216;
+  --red: #d95a52;
+  --yellow: #d9b43a;
+  --blue: #69b1ff;         /* links and focus share the picked blue on dark */
+  --green: #4fa75a;
+  --slate: #95a0ac;
+  --steel: #343d48;
+  --shelf: #262c34;
+  --amber: #c8962e;
+  --rule: #2b323b;
+  --picked: #69b1ff;
+  --picked-wash: #1d3350;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--page); color: var(--ink); font: 13px/1.45 var(--font); font-feature-settings: "tnum" 1; }
+html, body { margin: 0; height: 100%; background: var(--page); color: var(--text); font: 13px/1.45 var(--font); font-feature-settings: "tnum" 1; }
 #app { height: 100%; }
-::selection { background: var(--picked-wash); color: var(--ink); }
+::selection { background: var(--picked-wash); color: var(--text); }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }

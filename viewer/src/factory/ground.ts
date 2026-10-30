@@ -56,10 +56,10 @@ export function paintZone(z: Zone, clear: Clearance, labels: ZoomLabel[] = []): 
 export function paintLane(l: TileLane, name: string, blocked: number[], labels: ZoomLabel[] = []): Container {
   const c = new Container();
   const x0 = l.x0 * T, x1 = l.x1 * T, y = l.y * T, h = LANE_H * T, cy = y + h / 2;
-  const g = new Graphics().rect(x0, y, x1 - x0, h).fill(C.steel).stroke({ width: 1, color: C.ink });
+  const g = new Graphics().rect(x0, y, x1 - x0, h).fill(C.steel).stroke({ width: 1, color: C.edge });
   for (let x = x0 + 8; x < x1 - 8; x += 18) g.moveTo(x, cy).lineTo(Math.min(x + 10, x1 - 8), cy);   // dashed centre line
   g.stroke({ width: 2, color: C.slate });
-  const t = new Text({ resolution: 2, text: name, style: style(LANE_FONT, C.ink) });
+  const t = new Text({ resolution: 2, text: name, style: style(LANE_FONT, C.text) });
   const plan = laneLabelPlan(l, t.width + 10, blocked);
   const lab = new Container();   // grows down and to the right from its top-left corner
   lab.position.set(plan.x, plan.y);

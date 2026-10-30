@@ -13,7 +13,7 @@ import type { DoorLead } from "./messaging";
 import { padMark, type Dock, type Pad } from "./pads";
 import { T, type Box } from "./tiles";
 
-const KEY = { width: 1.2, color: C.ink };
+const KEY = { width: 1.2, color: C.edge };
 const style = (size: number, fill: number) => new TextStyle({ fontFamily: FONT, fontSize: size, fontWeight: "700", fill });
 
 /** A landing pad: a mark on its machine's roof, bottom row (`padMark`): a keylined green-soft square with an H; a
@@ -33,21 +33,21 @@ export function paintDock(g: Graphics, d: Pick<Dock, "x" | "y" | "w" | "h">, ski
   // `skip`: px at a level dock's start its face's words take; the stripes run in the rest
   if (w >= h) for (let i = 0; i < Math.floor((w - skip - 8) / 11); i++) g.moveTo(x + skip + 4 + i * 11, y + h - 3).lineTo(x + skip + 10 + i * 11, y + 3);
   else for (let i = 0; i < Math.floor((h - 8) / 11); i++) g.moveTo(x + 3, y + 4 + i * 11 + 6).lineTo(x + w - 3, y + 4 + i * 11);
-  g.stroke({ width: 1.6, color: C.ink });
+  g.stroke({ width: 1.6, color: C.edge });
 }
 
 /** A queue hub's waiting stack: three small keylined crates in its reserved tile. */
 export function paintStack(g: Graphics, s: Stack) {
   const x = s.x * T, y = s.y * T;
-  for (let i = 0; i < 3; i++) g.rect(x + 4, y + T - 3 - (i + 1) * 7, 16, 6).fill(C.yellow).stroke({ width: 1, color: C.ink });
+  for (let i = 0; i < 3; i++) g.rect(x + 4, y + T - 3 - (i + 1) * 7, 16, 6).fill(C.yellow).stroke({ width: 1, color: C.edge });
 }
 
 /** What a hub or a door leads to: a band across its top and its tower (a door's corner marker) in `color`. */
 export function paintLeadMark(g: Graphics, b: Box, color: number) {
   const x = b.x * T, y = b.y * T, W = b.w * T;
   g.rect(x, y, W, 4).fill(color);
-  if (b.foot === "hub") g.circle(x + W / 2, y + 14, 6).fill(color).stroke({ width: 1, color: C.ink });
-  else g.rect(x + W - 16, y + 8, 10, 10).fill(color).stroke({ width: 1, color: C.ink });
+  if (b.foot === "hub") g.circle(x + W / 2, y + 14, 6).fill(color).stroke({ width: 1, color: C.edge });
+  else g.rect(x + W - 16, y + 8, 10, 10).fill(color).stroke({ width: 1, color: C.edge });
 }
 /** A door's mark by what it leads to (messaging.ts `doorLead`). */
 export const LEAD_COLOR: Record<DoorLead, number> = { dead: C.red, hub: C.green, outside: C.yellow };
@@ -90,7 +90,7 @@ export function labelBox(p: Placed, size: number, fill: number, ink: number, edg
 /** A flight's plate: paper, edged and lettered in the flight's ink. */
 export const plateView = (p: Placed, dead: boolean, size: number) => labelBox(p, size, C.paper, dead ? C.red : C.green, dead ? C.red : C.green);
 /** A consumer's tag under its machine (`group notifier · 2 replicas`): paper on ink, as the mock's badge. */
-export const tagView = (p: Placed, size: number) => labelBox(p, size, C.ink, C.paper);
+export const tagView = (p: Placed, size: number) => labelBox(p, size, C.ink, C.onInk);
 /** A receiving dock's sign (`POST /path` or `push`, a webhook's route): ink on the dock's yellow, keylined. */
 export const signView = (p: Placed, size: number) => labelBox(p, size, C.yellow, C.ink, C.ink);
 
@@ -149,7 +149,7 @@ export function paintMessaging(tf: TileFloor, flights: FlightPath[], labels: Mes
  *  ink box, padded 6 by 3. It replaces what `tip` held; `corner` places the box's top-left from its size. */
 export function fillCard(tip: Container, words: string, corner: (w: number, h: number) => { x: number; y: number }): { w: number; h: number } {
   for (const c of tip.removeChildren()) c.destroy();
-  const t = new Text({ resolution: 2, text: words, style: new TextStyle({ fontFamily: FONT, fontSize: 11.5, fontWeight: "600", fill: C.paper, lineHeight: 15.5 }) });
+  const t = new Text({ resolution: 2, text: words, style: new TextStyle({ fontFamily: FONT, fontSize: 11.5, fontWeight: "600", fill: C.onInk, lineHeight: 15.5 }) });
   const w = t.width + 12, h = t.height + 6, at = corner(w, h);
   t.position.set(at.x + 6, at.y + 3);
   tip.addChild(new Graphics().rect(at.x, at.y, w, h).fill(C.ink), t);

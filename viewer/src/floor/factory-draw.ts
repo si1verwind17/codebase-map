@@ -183,7 +183,7 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
 
 /** A badge's text, and the size its spot is planned for (`badgeSize`, an estimate never smaller than the drawn box). */
 function badgeView(layer: FloorLayer) {
-  const t = new Text({ resolution: 2, text: `used by ${layer.usedBy}`, style: label(BADGE_FONT, "700", C.paper) });
+  const t = new Text({ resolution: 2, text: `used by ${layer.usedBy}`, style: label(BADGE_FONT, "700", C.onInk) });
   return { t, ...badgeSize(layer.usedBy) };
 }
 /** A heavily used item's `used by N` badge: paper on ink, as the factory's tags, beside its box where the

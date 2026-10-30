@@ -23,17 +23,17 @@ export const subShown = (size: number, z: number, codes: boolean) => !codes && s
 /** The code's size in world px: about 13 px on screen at a 0.39 Fit, shrunk to stay inside a small box. */
 export const CODE_FONT = 34;
 
-const KEY = { width: 1.4, color: C.ink };
+const KEY = { width: 1.4, color: C.edge };
 const text = (s: string, size: number, weight: "500" | "600" | "700", fill: number) =>
   new Text({ resolution: 2, text: s, style: new TextStyle({ fontFamily: FONT, fontSize: size, fontWeight: weight, fill, lineHeight: size + 2 }) });
 
 /** The short code large and centred on a `W`×`H` box at (x, y), on a plate, shrunk to stay inside the box; hidden until asked. */
 export function bigCode(code: string, x: number, y: number, W: number, H: number): Container {
   const out = new Container();
-  const big = new Text({ resolution: 2, text: code, style: new TextStyle({ fontFamily: FONT, fontSize: CODE_FONT, fontWeight: "700", fill: C.ink }) });
+  const big = new Text({ resolution: 2, text: code, style: new TextStyle({ fontFamily: FONT, fontSize: CODE_FONT, fontWeight: "700", fill: C.text }) });
   big.anchor.set(0.5);
   const room = Math.min((W - 12) / (big.width + 16), (H - 12) / (big.height + 8), 1);   // the padded plate must fit the box
-  const plate = new Graphics().roundRect(-big.width / 2 - 8, -big.height / 2 - 4, big.width + 16, big.height + 8, 6).fill({ color: C.paper, alpha: 0.92 }).stroke({ width: 1.4, color: C.ink });
+  const plate = new Graphics().roundRect(-big.width / 2 - 8, -big.height / 2 - 4, big.width + 16, big.height + 8, 6).fill({ color: C.paper, alpha: 0.92 }).stroke({ width: 1.4, color: C.edge });
   out.addChild(plate, big);
   out.scale.set(room);
   out.position.set(x + W / 2, y + H / 2);
@@ -84,24 +84,24 @@ const STORE_FACE = { warehouse: C.steel, chest: C.steel, yard: C.steel };
 export function paintStoreArt(g: Graphics, b: Box, art: "warehouse" | "chest" | "yard") {
   const x = b.x * T, y = b.y * T, W = b.w * T, H = b.h * T;
   if (art === "warehouse") {
-    g.moveTo(x, y + 18).lineTo(x + W, y + 18).stroke({ width: 1, color: C.ink });
-    for (let i = 0; i < 5; i++) g.rect(x + W - 82 + i * 15, y + 4, 12, 11).fill(F.crate).stroke({ width: 0.8, color: C.ink });
+    g.moveTo(x, y + 18).lineTo(x + W, y + 18).stroke({ width: 1, color: C.edge });
+    for (let i = 0; i < 5; i++) g.rect(x + W - 82 + i * 15, y + 4, 12, 11).fill(F.crate).stroke({ width: 0.8, color: C.edge });
   } else if (art === "chest") {
     // two straps across the chest, the lid's under the code tab, and a latch on the lower one (a chest beside its machine
     // keeps its lower strap at its foot, under its name; a lane end's runs between its name and its sub line)
     const small = b.foot === "chest";
     const bands = small ? [y + 15, y + H - 5] : [y + 15, y + 44];   // the lower strap between the name and the sub line
-    for (const by of bands) g.rect(x + 1, by, W - 2, small ? 3 : 4).fill(C.paper).stroke({ width: 0.8, color: C.ink });
+    for (const by of bands) g.rect(x + 1, by, W - 2, small ? 3 : 4).fill(C.paper).stroke({ width: 0.8, color: C.edge });
     const [lw, lh] = small ? [6, 8] : [10, 11];
     // on the lower strap, at the right: clear of the name and the sub line, inside the box
     const lx = small ? x + W - 10 : x + W - 22, ly = small ? y + H - 9 : bands[1] + 2 - lh / 2;
-    g.rect(lx, ly, lw, lh).fill(C.paper).stroke({ width: 1, color: C.ink });
+    g.rect(lx, ly, lw, lh).fill(C.paper).stroke({ width: 1, color: C.edge });
     g.rect(lx + lw / 2 - 1, ly + lh / 2 - 1.5, 2, 3).fill(C.ink);   // keyhole
   } else {
     // a container yard: shipping containers stacked two and one on the ground line, their sides ribbed
-    g.moveTo(x, y + 18).lineTo(x + W, y + 18).stroke({ width: 1, color: C.ink });
+    g.moveTo(x, y + 18).lineTo(x + W, y + 18).stroke({ width: 1, color: C.edge });
     const box = (cx: number, cy: number) => {
-      g.rect(cx, cy, 30, 7).fill(F.crate).stroke({ width: 0.8, color: C.ink });
+      g.rect(cx, cy, 30, 7).fill(F.crate).stroke({ width: 0.8, color: C.edge });
       for (let r = cx + 4; r < cx + 30; r += 4) g.moveTo(r, cy + 1.5).lineTo(r, cy + 5.5);
       g.stroke({ width: 0.7, color: C.slate });
     };
@@ -116,7 +116,7 @@ export function paintBox(b: Box, words: { code: string; name: string; sub: strin
   const art = storeArt(b, words.store);
   const face = art ? STORE_FACE[art] : b.foot === "dock" ? C.yellow
     : b.foot === "rack" || b.foot === "installed" ? C.shelf : b.foot === "hub" ? F.hub : C.paper;
-  g.rect(x + 5, y + 5, W, H).fill(C.shade).stroke({ width: 1, color: C.ink });
+  g.rect(x + 5, y + 5, W, H).fill(C.shade).stroke({ width: 1, color: C.edge });
   g.rect(x, y, W, H).fill(face).stroke(KEY);
   view.addChild(g);
   const names: Container[] = [];
@@ -133,8 +133,8 @@ export function paintBox(b: Box, words: { code: string; name: string; sub: strin
       out.chimney = { x: x + W - 16.5, y: y - 16 };
       const lit = new Graphics(), dark = new Graphics();
       for (let i = 0; i < 4; i++) {
-        lit.rect(x + 12 + i * 26, y + 38, 16, 12).fill(F.lit).stroke({ width: 1, color: C.ink });
-        dark.rect(x + 12 + i * 26, y + 38, 16, 12).fill(C.steel).stroke({ width: 1, color: C.ink });
+        lit.rect(x + 12 + i * 26, y + 38, 16, 12).fill(F.lit).stroke({ width: 1, color: C.edge });
+        dark.rect(x + 12 + i * 26, y + 38, 16, 12).fill(C.steel).stroke({ width: 1, color: C.edge });
       }
       dark.visible = false;
       view.addChild(lit, dark);
@@ -142,12 +142,12 @@ export function paintBox(b: Box, words: { code: string; name: string; sub: strin
     }
   } else if (b.foot === "dock") {
     for (let i = 0; i < 8; i++) g.moveTo(x, y + 22 + i * 12).lineTo(x + 9, y + 13 + i * 12);   // hazard edge on the loading side
-    g.stroke({ width: 2, color: C.ink });
-    g.moveTo(x + W - 22, y + 10).lineTo(x + W - 22, y + 36).stroke({ width: 1.6, color: C.ink });
+    g.stroke({ width: 2, color: C.edge });
+    g.moveTo(x + W - 22, y + 10).lineTo(x + W - 22, y + 36).stroke({ width: 1.6, color: C.edge });
     g.poly([x + W - 22, y + 10, x + W - 8, y + 16, x + W - 22, y + 22]).fill(C.ink);   // flag
   } else if (b.foot === "rack") {
     g.moveTo(x + 6, y + 32).lineTo(x + W - 6, y + 32).stroke({ width: 2, color: F.rule });
-    for (let i = 0; i < 5; i++) g.rect(x + 10 + i * 16, y + 21, 11, 10).fill(C.shade).stroke({ width: 0.8, color: C.ink });
+    for (let i = 0; i < 5; i++) g.rect(x + 10 + i * 16, y + 21, 11, 10).fill(C.shade).stroke({ width: 0.8, color: C.edge });
   } else if (b.foot === "installed") {
     // a wall unit: the plug socket near the top, the name upright below it, wrapped at its parts
     g.rect(x + W / 2 - 11, y + 20, 22, 15).fill(C.ink);
@@ -155,12 +155,12 @@ export function paintBox(b: Box, words: { code: string; name: string; sub: strin
   } else if (art) {
     paintStoreArt(g, b, art);
   } else if (b.foot === "hub") {
-    for (const [px, py] of [[4, 4], [W - 14, 4]]) g.rect(x + px, y + py, 10, 10).fill(C.paper).stroke({ width: 1, color: C.ink });   // landing pads
-    g.circle(x + W / 2, y + 14, 6).fill(C.green).stroke({ width: 1, color: C.ink });                                            // tower
+    for (const [px, py] of [[4, 4], [W - 14, 4]]) g.rect(x + px, y + py, 10, 10).fill(C.paper).stroke({ width: 1, color: C.edge });   // landing pads
+    g.circle(x + W / 2, y + 14, 6).fill(C.green).stroke({ width: 1, color: C.edge });                                            // tower
   }
 
   if (b.foot !== "hub") {   // code tab
-    const code = text(words.code, 10.5, "700", C.paper);
+    const code = text(words.code, 10.5, "700", C.onInk);
     const tab = new Graphics().rect(x, y, Math.max(24, code.width + 8), 15).fill(C.ink);
     code.position.set(x + 4, y + 1);
     view.addChild(tab, code);
@@ -176,7 +176,7 @@ export function paintBox(b: Box, words: { code: string; name: string; sub: strin
     out.smalls.push({ objs: [t], size: 9.5 });
   }
   const fit = fitMachineName(b, words.name);   // boxname.ts: the audit reads the same fit
-  const name = text(fit.lines.join("\n"), fit.size, "700", C.ink);
+  const name = text(fit.lines.join("\n"), fit.size, "700", C.text);
   name.position.set(x + ix, nameTop);
   view.addChild(name);
   names.push(name);

@@ -14,8 +14,8 @@ import { C, F } from "./palette";
 
 interface Mover { route: Route; kind: string; both: boolean; toStore: boolean; lengths: number[]; total: number; g: Graphics; phase: number; cycle: number }
 
-const KEYLINE = { width: 1, color: C.ink, pixelLine: true };
-const WAGON_LINE = { width: 1.2, color: C.ink };
+const KEYLINE = { width: 1, color: C.edge, pixelLine: true };
+const WAGON_LINE = { width: 1.2, color: C.edge };
 const dist = (a: Pt, b: Pt) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -112,7 +112,7 @@ export class Motion {
       for (const heads of stillFlightArrows(shown, m.drones?.keepOff ?? [])) {
         const g = new Graphics();
         this.layer.addChild(g);
-        for (const head of heads) g.poly(head).fill(C.ink);
+        for (const head of heads) g.poly(head).fill(C.text);
       }
     }
     // trains: one per lit rail; Still motion parks each at its yard (or door) end
@@ -245,7 +245,7 @@ const euclid = (pts: Pt[]) => { const l = [0]; for (let i = 1; i < pts.length; i
 
 function chevrons(g: Graphics, pts: Pt[], lengths: number[]) {
   const total = lengths[lengths.length - 1];
-  for (let d = 30; d < total - 10; d += 46) arrow(g, at(pts, lengths, d), at(pts, lengths, d + 1), C.ink, 5);
+  for (let d = 30; d < total - 10; d += 46) arrow(g, at(pts, lengths, d), at(pts, lengths, d + 1), C.text, 5);
 }
 
 /** The point `d` along `pts`, given the cumulative `lengths` of its segments. */

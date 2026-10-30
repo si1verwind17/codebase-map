@@ -35,13 +35,13 @@
 
 <style>
   .floors { padding: 10px 12px 8px; border-bottom: 1px solid var(--rule); }
-  .tab { display: inline-block; margin: 0 0 6px; padding: 1px 6px; background: var(--ink); color: var(--paper); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+  .tab { display: inline-block; margin: 0 0 6px; padding: 1px 6px; background: var(--ink); color: var(--on-ink); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column-reverse; gap: 2px; }
   button { display: flex; gap: 8px; align-items: baseline; width: 100%; border: 1px solid transparent; background: none; padding: 4px 6px; text-align: left; }
   button:hover:not(:disabled) { border-color: var(--ink); }
   button:disabled { cursor: default; }
   button:disabled:not(.here) { opacity: 0.4; } /* busy: a move is under way; .here keeps its highlight */
-  .here { background: var(--yellow); border-color: var(--ink); font-weight: 700; }
+  .here { background: var(--yellow); color: var(--ink); border-color: var(--ink); font-weight: 700; }
   .down { border: 1px dashed var(--ink); color: var(--blue); font-weight: 600; }
   .lvl { font-weight: 800; font-stretch: 70%; font-size: 15px; min-width: 24px; }
   .name { min-width: 0; overflow-wrap: anywhere; }

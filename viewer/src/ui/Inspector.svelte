@@ -253,8 +253,8 @@
   h2 { margin: 6px 0 2px; font-size: 18px; font-stretch: 85%; line-height: 1.15; overflow-wrap: anywhere; }
   .sub { margin: 0; color: var(--slate); }
   .where { margin: 6px 0 0; color: var(--slate); overflow-wrap: anywhere; }
-  .code { font-size: 10px; font-weight: 700; background: var(--ink); color: var(--paper); padding: 1px 5px; }
-  .open { margin-top: 10px; background: var(--ink); color: var(--paper); border: 0; padding: 6px 12px; font-weight: 700; }
+  .code { font-size: 10px; font-weight: 700; background: var(--ink); color: var(--on-ink); padding: 1px 5px; }
+  .open { margin-top: 10px; background: var(--ink); color: var(--on-ink); border: 0; padding: 6px 12px; font-weight: 700; }
   .open:hover:not(:disabled) { background: var(--blue); }
   .open:disabled, .starts .go-trace:disabled { background: var(--shade); color: var(--slate); border-color: var(--shade); cursor: default; }
   .acts { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -262,21 +262,21 @@
   .starts .start:first-of-type { border-top: 0; }
   .starts .keys { grid-column: 1 / -1; margin: 0; color: var(--slate); font-size: 11px; overflow-wrap: anywhere; }
   .starts .go-trace { border: 1px solid var(--ink); background: var(--paper); padding: 1px 8px; font-size: 11px; font-weight: 700; }
-  .starts .go-trace:hover:not(:disabled) { background: var(--picked); border-color: var(--picked); color: var(--paper); }
+  .starts .go-trace:hover:not(:disabled) { background: var(--picked); border-color: var(--picked); color: var(--on-ink); }
   .none { margin: 0; color: var(--slate); }
   section { padding: 10px 14px; border-bottom: 1px solid var(--rule); }
-  .tab { display: inline-block; margin: 0 0 6px; padding: 1px 6px; background: var(--ink); color: var(--paper); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
-  .help p { margin: 0; color: var(--ink); max-width: 60ch; }
+  .tab { display: inline-block; margin: 0 0 6px; padding: 1px 6px; background: var(--ink); color: var(--on-ink); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+  .help p { margin: 0; color: var(--text); max-width: 60ch; }
   .rels ul { list-style: none; margin: 0; padding: 0; }
   .rels li { padding: 7px 0; border-top: 1px solid var(--rule); }
   .rels li:first-child { border-top: 0; }
   .rels li.inferred { background: repeating-linear-gradient(135deg, transparent 0 6px, rgb(92 107 120 / 0.09) 6px 8px); }
   .rhead { display: flex; gap: 6px; align-items: baseline; }
   .kind { font-size: 10px; font-weight: 700; padding: 0 5px; border: 1px solid var(--ink); white-space: nowrap; }
-  .k-db-write { background: var(--red); color: var(--paper); border-color: var(--red); }
-  .k-stream { background: var(--blue); color: var(--paper); border-color: var(--blue); }
-  .k-event, .k-hand-off { background: var(--green); color: var(--paper); border-color: var(--green); }
-  .k-ext-call { background: var(--yellow); }
+  .k-db-write { background: var(--red); color: var(--on-ink); border-color: var(--red); }
+  .k-stream { background: var(--blue); color: var(--on-ink); border-color: var(--blue); }
+  .k-event, .k-hand-off { background: var(--green); color: var(--on-ink); border-color: var(--green); }
+  .k-ext-call { background: var(--yellow); color: var(--ink); }
   .rels p { margin: 2px 0 0; }
   .impl p, .needed-by p { margin: 0; }
   .needs ul { list-style: none; margin: 0; padding: 0; }
@@ -295,13 +295,13 @@
   .link { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; text-underline-offset: 3px; text-align: left; }
   .notes textarea { width: 100%; border: 1px solid var(--ink); padding: 6px 8px; resize: vertical; background: var(--paper); }
   .notes textarea::placeholder { color: var(--slate); }
-  .note { margin: 0 0 6px; padding: 6px 8px; background: var(--yellow); border: 1px solid var(--ink); }
-  .add { margin-top: 6px; background: var(--ink); color: var(--paper); border: 0; padding: 6px 12px; font-weight: 700; }
+  .note { margin: 0 0 6px; padding: 6px 8px; background: var(--yellow); color: var(--ink); border: 1px solid var(--ink); }
+  .add { margin-top: 6px; background: var(--ink); color: var(--on-ink); border: 0; padding: 6px 12px; font-weight: 700; }
   .add:disabled { background: var(--shade); color: var(--slate); cursor: default; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .note-row { display: flex; gap: 6px; align-items: flex-start; }
   .note-row .note { flex: 1; min-width: 0; }
   .del { flex: none; border: 1px solid var(--ink); background: var(--paper); padding: 2px 6px; font-size: 11px; font-weight: 600; }
-  .del:hover { background: var(--yellow); }
+  .del:hover { background: var(--yellow); color: var(--ink); }
   .twin, .twinned { margin: 6px 0 0; padding: 4px 8px; background: var(--page); border: 1px dashed var(--ink); }
 </style>

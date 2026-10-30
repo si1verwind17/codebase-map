@@ -22,5 +22,5 @@ export function implementsDots(a: Rect, b: Rect): { x: number; y: number }[] {
 
 export function paintImplements(g: Graphics, a: Rect, b: Rect) {
   for (const p of implementsDots(a, b)) g.circle(p.x, p.y, DOT);
-  g.fill(C.ink);
+  g.fill(C.text);
 }

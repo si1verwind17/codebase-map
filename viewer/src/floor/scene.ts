@@ -537,7 +537,7 @@ export class FloorScene {
         g.rect(p.x - 6, p.y - 6, 12, 12).fill({ color: C.yellow, alpha: k ? 0.16 * (6 - k) / 6 : 1 });
       }
       const p = at(tr.pts, tr.lengths, total * e);
-      g.rect(p.x - 7, p.y - 7, 14, 14).fill(C.yellow).stroke({ width: 2, color: C.ink });
+      g.rect(p.x - 7, p.y - 7, 14, 14).fill(C.yellow).stroke({ width: 2, color: C.edge });
       tr.tag?.position.set(p.x + 12, p.y - 26);
       if (tr.t >= 1) { const d = tr.done; tr.g.destroy(); tr.tag?.destroy(); tr.temp?.destroy(); this.s.traveller = null; d?.(); }
     }

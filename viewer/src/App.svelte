@@ -659,12 +659,12 @@
   .floor, .side { grid-row: 1; }
   .side { position: relative; width: 312px; height: 100%; min-height: 0; display: flex; flex-direction: column; }
   .divider { grid-column: 2 / -1; grid-row: 2; cursor: row-resize; background: var(--page-deep); border-top: 1px solid var(--ink); touch-action: none; }
-  .divider:hover, .divider:focus-visible { background: var(--yellow); }
+  .divider:hover, .divider:focus-visible { background: var(--yellow); color: var(--ink); }
   .pane { grid-column: 2 / -1; grid-row: 3; min-height: 0; }
   .pane.max { position: fixed; inset: 0; z-index: 20; }
   .side.closed { width: 36px; background: var(--page-deep); }
   .side-body { flex: 1; min-height: 0; }
-  .collapse { display: flex; align-items: center; gap: 6px; background: var(--ink); color: var(--paper); border: 0; padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .collapse { display: flex; align-items: center; gap: 6px; background: var(--ink); color: var(--on-ink); border: 0; padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .collapse svg { width: 10px; height: 10px; flex: none; }
   .closed .collapse { flex-direction: column; height: 100%; padding: 10px 0; justify-content: flex-start; }
   .closed .collapse span { writing-mode: vertical-rl; }
@@ -673,23 +673,23 @@
   .canvas { position: absolute; inset: 0; }
   .floor-tools { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; }
   .floor-tools button { background: var(--paper); border: 1px solid var(--ink); padding: 5px 10px; font-weight: 600; box-shadow: 6px 6px 0 var(--shade); }
-  .floor-tools button:hover { background: var(--yellow); }
-  .floor-tools button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .floor-tools button:hover { background: var(--yellow); color: var(--ink); }
+  .floor-tools button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
   .guide-note { display: flex; align-items: center; gap: 12px; background: var(--paper); border: 1px solid var(--ink); box-shadow: 6px 6px 0 var(--shade); padding: 6px 6px 6px 12px; max-width: 46ch; }   /* in the legend's flow, directly under it */
   .guide-note a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; font-weight: 700; }
-  .guide-note button { background: var(--ink); color: var(--paper); border: 0; padding: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .guide-note button { background: var(--ink); color: var(--on-ink); border: 0; padding: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
   .guide-note button:hover { background: var(--blue); }
   .floor-tools button:disabled { opacity: 0.5; cursor: default; }
   .layers-btn { position: relative; display: flex; align-items: center; gap: 6px; }
   .layers-btn svg { width: 16px; height: 16px; flex: none; }
   .layer-name { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .layers-btn .badge { position: absolute; top: -9px; right: -9px; min-width: 19px; height: 19px; border-radius: 10px; background: var(--red); color: var(--paper); font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; border: 1.5px solid var(--paper); }
+  .layers-btn .badge { position: absolute; top: -9px; right: -9px; min-width: 19px; height: 19px; border-radius: 10px; background: var(--red); color: var(--on-ink); font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; border: 1.5px solid var(--paper); }
   .layers-panel { position: absolute; right: 12px; bottom: 52px; width: 290px; background: var(--paper); border: 1px solid var(--ink); box-shadow: 6px 6px 0 var(--shade); z-index: 3; }
   .layers-panel h2 { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--shade); color: var(--slate); }
   .layers-panel label { display: flex; gap: 8px; align-items: center; padding: 8px 10px; cursor: pointer; font-size: 13px; font-weight: 600; }
   .layers-panel label:hover { background: var(--page); }
   .layers-panel input { margin: 0; accent-color: var(--ink); }
-  .notice { position: absolute; left: 12px; bottom: 12px; margin: 0; background: var(--ink); color: var(--paper); padding: 8px 12px; max-width: 46ch; }
+  .notice { position: absolute; left: 12px; bottom: 12px; margin: 0; background: var(--ink); color: var(--on-ink); padding: 8px 12px; max-width: 46ch; }
   .problems { position: absolute; left: 232px; top: 0; bottom: 0; width: 380px; background: var(--paper); border-left: 1px solid var(--ink); overflow: auto; padding: 12px 16px; border-right: 1px solid var(--ink); z-index: 4; }
   .problems header { display: flex; justify-content: space-between; align-items: center; }
   .problems h2 { margin: 0; font-size: 16px; }
@@ -701,7 +701,7 @@
   .err { border: 1px solid var(--red); color: var(--red); padding: 8px 10px; }
   .pick { display: inline-block; margin-top: 8px; }
   .pick input { position: absolute; opacity: 0; width: 1px; }
-  .pick span { display: inline-block; background: var(--ink); color: var(--paper); padding: 9px 16px; font-weight: 700; cursor: pointer; }
+  .pick span { display: inline-block; background: var(--ink); color: var(--on-ink); padding: 9px 16px; font-weight: 700; cursor: pointer; }
   .pick:focus-within span { outline: 2px solid var(--blue); outline-offset: 2px; }
   .shell { min-width: 1024px; }
 </style>
