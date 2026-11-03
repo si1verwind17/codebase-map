@@ -29,9 +29,12 @@ Sort each line into one group of its language:
    resolve; report those with the reason (SKILL.md § Run step 7).
 3. Check each pattern's count (the `Route patterns` and `Table patterns`
    lines) against the code. When you see routes or tables it misses, fix the
-   regex; for a pack pattern, write a `stack.yaml` entry with the pack
-   entry's name, which replaces it for this repo (pack regexes expect the
-   usual receiver names, such as Express `app.` and `router.`). Never widen a
+   regex. For a pack pattern that only misses lines (pack regexes expect the
+   usual receiver names, such as Express `app.` and `router.`), add an entry
+   of your own that reads just the missed lines; the pack entry keeps the
+   rest. When a pack pattern is wrong (it matches a non-route, or reads the
+   wrong method, path or handler), write a `stack.yaml` entry with the pack
+   entry's name: it replaces that entry for this repo. Never widen a
    pattern to match something that is not one. A line `duplicates <pattern>`
    is information, not a miss: every match of your entry was already that
    pattern's; delete your entry.
