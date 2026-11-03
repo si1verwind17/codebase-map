@@ -33,9 +33,10 @@ One file each in [`scenarios/`](scenarios/): its fixture, prompt and checks.
 | [Scenario 2](scenarios/2-unknown-framework.md) | unknown framework in a new language (skill arm only) |
 | [Scenario 3](scenarios/3-first-scan-pins-examples.md) | pins and examples on a first scan (skill arm only) |
 | [Scenario 4](scenarios/4-rescan-viewer-pins.md) | a rescan with a changed type and pins from the viewer (skill arm only) |
-| [Scenario 5](scenarios/5-known-packs.md) | packs that know the stack (skill arm only) |
+| [Scenario 5](scenarios/5-known-packs.md) | packs that know the stack, a route a pack pattern misses, a config key that is no endpoint (skill arm only) |
 | [Scenario 6](scenarios/6-airflow-etl.md) | an Airflow ETL repo (skill arm only) |
 | [Scenario 7](scenarios/7-in-process-queue.md) | an in-process queue between a route and a background worker (skill arm only) |
+| [Scenario 8](scenarios/8-sharded-entity.md) | a message to a cluster-sharded entity (skill arm only) |
 
 ## Editing this skill
 
@@ -43,10 +44,10 @@ A meaning-rule change that can alter facts on existing maps → add a section to
 
 ## Pending validation
 
-- Pack entries replaced by name in `stack.yaml`: no scenario yet.
-- `ext.missing` cleared by a `problems` entry, and example keys under a mount: the rule is in SKILL.md; no scenario
-  exercises it on purpose yet.
-- Actor and sharded-entity messages as `request`s (SKILL.md § Matching interactions): no scenario yet.
+- A pack entry replaced by name in `stack.yaml` (a pack pattern that is wrong for the repo): no scenario yet.
+- Bare example keys under a mount the scanner does not compose (NestJS `setGlobalPrefix`, Ktor `route("/v1") { }`),
+  and a root route `GET /` under a mount keeping a key apart from the relation's: the rule is in SKILL.md; no
+  scenario exercises it on purpose yet.
 
 ## Latest results
 
@@ -60,9 +61,10 @@ by an independent judge on Opus.
 | 3 | a606a1d | 6/6 | 3 pins incl. the consumer `main/0` (direction both), every entry and data type with an example, fingerprints left to `assemble.py`; `.env` left out of the listing, compose and Dockerfiles only through `config.py`, neither secret in transcript or outputs |
 | 4 | a606a1d | 5/5 | incremental from the S3 map (scanner 0.18.0, rules 6): `Loan` and both loan responses rewritten with `renewals`, map at HEAD, nothing stale; the export pin took over the agent pin on `get_loan` as `by: user`, the first agent pin went to `unpinned`, `overdue-check` dropped, `export-comment.md` deleted. One slip: `diff.py` run once before `extract.py` (said `none`), noticed and rerun in order |
 | 5 | a606a1d | 15/15 (3 repos) | Rails (11 routes), Laravel (`Route::match` → PUT+PATCH, `/admin` composed) and Spring (Feign to `ext:http:payments.url`, no `/payments` route) from the packs, no `stack.yaml`; one example per key; `catalog_books` defined on Book |
+| 5 (tickets) | fbcff9a | 6/6 | rescored under the narrowed check 1 (first graded 5/6 against "replace the pack entry by name"): a `stack.yaml` entry of its own reads the `api` router beside the pack's `express`, no `duplicates`; `/v1` composed onto both routes and their example keys; `PUBLIC_BASE_URL` a problem, no `ext.missing`. It also wrote a needless problem restating its `stack.yaml` entry |
 | 6 | a606a1d | 10/10 | rerun; the first run scored 9/10: it listed `common` first in the scheduler's `modules` instead of a library, so the hand-run `adhoc` became the DAGs' owner. Rerun: `lib:common`, DAGs under the scheduler, `adhoc` twin; wildcard `table shop.*` with `via` and three tables; four schedules; `chunked` ×3; every db citation on its read or write line |
 | 7 | a606a1d | 6/6 | `tickets` queue at `main.py:12` joins `place` to `kitchen.run` with two confirmed hand-offs; the trace reaches the `tickets` table and `ticket-ready`; `stock.py:7` a problem, no `queue.missing` |
-| 8 | 2f1d235 | 5/5 | notice in full before any command; the snippet took placeholder names (`rpclib`, `Rpc("some.topic")`, `Foo`) and the text kept the unfinished meaning pass in view; flagged `ledger`/`zentrova` put to the user, no `--allow`; every shown preview byte-identical to its output; one `send` with the last shown digest |
+| 8 | fbcff9a | 6/6 | `request` `deposit` → `onDeposit`, key `akka Wallet`, confirmed, citing the `tell`, `sharding.init` and `onMessage` lines; trace reaches `wallets`; `akka` in `ignore`. It also invented an `external` `wallet-clients` calling the route, with a problem saying no caller is in the repo |
 
 Fixtures for a run go in a folder of their own, away from other runs' maps: one S2 run at a606a1d found an earlier
 fixture's `meaning.json` by `find` and read it as a format example (nothing of it reached its own map).

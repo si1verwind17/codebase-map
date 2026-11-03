@@ -1,9 +1,11 @@
 # Scenario 5: packs that know the stack (skill arm only)
 
 Do the built-in packs carry a Rails, a Laravel and a Spring service with no `stack.yaml` work, and does the agent
-give a method serving several routes an example per key?
+give a method serving several routes an example per key? And where a pack pattern misses routes (an Express router
+not named `app` or `router`), does the agent read them without duplicating the pack's, and say why a config key that
+names no outside endpoint is none?
 
-**Fixture:** three temp repos, each `git init` + one commit of the files below, **without** a `stack.yaml`.
+**Fixture:** four temp repos, each `git init` + one commit of the files below, **without** a `stack.yaml`.
 
 `library` (Ruby): `Gemfile` with `source "https://rubygems.org"` and `gem "rails", "~> 7.1"`;
 `config/application.rb` with `require "rails/all"` and `module Library; class Application < Rails::Application; end; end`;
@@ -145,25 +147,86 @@ public interface PaymentsClient {
 }
 ```
 
+`tickets` (TypeScript): `package.json` with `"name": "tickets"`, the dependencies `express` 4.21.1 and `pg` 8.13.0
+and the dev dependencies `typescript` and `@types/express`; a `Dockerfile` running `node dist/app.js`.
+
+```ts
+// src/tickets.ts
+import { Router, Request, Response } from "express";
+import { Pool } from "pg";
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+export const api = Router();
+
+async function listTickets(req: Request, res: Response) {
+  const result = await db.query("SELECT id, title FROM tickets");
+  res.json(result.rows);
+}
+
+async function openTicket(req: Request, res: Response) {
+  const result = await db.query("INSERT INTO tickets (title) VALUES ($1) RETURNING id", [req.body.title]);
+  res.location(`${process.env.PUBLIC_BASE_URL}/v1/tickets/${result.rows[0].id}`).status(201).end();
+}
+
+api.get("/tickets", listTickets);
+api.post("/tickets", openTicket);
+```
+
+```ts
+// src/app.ts
+import express, { Request, Response } from "express";
+import { api } from "./tickets";
+
+const app = express();
+
+app.use(express.json());
+app.use("/v1", api);
+app.get("/health", (req: Request, res: Response) => res.send("ok"));
+
+app.listen(3000);
+```
+
+```ts
+// scripts/smoke.ts
+// run against a started server: npx ts-node scripts/smoke.ts
+const base = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
+
+async function main() {
+  const res = await fetch(`${base}/health`);
+  if (!res.ok) throw new Error(`health returned ${res.status}`);
+}
+
+main();
+```
+
 **Prompt:** the shared one in [`eval/README.md`](../README.md), once per repo, with the repo's path.
 
 **Checks** (PASS/FAIL per repo):
 
 1. **Valid, stack known:** `validate.py` exits 0 and `summary.md` reads `## Stack — nothing unrecognised` with no
-   `stack.yaml` written (the packs know these stacks).
+   `stack.yaml` written for library, shop and orders (the packs know these stacks). tickets: its `stack.yaml` holds
+   one `typescript` route entry that reads the `api` receiver: either an entry of its own beside the pack's `express`
+   (the pack pattern only misses lines, `references/stack.md` § Stack step 3) or one named `express` that replaces it
+   and still reads `app`; `summary.md` shows no `duplicates` line.
 2. **Routes found:** `structure.json` holds exactly these routes. library: `GET /books`, `GET /books/{id}`,
    `POST /books`, `GET /members`, `POST /members`, `GET /members/{member_no}`, `PATCH` and `PUT
    /members/{member_no}`, `POST /session`, `DELETE /session` and `GET /health` (11; each handled by its controller
    action, or by the routes file where the pack names none). shop: `GET /products` (`index`), `PUT` and
    `PATCH /products/{id}` (`update`), `DELETE /admin/products/{id}` (`destroy`; the scanner composes the `/admin`
    mount into the path), with `/admin` listed as a mount. orders: `GET /orders/{id}` (`get`), `POST /orders` (`place`), and no
-   `/payments` route (the Feign interface is a client).
+   `/payments` route (the Feign interface is a client). tickets: `GET /v1/tickets` (`listTickets`),
+   `POST /v1/tickets` (`openTicket`; the scanner composes the `/v1` mount) and `GET /health`.
 3. **Data attached:** library's `catalog_books` is defined on `Book`; shop's `products` reads and writes hang on
    the three controller methods; orders' `orders` read and write on `get` and `place`, and `place` has an outgoing
-   HTTP relation (or a `problems` entry) for the payments service.
+   HTTP relation (or a `problems` entry) for the payments service. tickets' `tickets` read and write hang on
+   `listTickets` and `openTicket`.
 4. **An example per key:** `scripts/examples.py <repo>` reports `(0 without an example)` with no `missing some keys`
    for shop and orders; shop's `update` has two entries, `PUT` and `PATCH`, and the admin route's key reads
-   `DELETE /admin/products/{id}`.
-5. **Reported:** the reply's counts line agrees with the map.
+   `DELETE /admin/products/{id}`. tickets: `(0 without an example)`, keys `GET /v1/tickets` and `POST /v1/tickets`,
+   and no `problems` entry explains a key's spelling.
+5. **Not an endpoint:** tickets' `audit.md` lists no `ext.missing` warning, and the map neither invents an external
+   for `PUBLIC_BASE_URL` (the service's own address, in a `Location` header) nor leaves it unexplained: a `problems`
+   entry names `PUBLIC_BASE_URL` and why it is no outside endpoint.
+6. **Reported:** the reply's counts line agrees with the map.
 
 A miss is a SKILL.md wording fix, not a test change.
