@@ -203,6 +203,19 @@ describe("workerPlanner", () => {
   });
 });
 
+describe("plans cross from the worker as JSON text", () => {
+  it("the worker answers a plan as text, one string to copy; the planner gives back planJob's plan", async () => {
+    const st = planWorkerState();
+    st.handle({ kind: "map", text });
+    const r = st.handle({ kind: "plan", id: 1, container: A });
+    expect(r && "plan" in r && typeof r.plan).toBe("string");
+    const w = new FakeWorker();
+    const p = workerPlanner(demo, text, () => w as unknown as Worker);
+    expect(await p.plan(A)).toEqual(planJob(demo, A));
+    p.dispose();
+  });
+});
+
 describe("mainPlanner", () => {
   it("plans in a macrotask of its own", async () => {
     const p = mainPlanner(demo);

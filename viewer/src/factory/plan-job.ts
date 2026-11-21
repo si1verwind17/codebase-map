@@ -4,6 +4,7 @@
 import { Model } from "../model/model";
 import type { CodeMap } from "../model/types";
 import { planFloor, type FloorPlan } from "./plan";
+import type { Box } from "./tiles";
 
 /** Floor `container`'s plan: its bundles (`b`, when the caller has them already), then `planFloor` over them. */
 export function planJob(model: Model, container: string, b = model.bundles(container)): FloorPlan {
@@ -12,8 +13,22 @@ export function planJob(model: Model, container: string, b = model.bundles(conta
 
 /** What the page sends the worker: the map's text once, then one floor at a time. */
 export type PlanRequest = { kind: "map"; text: string } | { kind: "plan"; id: number; container: string };
-/** What the worker answers each `plan` with: the plan (structured-cloned on the way), or why there is none. */
-export type PlanReply = { id: number; container: string; plan: FloorPlan } | { id: number; container: string; error: string };
+/** What the worker answers each `plan` with: the plan as text (`planToText`), or why there is none. A busy floor's plan
+ *  is many small objects (a piece per tile of each line); one string copies across and parses several times faster than
+ *  that many objects clone. */
+export type PlanReply = { id: number; container: string; plan: string } | { id: number; container: string; error: string };
+
+/** A plan as JSON text: its one Map (`tf.boxes`) as entries. */
+export function planToText(plan: FloorPlan): string {
+  return JSON.stringify({ ...plan, tf: { ...plan.tf, boxes: [...plan.tf.boxes] } });
+}
+
+/** The plan `planToText` wrote. */
+export function planFromText(text: string): FloorPlan {
+  const plan = JSON.parse(text) as FloorPlan;
+  plan.tf.boxes = new Map(plan.tf.boxes as unknown as [string, Box][]);
+  return plan;
+}
 
 /** The worker's state: the map's text until the first plan asks for it, then the Model built from it once. Answers
  *  every `plan` (an error reply, never a throw: a throw in a worker reaches the page as an `error` event, which the
@@ -32,7 +47,7 @@ export function planWorkerState(): { handle(msg: PlanRequest): PlanReply | null 
           text = null;   // the Model holds what it needs
         }
         if (!model.floor(container)) throw new Error(`no floor ${container}`);
-        return { id, container, plan: planJob(model, container) };
+        return { id, container, plan: planToText(planJob(model, container)) };
       } catch (e) {
         return { id, container, error: e instanceof Error ? e.message : String(e) };
       }

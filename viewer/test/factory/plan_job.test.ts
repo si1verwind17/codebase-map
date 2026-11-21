@@ -1,12 +1,12 @@
-// planJob is planFloor over the floor's bundles, and a plan survives the structured clone the layout worker sends it
-// through: every floor of the demo, the shop fixture and the guide maps, compared whole and through the pure functions
+// planJob is planFloor over the floor's bundles, and a plan survives the text the layout worker sends it as
+// (planToText): every floor of the demo, the shop fixture and the guide maps, compared whole and through the pure functions
 // the scene runs on a plan (geometry, train paths, flight paths, the keys flights cover).
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { Model } from "../../src/model/model";
 import type { CodeMap } from "../../src/model/types";
 import { planFloor } from "../../src/factory/plan";
-import { planJob, planWorkerState, type PlanReply } from "../../src/factory/plan-job";
+import { planFromText, planJob, planToText, planWorkerState, type PlanReply } from "../../src/factory/plan-job";
 import { toGeometry } from "../../src/factory/layout";
 import { trainPaths } from "../../src/factory/rail-place";
 import { coveredKeys, flightPaths } from "../../src/factory/flights";
@@ -22,14 +22,14 @@ const MAPS: [string, string][] = [
 const floors = (m: Model) => Object.keys(m.map.layout.containers).filter((c) => m.floor(c));
 
 describe("planJob", () => {
-  it.each(MAPS)("%s: equals planFloor over the floor's bundles, and its structured clone plans the same", (_name, text) => {
+  it.each(MAPS)("%s: equals planFloor over the floor's bundles, and read back from its text it plans the same", (_name, text) => {
     const m = new Model(JSON.parse(text) as CodeMap);
     for (const c of floors(m)) {
       const b = m.bundles(c);
       const plan = planJob(m, c);
       expect(plan, c).toEqual(planFloor(m, c, b.doors, b.bundles, b.layered));
-      const clone = structuredClone(plan);
-      expect(clone, c).toStrictEqual(plan);   // no class instance, function or undefined field lost on the way
+      const clone = planFromText(planToText(plan));
+      expect(clone, c).toEqual(plan);   // nothing but undefined fields lost on the way (nothing asks `in` of a plan)
       expect(toGeometry(clone.tf), c).toEqual(toGeometry(plan.tf));
       expect(trainPaths(clone.tf, clone.routes), c).toEqual(trainPaths(plan.tf, plan.routes));
       const paths = flightPaths(clone.tf);
@@ -51,7 +51,7 @@ describe("planWorkerState", () => {
       const r = st.handle({ kind: "plan", id: ++id, container: c }) as Extract<PlanReply, { plan: unknown }>;
       expect(r.id).toBe(id);
       expect(r.container).toBe(c);
-      expect(r.plan, c).toEqual(planJob(m, c));
+      expect(planFromText(r.plan), c).toEqual(planJob(m, c));
     }
   }, 60_000);
 

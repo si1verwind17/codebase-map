@@ -3,7 +3,7 @@
 // which only App imports, so node tests and the audit never load it.
 import type { Model } from "../model/model";
 import type { FloorPlan } from "../factory/plan";
-import { planJob, type PlanReply, type PlanRequest } from "../factory/plan-job";
+import { planFromText, planJob, type PlanReply, type PlanRequest } from "../factory/plan-job";
 
 export interface Planner {
   /** Where plans are made now: "main" from the start without a worker, or since the worker failed. */
@@ -93,7 +93,7 @@ export function workerPlanner(model: Model, text: string, spawn: () => Worker, f
       if (!job) return;
       if (r?.id !== job.id) { fail(); return; }   // an answer to nothing asked: the worker is not the one we know
       flying = null;
-      if ("plan" in r) settle(job, r.plan); else if (!job.settled) onMain(job);
+      if ("plan" in r) settle(job, planFromText(r.plan)); else if (!job.settled) onMain(job);
       pump();
     });
     worker.addEventListener("error", fail);
