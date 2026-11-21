@@ -49,6 +49,10 @@ export const numericCollator = new Intl.Collator(undefined, { numeric: true });
 
 export const DRAW_ORDER: readonly RelationKind[] = ["stream", "event", "hand-off", "batch", "request", "ext-call", "db-write", "db-read", "calls", "uses-code"];
 
+/** One step of a lift walk: an id, and every floor group holding it. */
+interface ChainStep { id: string; groups: readonly string[] }
+const NO_GROUPS: readonly string[] = [];
+
 export class Model {
   readonly map: CodeMap;
   readonly nodes = new Map<string, MapNode>();
@@ -238,14 +242,14 @@ export class Model {
     for (const step of this.liftChain(id, onSite)) {
       // own keys only, as relationsNear lists them: an id like `constructor` is no item
       if (Object.hasOwn(floor.items, step.id)) return step.id;
-      if (step.group && Object.hasOwn(floor.items, step.group)) return step.group;
+      for (const g of step.groups) if (Object.hasOwn(floor.items, g)) return g;
     }
     return undefined;
   }
 
-  /** The walk `liftTo` makes up from `id`, the same on every floor: each id on the way and the group it is a member of.
-   *  Only the site floor differs, for a table with no datastore (it stops there). Kept per id. */
-  private liftChain(id: string, onSite: boolean): readonly { id: string; group?: string }[] {
+  /** The walk `liftTo` makes up from `id`, the same on every floor: each id on the way and every group holding it (see
+   *  `groupsHolding`). Only the site floor differs, for a table with no datastore (it stops there). Kept per id. */
+  private liftChain(id: string, onSite: boolean): readonly ChainStep[] {
     let chain = this.chains.get(id);
     if (chain && onSite) {
       // the same walk, cut after a table with no datastore: on the site floor it goes no further
@@ -253,20 +257,39 @@ export class Model {
       return end < 0 || end === chain.length - 1 ? chain : chain.slice(0, end + 1);
     }
     if (chain) return chain;
-    const steps: { id: string; group?: string }[] = [];
+    const steps: ChainStep[] = [];
     let cur: string | undefined = id;
     const seen = new Set<string>();
     while (cur && !seen.has(cur)) {
       seen.add(cur);
-      const viaGroup = this.memberOf.get(cur);
-      steps.push(viaGroup ? { id: cur, group: viaGroup } : { id: cur });
-      const n = this.nodes.get(cur);
+      steps.push({ id: cur, groups: this.groupsHolding(cur) });
+      const n = this.nodes.get(cur), viaGroup = this.memberOf.get(cur);
       cur = n?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : undefined);
     }
     this.chains.set(id, steps);
     return this.liftChain(id, onSite);
   }
-  private chains = new Map<string, readonly { id: string; group?: string }[]>();   // id -> its walk off the site floor
+  private chains = new Map<string, readonly ChainStep[]>();   // id -> its walk off the site floor
+
+  /** Every floor group holding `id`: those listing it, and those listing one of them (a group of groups), in map
+   *  order. A crowded group's floor is condensed again, so the scanner lists a member both in the outer group and in
+   *  the range group on that group's floor; each is the item standing for it on a different floor, so the order never
+   *  decides a lift. Kept per id. */
+  private groupsHolding(id: string): readonly string[] {
+    let out = this.holding.get(id);
+    if (out) return out;
+    const direct = this.holdersOf().get(id);
+    if (!direct) out = NO_GROUPS;
+    else {
+      const all: string[] = [];
+      for (let i = 0, queue = [...direct]; i < queue.length; i++)
+        if (!all.includes(queue[i])) { all.push(queue[i]); queue.push(...(this.holdersOf().get(queue[i]) ?? [])); }
+      out = all;
+    }
+    this.holding.set(id, out);
+    return out;
+  }
+  private holding = new Map<string, readonly string[]>();
 
   /** One bundle per pair of items on this floor, plus relations leaving the floor. `layered`: the lines kept out of
    *  the base layer, each tagged with the extra layer that draws it (a line in two layers is listed once per
@@ -402,7 +425,7 @@ export class Model {
       if (k) return k;
       k = [];
       for (const s of this.liftChain(end, false))
-        for (const id of s.group ? [s.id, s.group] : [s.id]) {
+        for (const id of [s.id, ...s.groups]) {
           let n = b.num.get(id);
           if (n === undefined) { b.num.set(id, (n = b.lists.length)); b.lists.push([]); }
           k.push(n);
@@ -599,11 +622,6 @@ export class Model {
   private insideOf(id: string): ReadonlySet<string> {
     let set = this.inside.get(id);
     if (set) return set;
-    if (!this.holders) {
-      this.holders = new Map();
-      for (const g of this.groups.values())
-        for (const m of g.members) { const h = this.holders.get(m); if (h) h.push(g.id); else this.holders.set(m, [g.id]); }
-    }
     const s = new Set<string>();
     let cur = this.nodes.get(id)?.parent ?? undefined;
     while (cur && !s.has(cur)) { s.add(cur); cur = this.nodes.get(cur)?.parent ?? undefined; }
@@ -611,13 +629,23 @@ export class Model {
     for (const a of s) if (this.groups.has(a)) s.delete(a);
     const queue = [id, ...s];
     for (let i = 0; i < queue.length; i++)
-      for (const g of this.holders.get(queue[i]) ?? [])
+      for (const g of this.holdersOf().get(queue[i]) ?? [])
         if (!s.has(g)) { s.add(g); queue.push(g); }
     this.inside.set(id, (set = s));
     return set;
   }
   private inside = new Map<string, ReadonlySet<string>>();
   private holders?: Map<string, string[]>;   // member id -> the groups that list it
+
+  /** Member id -> the groups that list it, in map order (built once). */
+  private holdersOf(): Map<string, string[]> {
+    if (!this.holders) {
+      this.holders = new Map();
+      for (const g of this.groups.values())
+        for (const m of g.members) { const h = this.holders.get(m); if (h) h.push(g.id); else this.holders.set(m, [g.id]); }
+    }
+    return this.holders;
+  }
 
   /** Every id `x` with `isInside(x, id)`: the nodes below it, and for a floor group its members and what is inside
    *  them. Unordered. */

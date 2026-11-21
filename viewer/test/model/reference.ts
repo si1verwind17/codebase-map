@@ -1,5 +1,6 @@
 // The Model's walks as they were before its caches and indexes (commit 694efe3; names and search: 657fd48), copied
-// verbatim as the reference the cached ones must equal (model_cache.test.ts). `this` is a Reference: its own copies of the walks, and the Model's
+// verbatim as the reference the cached ones must equal (model_cache.test.ts); liftTo since reads every group holding an
+// id, a nested group's members included. `this` is a Reference: its own copies of the walks, and the Model's
 // unchanged methods for the rest.
 import { DRAW_ORDER, RUNTIME, SITE, type Bundle, type Door, type Model, type Outward } from "../../src/model/model";
 import type { LayerBundle } from "../../src/model/layers";
@@ -16,6 +17,15 @@ export class Reference {
     this.nodes = m.nodes;
     this.groups = m.groups;
     this.memberOf = (m as unknown as { memberOf: Map<string, string> }).memberOf;
+  }
+
+  /** Every group listing `id`, or listing a group that does, walking the groups themselves (no index). */
+  private holding(id: string): string[] {
+    const out: string[] = [];
+    for (let i = 0, queue = [id]; i < queue.length; i++)
+      for (const g of this.groups.values())
+        if (g.members.includes(queue[i]) && !out.includes(g.id)) { out.push(g.id); queue.push(g.id); }
+    return out;
   }
 
   floor(container: string): Floor | undefined { return this.m.floor(container); }
@@ -35,7 +45,8 @@ export class Reference {
       seen.add(cur);
       if (cur in floor.items) return cur;
       const viaGroup = this.memberOf.get(cur);
-      if (viaGroup && viaGroup in floor.items) return viaGroup;
+      const holder = this.holding(cur).find((g) => g in floor.items);   // a nested group's member: the group shown here
+      if (holder) return holder;
       const n = this.nodes.get(cur);
       if (n?.kind === "table" && container === SITE) cur = n.parent ?? undefined;
       else cur = n?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : undefined);

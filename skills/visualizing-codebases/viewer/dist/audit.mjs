@@ -1,4 +1,4 @@
-// audit-inputs: 79fe18fef72adf6754472f1015e1b5eeee3c91443b861487b497dcc62f454d0b
+// audit-inputs: 0744af3123c5cfeda1f9aa3a6bebaf10743518682bf010662305ccae78c1c0de
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -34,6 +34,7 @@ var DRAW_ORDER = [
 	"calls",
 	"uses-code"
 ];
+var NO_GROUPS = [];
 var Model = class {
 	map;
 	nodes = /* @__PURE__ */ new Map();
@@ -213,11 +214,11 @@ var Model = class {
 		if (onSite && (floor.utilities ?? []).includes(id)) return void 0;
 		for (const step of this.liftChain(id, onSite)) {
 			if (Object.hasOwn(floor.items, step.id)) return step.id;
-			if (step.group && Object.hasOwn(floor.items, step.group)) return step.group;
+			for (const g of step.groups) if (Object.hasOwn(floor.items, g)) return g;
 		}
 	}
-	/** The walk `liftTo` makes up from `id`, the same on every floor: each id on the way and the group it is a member of.
-	*  Only the site floor differs, for a table with no datastore (it stops there). Kept per id. */
+	/** The walk `liftTo` makes up from `id`, the same on every floor: each id on the way and every group holding it (see
+	*  `groupsHolding`). Only the site floor differs, for a table with no datastore (it stops there). Kept per id. */
 	liftChain(id, onSite) {
 		let chain = this.chains.get(id);
 		if (chain && onSite) {
@@ -233,17 +234,38 @@ var Model = class {
 		const seen = /* @__PURE__ */ new Set();
 		while (cur && !seen.has(cur)) {
 			seen.add(cur);
-			const viaGroup = this.memberOf.get(cur);
-			steps.push(viaGroup ? {
+			steps.push({
 				id: cur,
-				group: viaGroup
-			} : { id: cur });
-			cur = this.nodes.get(cur)?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : void 0);
+				groups: this.groupsHolding(cur)
+			});
+			const n = this.nodes.get(cur), viaGroup = this.memberOf.get(cur);
+			cur = n?.parent ?? (viaGroup ? this.groups.get(viaGroup)?.container : void 0);
 		}
 		this.chains.set(id, steps);
 		return this.liftChain(id, onSite);
 	}
 	chains = /* @__PURE__ */ new Map();
+	/** Every floor group holding `id`: those listing it, and those listing one of them (a group of groups), in map
+	*  order. A crowded group's floor is condensed again, so the scanner lists a member both in the outer group and in
+	*  the range group on that group's floor; each is the item standing for it on a different floor, so the order never
+	*  decides a lift. Kept per id. */
+	groupsHolding(id) {
+		let out = this.holding.get(id);
+		if (out) return out;
+		const direct = this.holdersOf().get(id);
+		if (!direct) out = NO_GROUPS;
+		else {
+			const all = [];
+			for (let i = 0, queue = [...direct]; i < queue.length; i++) if (!all.includes(queue[i])) {
+				all.push(queue[i]);
+				queue.push(...this.holdersOf().get(queue[i]) ?? []);
+			}
+			out = all;
+		}
+		this.holding.set(id, out);
+		return out;
+	}
+	holding = /* @__PURE__ */ new Map();
 	/** One bundle per pair of items on this floor, plus relations leaving the floor. `layered`: the lines kept out of
 	*  the base layer, each tagged with the extra layer that draws it (a line in two layers is listed once per
 	*  layer, so count or collect its key once); `bundles` never holds them. Worked out once per floor and code-links
@@ -407,7 +429,7 @@ var Model = class {
 			let k = b.keysOf.get(end);
 			if (k) return k;
 			k = [];
-			for (const s of this.liftChain(end, false)) for (const id of s.group ? [s.id, s.group] : [s.id]) {
+			for (const s of this.liftChain(end, false)) for (const id of [s.id, ...s.groups]) {
 				let n = b.num.get(id);
 				if (n === void 0) {
 					b.num.set(id, n = b.lists.length);
@@ -605,14 +627,6 @@ var Model = class {
 	insideOf(id) {
 		let set = this.inside.get(id);
 		if (set) return set;
-		if (!this.holders) {
-			this.holders = /* @__PURE__ */ new Map();
-			for (const g of this.groups.values()) for (const m of g.members) {
-				const h = this.holders.get(m);
-				if (h) h.push(g.id);
-				else this.holders.set(m, [g.id]);
-			}
-		}
 		const s = /* @__PURE__ */ new Set();
 		let cur = this.nodes.get(id)?.parent ?? void 0;
 		while (cur && !s.has(cur)) {
@@ -621,7 +635,7 @@ var Model = class {
 		}
 		for (const a of s) if (this.groups.has(a)) s.delete(a);
 		const queue = [id, ...s];
-		for (let i = 0; i < queue.length; i++) for (const g of this.holders.get(queue[i]) ?? []) if (!s.has(g)) {
+		for (let i = 0; i < queue.length; i++) for (const g of this.holdersOf().get(queue[i]) ?? []) if (!s.has(g)) {
 			s.add(g);
 			queue.push(g);
 		}
@@ -630,6 +644,18 @@ var Model = class {
 	}
 	inside = /* @__PURE__ */ new Map();
 	holders;
+	/** Member id -> the groups that list it, in map order (built once). */
+	holdersOf() {
+		if (!this.holders) {
+			this.holders = /* @__PURE__ */ new Map();
+			for (const g of this.groups.values()) for (const m of g.members) {
+				const h = this.holders.get(m);
+				if (h) h.push(g.id);
+				else this.holders.set(m, [g.id]);
+			}
+		}
+		return this.holders;
+	}
 	/** Every id `x` with `isInside(x, id)`: the nodes below it, and for a floor group its members and what is inside
 	*  them. Unordered. */
 	descendants(id) {

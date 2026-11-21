@@ -65,6 +65,7 @@ const DEMO_TEXT = readFileSync(DEMO, "utf8");
 const MAPS: [string, () => CodeMap][] = [
   ["demo", () => JSON.parse(DEMO_TEXT)],
   ["demo, grouped", () => grouped(DEMO_TEXT)],
+  ["demo, nested as scanned", () => nestedAsScanned(DEMO_TEXT).map],
   ["shop", () => JSON.parse(readFileSync(SHOP, "utf8"))],
   ...readdirSync(GUIDE).filter((f) => f.endsWith(".code-map.json")).sort()
     .map((f): [string, () => CodeMap] => [f, () => JSON.parse(readFileSync(new URL(f, GUIDE), "utf8"))]),
@@ -84,6 +85,45 @@ const refBoundary = (m: Model, ref: Reference, id: string) => {
   }
   return [...out].sort((a, b) => (m.codes.get(a) ?? a).localeCompare(m.codes.get(b) ?? b, undefined, { numeric: true }));
 };
+
+/** The demo with a crowded floor nested as the scanner writes it (layout.py): an outer group G on floor c whose floor
+ *  holds a range group R of its first two members; R's members are listed by both G and R. */
+function nestedAsScanned(text: string): { map: CodeMap; c: string; g: string; r: string; inner: string[] } {
+  const map = JSON.parse(text) as CodeMap;
+  const floors = map.layout.containers;
+  const c = Object.keys(floors).filter((k) => k !== SITE && Object.keys(floors[k].items).length >= 5 && !floors[k].groups?.length).sort()[0];
+  const f = floors[c], items = Object.keys(f.items).sort(), members = items.slice(1);
+  const g = `grp:${c}:range:outer`, r = `grp:${g}:range:inner`, inner = members.slice(0, 2);
+  floors[r] = { strategy: "layered", items: Object.fromEntries(inner.map((m) => [m, f.items[m]])), lanes: [], groups: [], utilities: [], hubs: [] } as Floor;
+  floors[g] = { strategy: "layered", items: { ...Object.fromEntries(members.slice(2).map((m) => [m, f.items[m]])), [r]: f.items[inner[0]] },
+    lanes: [], groups: [{ id: r, label: "inner", members: inner, kind: "range" }], utilities: [], hubs: [] } as Floor;
+  f.items[g] = f.items[members[0]];
+  for (const m of members) delete f.items[m];
+  f.groups = [...(f.groups ?? []), { id: g, label: "outer", members, kind: "range" }];
+  return { map, c, g, r, inner };
+}
+
+describe("nested floor groups", () => {
+  it("a member of a group nested as the scanner writes it lifts to the outer group on the floor that shows it", () => {
+    const { map, c, g, r, inner } = nestedAsScanned(DEMO_TEXT);
+    const m = new Model(map);
+    for (const id of inner) {
+      const below = [id, ...m.descendants(id)];
+      for (const x of below) {
+        expect(m.liftTo(c, x), `${x} on ${c}`).toBe(g);
+        expect(m.liftTo(g, x), `${x} on the outer group's floor`).toBe(r);
+        expect(m.liftTo(r, x), `${x} on the inner group's floor`).toBe(id);
+      }
+    }
+  });
+
+  it("a member of a group inside another group lifts to the outer group on the floor that shows it", () => {
+    const m = new Model(grouped(DEMO_TEXT));
+    const outer = [...m.groups.values()].find((x) => x.members.some((y) => m.groups.has(y)))!;
+    const g1 = m.groups.get(outer.members[0])!;
+    for (const id of g1.members) expect(m.liftTo(outer.container, id), id).toBe(outer.id);
+  });
+});
 
 describe("Model caches equal the walks they replace", () => {
   it.each(MAPS)("%s", (_name, load) => {
