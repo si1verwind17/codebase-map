@@ -64,6 +64,17 @@ The map lands in `docs/viz-code/`, and nothing outside it is touched. Open `docs
 `code-map.json`, `stack.yaml`, `README.md`, `.gitignore` and `.gitattributes` from that folder; the rest are working
 files, already gitignored.
 
+**Large repositories** work, with limits to expect:
+- The map file grows with the code: tens of megabytes for a monolith of tens of thousands of classes, and past
+  100 MB at around a hundred thousand calls. GitHub takes no file over 100 MB, so a map that size needs
+  [Git LFS](https://git-lfs.com) or stays out of the repository; the agent tells you the size.
+- A map over 8 MB is not built into `index.html`: the page asks you to pick `code-map.json`.
+- Inside a service or library, a floor shows at most 24 boxes besides its doors and queues. Past that, boxes are
+  grouped: classes that only hold data, names in a family or a range, and code a service shares with another
+  service, by module. Open a group to see inside, or use Find.
+- A busy floor takes a moment the first time you open it, and the first run takes longer: the agent maps the services
+  one by one.
+
 **Found something it gets wrong?** [Open an issue](https://github.com/si1verwind17/codebase-map/issues/new). When a
 run hits something the skill could not handle, the agent says so at the end of its report.
 
