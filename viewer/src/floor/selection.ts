@@ -6,7 +6,7 @@ import { STEP } from "../factory/tiles";
 import { paintGhost } from "../factory/pieces";
 import type { TileRoute } from "../factory/router";
 import { expandKeys, lineEnds, railLine as railLineOf, type RailLine, yardKey } from "../factory/rail-place";
-import type { DrawnLines, LayerView, SceneState, Target } from "./state";
+import { painted, type DrawnLines, type LayerView, type SceneState, type Target } from "./state";
 import { peekKeys, type LayerId } from "../model/layers";
 import { stroke } from "./draw";
 import { showTag } from "./labels";
@@ -71,6 +71,7 @@ function layerVisibility(st: SceneState) {
   const peek = peeked(st);
   for (const [id, v] of st.layerViews) {
     const keys = peek.get(id), mine = new Set<Container>();
+    if (id === st.layer || keys) painted(v);
     for (const k of keys ?? []) for (const c of v.lineViews.get(k) ?? []) mine.add(c);
     v.box.visible = id === st.layer || !!keys;
     v.box.interactiveChildren = !keys;
@@ -82,12 +83,12 @@ function layerVisibility(st: SceneState) {
  *  drawn yet. */
 export function layerLines(st: SceneState): DrawnLines | null {
   if (st.layer === null) return st.baseLines;
-  return st.layerViews.get(st.layer)?.lines ?? {};
+  return painted(st.layerViews.get(st.layer))?.lines ?? {};
 }
 
 /** The shown layer's routes and lines (none on the base). */
 function shownLayer(st: SceneState): LayerView | undefined {
-  return st.layer === null ? undefined : st.layerViews.get(st.layer);
+  return st.layer === null ? undefined : painted(st.layerViews.get(st.layer));
 }
 
 /** On F0: draw the code-dependency conduits while the overlay is on, drop them while it is off (and on any

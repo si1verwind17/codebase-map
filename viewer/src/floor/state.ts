@@ -64,7 +64,15 @@ export interface DrawnLines { belt?: true; pipe?: true; rail?: true; drone?: tru
 
 /** One extra layer as drawn on this floor: its container above the base lines (hidden unless shown), its line views by
  *  bundle key, its routes and its lines. */
-export interface LayerView { box: Container; lineViews: Map<string, Container[]>; routes: TileRoute[]; bundles: LayerBundle[]; lines: DrawnLines }
+/** An extra layer of the floor. `paint` is set until its lines are painted (`painted`): a floor's hidden layers wait
+ *  until one shows or a selection peeks at it; `lineViews` and `lines` fill in then. */
+export interface LayerView { box: Container; lineViews: Map<string, Container[]>; routes: TileRoute[]; bundles: LayerBundle[]; lines: DrawnLines; paint?: () => void }
+
+/** `v` with its lines painted (once, the first time it is asked for). */
+export function painted(v: LayerView | undefined): LayerView | undefined {
+  if (v?.paint) { const paint = v.paint; v.paint = undefined; paint(); }
+  return v;
+}
 
 export interface SceneState {
   readonly app: Application;

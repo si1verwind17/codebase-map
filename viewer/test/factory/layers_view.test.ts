@@ -73,6 +73,29 @@ describe("layer switch (selection.ts setLayer)", () => {
     expect(layerLines(st)).toBeNull();
   });
 
+  it("paints a layer's lines the first time it shows, once: a floor's hidden layers cost nothing to enter", () => {
+    const { st, layer } = floorWithLayer();
+    const paint = vi.fn(() => { layer.lines = { pipe: true }; });
+    layer.paint = paint;
+    restyle(st);
+    expect(paint).not.toHaveBeenCalled();
+    setLayer(st, HUB);
+    expect(paint).toHaveBeenCalledTimes(1);
+    expect(layerLines(st)).toEqual({ pipe: true });
+    setLayer(st, null);
+    setLayer(st, HUB);
+    expect(paint).toHaveBeenCalledTimes(1);
+  });
+
+  it("paints a hidden layer when a selection on the base peeks at its lines", () => {
+    const { st, layer } = floorWithLayer();
+    const paint = vi.fn();
+    layer.paint = paint;
+    select(st, { type: "node", id: "a" });
+    expect(paint).toHaveBeenCalledTimes(1);
+    expect(layer.box.visible).toBe(true);
+  });
+
   it("composes with the selection: a selected layer line stays lit, the rest of the layer fades as today, the base stays faint", () => {
     const { st, layer } = floorWithLayer();
     setLayer(st, HUB);

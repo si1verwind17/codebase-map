@@ -16,7 +16,7 @@ import { flightKeepOff } from "../factory/flights";
 import { createRunner, idleScheduler, nextFloors, type Deadline, type Runner, type Scheduler } from "./precompute";
 import { mainPlanner, type Planner } from "./planner";
 import type { RailLine, TrainPath } from "../factory/rail-place";
-import { createState, type SceneEvents, type SceneState, type Target } from "./state";
+import { createState, painted, type SceneEvents, type SceneState, type Target } from "./state";
 import * as cam from "./camera";
 import { drawFactory, zoomBadges } from "./factory-draw";
 import { linesRead, measuring, syncLabels, textsRead, wordsRead } from "./labels";
@@ -353,7 +353,7 @@ export class FloorScene {
     if (peek) ds.peek = String(peek); else delete ds.peek;
     ds.layers = st.floorLayers.map((l) => `${l.id}:${l.count}`).join(" ");
     ds.usedBy = st.floorLayers.filter((l) => l.usedBy > 0).map((l) => `${l.item}:${l.usedBy}`).join(" ");
-    const shown = st.layer ? st.layerViews.get(st.layer) : undefined;
+    const shown = st.layer ? painted(st.layerViews.get(st.layer)) : undefined;
     ds.layerLit = String(shown ? [...shown.lineViews.values()].filter((vs) => vs.length && vs.every((v) => v.alpha === 1)).length : 0);
     let base = 0;
     for (const vs of st.lineViews.values()) for (const v of vs) base = Math.max(base, v.alpha);

@@ -19,7 +19,7 @@ import { doorLegend } from "../factory/messaging";
 import { padReserve } from "../factory/pads";
 import { paintRails } from "../factory/rail-paint";
 import { railLabels, railLegend } from "../factory/rail-place";
-import type { FloorPlan, DrawnLines, SceneState } from "./state";
+import type { FloorPlan, DrawnLines, LayerView, SceneState } from "./state";
 import type { FloorLayer, LayerId } from "../model/layers";
 import { crossMarks, dashed, drawDoor, drawFrame, KEYLINE, stroke } from "./draw";
 import { factorySub, label, nameTag, shortName, tabHint } from "./labels";
@@ -76,7 +76,8 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
   st.baseLines = drawnLines(routes.filter((r) => !st.covered.has(r.key)), bundleOf, baseOps);
   if (st.flights.length) st.baseLines.drone = true;
   if (st.implLinks.length) st.baseLines.implements = true;
-  // each extra layer's lines, painted as the base's are, in its own container above them: hidden until shown
+  // each extra layer's lines, painted as the base's are, in its own container above them: hidden until shown, and
+  // painted then (state.ts `painted`), so a floor with many heavily used items draws only its base on entry
   st.layerViews.clear();
   const layers = plan?.tf === tf ? plan.layers : undefined;
   for (const [id, l] of Object.entries(layers ?? {}) as [LayerId, { routes: TileRoute[] }][]) {
@@ -85,8 +86,10 @@ export function drawFactory(st: SceneState, model: Model, geo: FloorGeometry, tf
     box.label = `layer:${id}`;
     box.visible = false;
     st.layers.layered.addChild(box);
-    const ops = paintLines(st, l.routes, of, trunkHover(st, l.routes, of, end), box, lineViews, tf.cols);
-    st.layerViews.set(id, { box, lineViews, routes: l.routes, bundles, lines: drawnLines(l.routes, of, ops) });
+    const view: LayerView = { box, lineViews, routes: l.routes, bundles, lines: {}, paint: () => {
+      view.lines = drawnLines(l.routes, of, paintLines(st, l.routes, of, trunkHover(st, l.routes, of, end), box, lineViews, tf.cols));
+    } };
+    st.layerViews.set(id, view);
   }
   st.chimneys = [];
   st.windows.clear();
@@ -234,6 +237,8 @@ function paintLines(st: SceneState, routes: TileRoute[], bundleOf: (r: TileRoute
   const order = { tapR: 0, tapW: 0, tapRW: 0, drone: 1, rail: 2, belt: 3, pipe: 4 };
   const idx = routes.map((_, i) => i).sort((p, q) => order[routes[p].kind] - order[routes[q].kind]);
   const ops = factoryOps(routes.map((r) => { const b = bundleOf(r); return { pieces: r.pieces, kind: r.kind, failed: r.failed, both: r.both, inferred: b.inferred === b.relations.length && b.relations.length > 0 }; }), cols, idx);
+  const bodies = new Map<number, FactoryOp[]>();   // each route's body ops in op order, gathered once
+  for (const o of ops) if (o.layer === "body") { const l = bodies.get(o.ri); if (l) l.push(o); else bodies.set(o.ri, [o]); }
   for (const i of idx) {
     if (st.covered.has(routes[i].key)) continue;   // drawn as its flights
     const r = routes[i], b = bundleOf(r), g = deco();
@@ -242,7 +247,7 @@ function paintLines(st: SceneState, routes: TileRoute[], bundleOf: (r: TileRoute
       dashed(g, r.points, 6, 5, { width: 3, color: C.purple });
       crossMarks(g, r.points, 36, 4, { width: 2, color: C.purple });
     }
-    else for (const o of ops) if (o.layer === "body" && o.ri === i) paintPiece(g, o.p, r.kind, r.both);
+    else for (const o of bodies.get(i) ?? []) paintPiece(g, o.p, r.kind, r.both);
     if (b.inferred === b.relations.length && b.relations.length) g.label = "inferred";
     addTileLine(st, r, b, g, hover, into, views);
   }

@@ -128,6 +128,24 @@ Known limit: the target was every long task under 50 ms on entry. Entering the s
 floor, about 40–45 ms (`paintLines` and building Pixi `Graphics`), with Pixi's first render of the new floor as a
 separate task of similar size. Closing it is drawing work: drawing a floor's lines in slices, or fewer `Graphics`.
 
+A real monolith's map (2026-11-21, same machine, medians of 3, `--map` with `--picker`: 86k nodes, 121k relations,
+10× the synthetic map's relations) showed costs the synthetic map does not reach. Before → after: entering the busiest
+service, longest task 376 → 155 ms and their sum 739 → 225; a cold floor 887 → 455 ms, its longest task 350 → 171;
+`firstFrameMs` 754 → 612; `heapMB.session` 267 → 207. What did it:
+- A relation is indexed only under the chain items one end has and the other has not: a floor showing an item both
+  ends sit in drew nothing for it but still lifted both ends. The index is built in idle slices of at most 10 ms once
+  the first floor shows (`Model.prepare`), and a floor's lifts are kept for the rest of that floor's bundles.
+- A door's landing reads only the relations through that door; `relationsOf` gathers from the ends inside the item
+  instead of an index of every relation under every container (the first selection paid 139 ms for it); `path` is kept
+  per container; the codes and the sub line's child count no longer grow with the square of a parent's children.
+- Plans cross from the worker as JSON text: a busy floor's plan is about 1.6 MB of small objects (a piece per tile),
+  52 ms to structured-clone and 6 ms to parse.
+- An extra layer's lines are painted when it first shows or a selection peeks at it, not on entry.
+
+The synthetic map is unchanged within noise (a cold floor's longest task 56 → 0 ms; entering the service sits at the
+50 ms line on both, one task of 53 ms, and 55 ms on the base with the profiler on). What remains on a dense floor is
+Pixi turning every fill and stroke into a style, once per shape: about 180 ms of a first draw with thousands of tiles.
+
 Two pixel guards go with it: `npm run shots:compare <dir>` (Still motion) and `node scripts/motion-shots.mjs`, the demo
 with motion on at fixed moments of a fake clock (drones, trains and smoke), `--compare <dir>` exiting 1 on any
 differing pixel. Make each baseline on the base commit first, after `npm run build`: `node scripts/shotset.mjs <dir>`
