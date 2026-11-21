@@ -19,7 +19,7 @@ export class Reference {
   }
 
   floor(container: string): Floor | undefined { return this.m.floor(container); }
-  path(container: string): string[] { return this.m.path(container); }
+  path(container: string): readonly string[] { return this.m.path(container); }
   floorOf(id: string): string | undefined { return this.m.floorOf(id); }
   commonFloor(container: string, otherFloor: string): string { return this.m.commonFloor(container, otherFloor); }
   doorId(anchor: string): string { return this.m.doorId(anchor); }

@@ -88,6 +88,11 @@ export class Model {
     return this.map.layout.containers[container];
   }
 
+  /** How many nodes have `id` as their parent. */
+  childCount(id: string): number {
+    return this.children.get(id)?.length ?? 0;
+  }
+
   /** The real package a twin stands for (a module two services deploy), or undefined. */
   twinOf(id: string): string | undefined {
     return this.twinHome.has(id) ? id.slice(5) : undefined;
@@ -193,8 +198,11 @@ export class Model {
     return this.nodes.get(id)?.kind ?? (this.groups.has(id) ? "group" : "unknown");
   }
 
-  /** Containers from the site down to `container` (inclusive), via groups where they apply. */
-  path(container: string): string[] {
+  /** Containers from the site down to `container` (inclusive), via groups where they apply. Kept per container and
+   *  shared: callers must not mutate it. */
+  path(container: string): readonly string[] {
+    let p = this.paths.get(container);
+    if (p) return p;
     const out: string[] = [];
     let cur: string | undefined = container;
     while (cur && cur !== SITE) {
@@ -202,8 +210,10 @@ export class Model {
       const g = this.groups.get(cur);
       cur = g ? g.container : this.memberOf.get(cur) ?? this.nodes.get(cur)?.parent ?? SITE;
     }
-    return [SITE, ...out];
+    this.paths.set(container, (p = [SITE, ...out]));
+    return p;
   }
+  private paths = new Map<string, readonly string[]>();
 
   /** The container whose floor shows `id` as an item (deepest). */
   floorOf(id: string): string | undefined {
@@ -278,10 +288,17 @@ export class Model {
       RUNTIME.includes(k) || (k === "calls" && !onSite) || (k === "uses-code" && codeLinks);
     const byKey = new Map<string, Bundle>();
     const out = new Map<string, Outward>();
+    const seen = new Map<string, string | undefined>();   // each end lifted once: the same far end recurs across relations
+    const liftHere = (id: string) => {
+      if (seen.has(id)) return seen.get(id);
+      const item = this.liftTo(container, id);
+      seen.set(id, item);
+      return item;
+    };
     for (const r of this.relationsNear(container)) {
       if (!wanted(r.kind)) continue;
-      const a = this.liftTo(container, r.from);
-      const b = this.liftTo(container, r.to);
+      const a = liftHere(r.from);
+      const b = liftHere(r.to);
       if (a && b) {
         if (a === b) continue;
         const [x, y] = a < b ? [a, b] : [b, a];
@@ -308,10 +325,11 @@ export class Model {
     if (!onSite) {
       for (const o of out.values()) {
         const anchor = this.anchorFor(container, o.other);
+        this.anchors.set(o, anchor);
         const id = this.doorId(anchor);
         for (const r of o.relations) {
           const upstream = r.data === "back" ? r.to : r.from;      // `both` keeps the caller first
-          const leaves = this.liftTo(container, upstream) === o.item;
+          const leaves = liftHere(upstream) === o.item;
           const d = doors.get(id) ?? { id, anchor, side: "out", votes: 0 };
           d.votes += leaves ? 1 : -1;
           doors.set(id, d);
@@ -329,7 +347,7 @@ export class Model {
       }
       for (const d of doors.values()) d.side = d.votes >= 0 ? "out" : "in";
     }
-    const lift = (id: string) => this.liftTo(container, id) ?? (onSite ? undefined : this.doorId(this.anchorFor(container, id)));
+    const lift = (id: string) => liftHere(id) ?? (onSite ? undefined : this.doorId(this.anchorFor(container, id)));
     for (const b of byKey.values()) {
       b.kind = DRAW_ORDER.find((k) => b.kinds[k]) ?? b.kind;
       b.flow = flowOf(b, lift);
@@ -359,29 +377,53 @@ export class Model {
     };
   }
 
-  /** The relations with an end that may lift to an item on `container`'s floor, in map order: those with an item of
-   *  the floor on an end's lift chain (as an id or its group); on the site floor, all of them. The rest lift to nothing
-   *  there, so `bundles` skips them. */
+  /** The relations that may show on `container`'s floor, in map order: those with an item of the floor on one end's
+   *  lift chain (as an id or its group) and not on the other's; on the site floor, all of them. A relation whose two
+   *  chains share the item lifts to it at both ends and draws nothing there; the rest lift to nothing there. */
   private relationsNear(container: string): readonly Relation[] {
     const rels = this.map.relations;
     if (container === SITE) return rels;
-    if (!this.relsByChain) {
-      this.relsByChain = new Map();
-      rels.forEach((r, i) => {
-        for (const end of [r.from, r.to])
-          for (const step of this.liftChain(end, false))
-            for (const k of step.group ? [step.id, step.group] : [step.id]) {
-              const list = this.relsByChain!.get(k);
-              if (!list) this.relsByChain!.set(k, [i]);
-              else if (list[list.length - 1] !== i) list.push(i);
-            }
-      });
-    }
-    const near = new Set<number>();
-    for (const item of Object.keys(this.floor(container)?.items ?? {})) for (const i of this.relsByChain.get(item) ?? []) near.add(i);
+    this.prepare();   // no deadline: whatever is left of the index is built in this task, the floor is wanted now
+    const index = this.relsByChain!, near = new Set<number>();
+    for (const item of Object.keys(this.floor(container)?.items ?? {})) for (const i of index.get(item) ?? []) near.add(i);
     return [...near].sort((a, b) => a - b).map((i) => rels[i]);
   }
   private relsByChain?: Map<string, number[]>;
+
+  /** Builds the index `relationsNear` reads, a slice at a time while `deadline` has time left (at least one chunk per
+   *  call), so the viewer can build it in idle time before any floor needs it; with no deadline, all of it. True while
+   *  some is left. Chain keys are small numbers, each end's worked out once, so two ends' keys compare as numbers. */
+  prepare(deadline?: { timeRemaining(): number }): boolean {
+    if (this.relsByChain) return false;
+    const rels = this.map.relations;
+    const b = (this.nearBuild ??= { next: 0, num: new Map<string, number>(), lists: [] as number[][], keysOf: new Map<string, number[]>() });
+    const keys = (end: string) => {
+      let k = b.keysOf.get(end);
+      if (k) return k;
+      k = [];
+      for (const s of this.liftChain(end, false))
+        for (const id of s.group ? [s.id, s.group] : [s.id]) {
+          let n = b.num.get(id);
+          if (n === undefined) { b.num.set(id, (n = b.lists.length)); b.lists.push([]); }
+          k.push(n);
+        }
+      b.keysOf.set(end, k);
+      return k;
+    };
+    const add = (k: number, i: number) => { const list = b.lists[k]; if (list[list.length - 1] !== i) list.push(i); };
+    do {
+      for (const end = Math.min(rels.length, b.next + 64); b.next < end; b.next++) {
+        const r = rels[b.next], x = keys(r.from), y = keys(r.to);
+        for (const k of x) if (!y.includes(k)) add(k, b.next);
+        for (const k of y) if (!x.includes(k)) add(k, b.next);
+      }
+    } while (b.next < rels.length && (!deadline || deadline.timeRemaining() > 0));
+    if (b.next < rels.length) return true;
+    this.relsByChain = new Map([...b.num].filter(([, n]) => b.lists[n].length).map(([id, n]) => [id, b.lists[n]]));
+    this.nearBuild = undefined;
+    return false;
+  }
+  private nearBuild?: { next: number; num: Map<string, number>; lists: number[][]; keysOf: Map<string, number[]> };
 
   /** The deepest floor both `container` and `other` sit on, and the item standing for `other` there. */
   commonFloor(container: string, otherFloor: string): string {
@@ -418,11 +460,27 @@ export class Model {
     return this.doorLanding(container, anchor)?.floor ?? anchor;
   }
 
+  /** The relations leaving `container`'s floor through the door to `anchor`, each floor's grouped once. */
+  private outwardTo(container: string, anchor: string): readonly Outward[] {
+    let by = this.outwardByAnchor.get(container);
+    if (!by) {
+      by = new Map();
+      for (const o of this.bundles(container).outward) {
+        const a = this.anchors.get(o) ?? this.anchorFor(container, o.other);   // the site floor has no doors to name them
+        const list = by.get(a);
+        if (list) list.push(o); else by.set(a, [o]);
+      }
+      this.outwardByAnchor.set(container, by);
+    }
+    return by.get(anchor) ?? [];
+  }
+  private anchors = new WeakMap<Outward, string>();   // a relation group leaving a floor -> the anchor of its door
+  private outwardByAnchor = new Map<string, Map<string, Outward[]>>();   // container -> anchor -> what leaves through it
+
   private landing(container: string, anchor: string): { floor: string; door: string } | undefined {
     if (!this.floor(anchor)) return undefined;
     let far: string | undefined;
-    for (const o of this.bundles(container).outward) {
-      if (this.anchorFor(container, o.other) !== anchor) continue;
+    for (const o of this.outwardTo(container, anchor)) {
       const f = this.floorOf(o.other) ?? SITE;
       const home = this.path(f).includes(anchor) ? f : anchor;
       far = far === undefined ? home : this.commonFloor(far, home);
@@ -503,22 +561,32 @@ export class Model {
     return here && lifted[0] !== here ? lifted[0] : undefined;
   }
 
-  /** The relations (no code links) with an end that is `id` or inside it, in map order. */
+  /** The relations (no code links) with an end that is `id` or inside it, in map order. Gathered from the ends inside
+   *  `id`, so the cost follows its size, not the map's; the last few answers are kept. */
   relationsOf(id: string): Relation[] {
-    if (!this.relsByOwner) {
-      this.relsByOwner = new Map();
-      for (const r of this.map.relations) {
-        if (r.kind === "uses-code") continue;
-        const owners = new Set([r.from, ...this.insideOf(r.from), r.to, ...this.insideOf(r.to)]);
-        for (const o of owners) {
-          const list = this.relsByOwner.get(o);
-          if (list) list.push(r); else this.relsByOwner.set(o, [r]);
+    const rels = this.map.relations;
+    if (!this.relsByEnd) {
+      const index = (this.relsByEnd = new Map<string, number[]>());
+      rels.forEach((r, i) => {
+        if (r.kind === "uses-code") return;
+        for (const end of r.from === r.to ? [r.from] : [r.from, r.to]) {
+          const list = index.get(end);
+          if (list) list.push(i); else index.set(end, [i]);
         }
-      }
+      });
     }
-    return [...(this.relsByOwner.get(id) ?? [])];
+    let found = this.relsOfRecent.get(id);
+    if (!found) {
+      const hit = new Uint8Array(rels.length);
+      for (const x of [id, ...this.descendants(id)]) for (const i of this.relsByEnd.get(x) ?? []) hit[i] = 1;
+      found = rels.filter((_, i) => hit[i]);
+      if (this.relsOfRecent.size >= 8) this.relsOfRecent.delete(this.relsOfRecent.keys().next().value!);
+      this.relsOfRecent.set(id, found);
+    }
+    return [...found];
   }
-  private relsByOwner?: Map<string, Relation[]>;   // id -> the relations relationsOf gives it
+  private relsByEnd?: Map<string, number[]>;   // node id -> indexes of the relations (no code links) with it at an end
+  private relsOfRecent = new Map<string, Relation[]>();   // the last few relationsOf answers, oldest first
 
   /** Whether `id` is inside `container`: below it in the parent chain, or (a floor group) a member of it, inside a
    *  member, or inside a group that is one. */
@@ -581,7 +649,7 @@ export class Model {
     const roots: MapNode[] = [];
     for (const n of this.map.nodes) {
       if (n.parent) { const c = this.children.get(n.parent); if (c) c.push(n.id); else this.children.set(n.parent, [n.id]); }
-      if (n.parent && this.nodes.has(n.parent)) kids.set(n.parent, [...(kids.get(n.parent) ?? []), n]);
+      if (n.parent && this.nodes.has(n.parent)) { const k = kids.get(n.parent); if (k) k.push(n); else kids.set(n.parent, [n]); }
       else roots.push(n);
     }
     const walk = (list: MapNode[], base: string) => {
@@ -595,9 +663,11 @@ export class Model {
       }
     };
     walk(roots, "");
+    const groupsOn = new Map<string, number>();   // container -> its groups numbered so far, in map order
     for (const [gid, g] of this.groups) {
       const base = this.codes.get(g.container) ?? "";
-      const idx = [...this.groups.values()].filter((x) => x.container === g.container).findIndex((x) => x.id === gid) + 1;
+      const idx = (groupsOn.get(g.container) ?? 0) + 1;
+      groupsOn.set(g.container, idx);
       this.codes.set(gid, base ? `${base}·G${idx}` : `G${idx}`);
     }
     for (const [tid] of this.twinHome) this.codes.set(tid, this.codes.get(tid.slice(5)) ?? "");   // a twin wears its original's code

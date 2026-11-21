@@ -123,3 +123,50 @@ describe("warming the page's model", () => {
     expect(worked).not.toHaveBeenCalled();
   }, 120_000);
 });
+
+describe("idle work after a map's first floor shows", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("idle slices build the model's relation index a chunk at a time, then stop; a destroyed scene runs none", () => {
+    const queue: ((d?: Deadline) => void)[] = [];
+    const schedule: Scheduler = (slice) => { queue.push(slice); return () => { const i = queue.indexOf(slice); if (i >= 0) queue.splice(i, 1); }; };
+    const waiting = () => ({ where: "worker" as const, plan: () => new Promise<never>(() => {}), dispose() {} });   // no floor plans: nothing else builds it
+    const { scene } = bareScene(schedule, waiting);
+    const model = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    const prepare = vi.spyOn(model, "prepare");
+    scene.show(model, SITE);
+    for (let i = 0; i < 1000 && queue.length; i++) queue.shift()!({ timeRemaining: () => 0 });
+    const idle = prepare.mock.calls.filter((c) => c[0] !== undefined);
+    expect(idle.length).toBeGreaterThan(1);
+    expect(prepare.mock.results.at(-1)!.value).toBe(false);
+    const done = prepare.mock.calls.length;
+    for (let i = 0; i < 50 && queue.length; i++) queue.shift()!({ timeRemaining: () => 0 });
+    expect(prepare.mock.calls.length, "no idle slice asks again once it is built").toBe(done);
+
+    const bare2 = bareScene(schedule, waiting), again = bare2.scene, fresh = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    Object.assign(bare2.st.app, { destroy: () => {} });   // no renderer to tear down
+    const p2 = vi.spyOn(fresh, "prepare");
+    again.show(fresh, SITE);
+    again.destroy();
+    for (let i = 0; i < 1000 && queue.length; i++) queue.shift()!({ timeRemaining: () => 0 });
+    expect(p2.mock.calls.filter((c) => c[0] !== undefined)).toEqual([]);
+  });
+});
+
+describe("idle work under a timer (no requestIdleCallback)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a slice with no idle deadline still works its full slice: the demo's index in one", () => {
+    const queue: ((d?: Deadline) => void)[] = [];
+    const schedule: Scheduler = (slice) => { queue.push(slice); return () => { const i = queue.indexOf(slice); if (i >= 0) queue.splice(i, 1); }; };
+    const waiting = () => ({ where: "worker" as const, plan: () => new Promise<never>(() => {}), dispose() {} });
+    const { scene } = bareScene(schedule, waiting);
+    const model = new Model(JSON.parse(readFileSync(DEMO, "utf8")) as CodeMap);
+    const prepare = vi.spyOn(model, "prepare");
+    scene.show(model, SITE);
+    for (let i = 0; i < 1000 && queue.length; i++) queue.shift()!();
+    const idle = prepare.mock.calls.filter((c) => c[0] !== undefined);
+    expect(idle.length).toBe(1);
+    expect(prepare.mock.results[prepare.mock.calls.indexOf(idle[0])].value).toBe(false);
+  });
+});

@@ -8,7 +8,7 @@ import { splitEndpoint } from "../floor/names";
 export function factorySubOf(model: Model, floorBundles: Bundle[], m: Pick<Machine, "id" | "kind">): string {
   if (["datastore", "external", "table", "method"].includes(m.kind)) return subline(model, floorBundles, m);
   const real = model.twinOf(m.id) ?? m.id;
-  const n = m.kind === "group" ? (model.groups.get(m.id)?.members.length ?? 0) : model.map.nodes.filter((x) => x.parent === real).length;
+  const n = m.kind === "group" ? (model.groups.get(m.id)?.members.length ?? 0) : model.childCount(real);
   return n ? `${n} inside` : "";
 }
 

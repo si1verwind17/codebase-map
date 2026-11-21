@@ -26,6 +26,9 @@ import { pauseWhenHidden } from "./visibility";
 
 export type { SceneEvents, Target } from "./state";
 
+/** The longest idle slice that builds the relation index (FloorScene.prepareWhileIdle). */
+const PREPARE_SLICE_MS = 10;
+
 export class FloorScene {
   /** Every field the scene keeps between frames; the modules share this one object. */
   private readonly s: SceneState;
@@ -124,8 +127,27 @@ export class FloorScene {
     this.s.depthQuietUntil = performance.now() + 600;
     if (fade) transitions.startFade(this.s, 380);
     this.plannerOf(model);   // after the first floor is drawn: the worker starts once the page shows something
+    this.prepareWhileIdle(model);
     this.queueNearby();
   }
+
+  /** Builds `model`'s relation index (Model.prepare) in idle slices from its first shown floor on, so entering a floor
+   *  later does not build it in one long task; stops at another model and on destroy. A slice stops at PREPARE_SLICE_MS
+   *  even when the browser offers more idle time: input that arrives meanwhile waits for it. */
+  private prepareWhileIdle(model: Model) {
+    if (this.preparing === model) return;
+    this.preparing = model;
+    this.stopPreparing();
+    const slice = (d?: Deadline) => {
+      if (this.gone || this.preparing !== model) return;
+      const end = performance.now() + PREPARE_SLICE_MS;
+      const left = { timeRemaining: () => Math.min(d ? d.timeRemaining() : Infinity, end - performance.now()) };   // a timer gives no deadline: the slice's own
+      this.stopPreparing = model.prepare(left) ? this.schedule(slice) : () => {};
+    };
+    this.stopPreparing = this.schedule(slice);
+  }
+  private preparing: Model | null = null;
+  private stopPreparing = () => {};
 
   /** Floor `container` of `model` planned and cached, so `show` draws it at once: at once when it is cached, else from
    *  the planner ahead of any queued floor. The camera reads "moving" while it waits (the old floor stays drawn and
@@ -566,6 +588,7 @@ export class FloorScene {
     this.gone = true;
     this.unpause();
     this.precompute.stop();   // a queued idle slice must not touch the app once it is gone
+    this.stopPreparing();
     this.planner?.dispose();  // the worker ends; a floor change still waiting on it goes on to nothing (enter, leave)
     this.app.destroy(true, { children: true });
   }

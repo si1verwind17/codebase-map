@@ -210,6 +210,62 @@ describe("Model caches are used", () => {
     expect(spy.mock.calls.length).toBeLessThan(2 * drawn);
   });
 
+  it("bundles on a floor lifts only the ends of relations that show on it: none that stays inside one of its items", () => {
+    for (const load of [() => JSON.parse(DEMO_TEXT) as CodeMap, () => grouped(DEMO_TEXT)]) {
+      const ref = new Model(load()), model = new Model(load());
+      let internal = 0;
+      for (const c of floors(model)) {
+        if (c === SITE) continue;
+        const allowed = new Set<string>();
+        for (const r of model.map.relations) {
+          const a = ref.liftTo(c, r.from), b = ref.liftTo(c, r.to);
+          if ((a || b) && a !== b) { allowed.add(r.from); allowed.add(r.to); } else if (a) internal++;
+        }
+        const spy = vi.spyOn(model, "liftTo");
+        model.bundles(c);
+        const lifted = spy.mock.calls.filter(([cc]) => cc === c).map(([, id]) => id);
+        spy.mockRestore();
+        expect(lifted.filter((id) => !allowed.has(id)), c).toEqual([]);
+      }
+      expect(internal).toBeGreaterThan(0);   // the maps have relations inside one item of a floor to skip
+    }
+  });
+
+  it("prepare builds what bundles reads a slice at a time, and the floors come out as when it is built at once", () => {
+    const sliced = m(), whole = m(), none = { timeRemaining: () => 0 };
+    let steps = 0;
+    while (sliced.prepare(none)) steps++;
+    expect(steps).toBeGreaterThan(1);
+    expect(sliced.prepare(none)).toBe(false);
+    for (const c of floors(whole)) expect(sliced.bundles(c), c).toEqual(whole.bundles(c));
+  });
+
+  it("a floor asked for before prepare is done finishes the build first", () => {
+    const part = m(), whole = m();
+    expect(part.prepare({ timeRemaining: () => 0 })).toBe(true);
+    for (const c of floors(whole)) expect(part.bundles(c), c).toEqual(whole.bundles(c));
+    expect(part.prepare()).toBe(false);
+  });
+
+  it("every door's landing on a floor asks each relation leaving it for its anchor at most once", () => {
+    const model = m();
+    const busy = floors(model).filter((c) => model.bundles(c).doors.length >= 2)
+      .sort((a, b) => model.bundles(b).outward.length - model.bundles(a).outward.length || a.localeCompare(b))[0];
+    const { doors, outward } = model.bundles(busy);
+    const spy = vi.spyOn(model, "anchorFor");
+    for (const d of doors) model.doorLanding(busy, d.anchor);
+    expect(spy.mock.calls.filter(([c]) => c === busy).length).toBeLessThanOrEqual(outward.length);
+  });
+
+  it("relationsOf one method does not walk every relation's containers", () => {
+    const model = m();
+    const method = model.map.nodes.find((n) => n.kind === "method" && model.relationsOf(n.id).length)!.id;
+    const fresh = m();
+    const spy = vi.spyOn(fresh as unknown as { insideOf: (id: string) => ReadonlySet<string> }, "insideOf");
+    expect(fresh.relationsOf(method)).toEqual(model.relationsOf(method));
+    expect(spy.mock.calls.length).toBeLessThan(fresh.map.relations.length);
+  });
+
   it("relationsOf and methodsIn ask isInside nothing once indexed", () => {
     const model = m(), all = ids(model);
     for (const id of all) { model.relationsOf(id); methodsIn(model, id); }
