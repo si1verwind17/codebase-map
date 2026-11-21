@@ -27,9 +27,9 @@
   let key = $derived(target ? (target.type === "node" ? target.id : target.key) : container);
   // a twin (a module this service also deploys) is shown as the package it stands for
   let real = $derived(target?.type === "node" ? (model.twinOf(target.id) ?? target.id) : undefined);
-  // on a twin: the service that also deploys it (whose floor shows it) and the one its code sits under
+  // on a twin: the service that also deploys it (its floor shows the twin or the module box holding it) and the one its code sits under
   let twinHome = $derived(target?.type === "node" && model.twinOf(target.id) ? model.path(model.floorOf(real!) ?? SITE)[1] : undefined);
-  let twinHost = $derived(twinHome && target?.type === "node" ? model.floorOf(target.id) : undefined);
+  let twinHost = $derived(twinHome && target?.type === "node" ? model.twinHost(target.id) : undefined);
   // on the real package: every service that also deploys it as a twin
   let twinnedBy = $derived(target?.type === "node" && !model.twinOf(target.id) ? model.twinDeployers(target.id) : []);
   const named = (id: string) => `${model.codes.get(id) ?? ""} ${model.label(id)}`.trim();
@@ -168,6 +168,7 @@
       <span class="code">{model.codes.get(target.id)}</span>
       <h2>{model.itemName(target.id)}</h2>
       <p class="sub">group · {model.groups.get(target.id)?.members.length} inside</p>
+      {#if model.twinModule(target.id)}{@const tm = model.twinModule(target.id)!}<p class="twin">Twins: {named(tm.host)} also deploys this module, but its code sits under {named(tm.home)}: a change to it ships in both.</p>{/if}
       <button class="open" onclick={() => onEnter(target!.id)}>Open sub-assembly</button>
       {#if onTrace}<button class="open" onclick={() => onTrace!(target!.id)} disabled={traced === target.id} title={traced === target.id ? ALREADY : undefined}>Trace</button>{/if}
     </header>

@@ -1,4 +1,4 @@
-// audit-inputs: da24cb20cbbcec0ad2a75f854397f6f38e1cc0349bbd5b026fcd85cc5ac5477b
+// audit-inputs: d8dff9a0258da3b2a2036eb98c1b3b9cdc8247d314723b052551ab7df0bece7e
 import { readFileSync } from "node:fs";
 // src/model/model.ts
 var SITE = "site";
@@ -75,6 +75,21 @@ var Model = class {
 	/** The real package a twin stands for (a module two services deploy), or undefined. */
 	twinOf(id) {
 		return this.twinHome.has(id) ? id.slice(5) : void 0;
+	}
+	/** The service that deploys twin `id` (its floor shows the twin, or a module box holding it), or undefined. */
+	twinHost(id) {
+		return this.twinHome.get(id);
+	}
+	/** On a module box (a `module` group of twins): the service that also deploys the module and the one its code sits
+	*  under; undefined on anything else. */
+	twinModule(id) {
+		const g = this.groups.get(id);
+		const t = g?.kind === "module" ? g.members.find((m) => this.twinHome.has(m)) : void 0;
+		if (!t) return void 0;
+		return {
+			host: this.twinHome.get(t),
+			home: this.path(this.floorOf(t.slice(5)) ?? "site")[1]
+		};
 	}
 	/** The services that also deploy package `id` as a twin (its code sits elsewhere), in map order; [] for none. */
 	twinDeployers(id) {
@@ -170,12 +185,12 @@ var Model = class {
 	}
 	/** The container whose floor shows `id` as an item (deepest). */
 	floorOf(id) {
+		const g = this.memberOf.get(id);
+		if (g) return g;
 		const home = this.twinHome.get(id);
 		if (home) return home;
 		const group = this.groups.get(id);
 		if (group) return group.container;
-		const g = this.memberOf.get(id);
-		if (g) return g;
 		const n = this.nodes.get(id);
 		if (!n) return void 0;
 		if (!n.parent) return SITE;

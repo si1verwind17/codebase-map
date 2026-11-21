@@ -84,12 +84,20 @@ def group_children(container: str, children: list[str], by_id: dict[str, dict],
                    limit: int = GROUP_THRESHOLD) -> tuple[list[str], list[dict]]:
     """Collapse a crowded floor to at most GROUP_THRESHOLD items. Returns (items, groups); each group is
     {id, label, members, kind}. Order: data-only classes, the largest name families while still
-    crowded, then range groups sized so everything fits (a range group's own floor is condensed again)."""
-    twins = sorted(c for c in children if c.startswith("twin:"))   # a twin stands for a module: never grouped
+    crowded, then range groups sized so everything fits (a range group's own floor is condensed again).
+    Twins share the floor with the container's own children but never a group with them (see _twin_items)."""
+    twins = sorted(c for c in children if c.startswith("twin:"))
+    if twins and len(children) > limit:
+        own = [c for c in children if not c.startswith("twin:")]
+        twin_room = _twin_room(len(own), len(twins), limit)
+        theirs = [g for g in previous or [] if all(m.startswith("twin:") for m in g["members"])]
+        mine = [g for g in previous or [] if g not in theirs]
+        t_items, t_groups = _twin_items(container, twins, by_id, theirs, twin_room)
+        items, groups = (group_children(container, own, by_id, method_count, mine, limit=limit - len(t_items))
+                         if own else ([], []))   # room the twins leave unused goes to the own children
+        return items + t_items, groups + t_groups
     if twins:
-        items, groups = group_children(container, [c for c in children if c not in twins], by_id, method_count,
-                                       previous, limit=limit - len(twins))
-        return items + twins, groups
+        return sorted(c for c in children if not c.startswith("twin:")) + twins, []
     if len(children) <= limit:
         return sorted(children), []
     groups: list[dict] = []
@@ -110,6 +118,47 @@ def group_children(container: str, children: list[str], by_id: dict[str, dict],
         groups.append({"id": f"grp:{container}:fam:{fam}", "label": f"{fam} ×{len(members)}",
                        "members": members, "kind": "family"})
         rest = [c for c in rest if c not in set(members)]
+    return _ranges(container, rest, groups, by_id, previous, limit)
+
+
+def _twin_room(own: int, twins: int, limit: int) -> int:
+    """How many of a crowded floor's items its twins get: all they need when they fit in half the floor, all
+    the own children leave when those fit in half, else a share in proportion to their count."""
+    if twins <= limit // 2 or not own:
+        return min(twins, limit)
+    if own <= limit // 2:
+        return limit - own
+    return min(limit - 1, max(1, round(limit * twins / (own + twins))))
+
+
+def _twin_items(container: str, twins: list[str], by_id: dict[str, dict], previous: list[dict],
+                room: int) -> tuple[list[str], list[dict]]:
+    """A crowded floor's twins in `room` items. On a service or library floor, one `module` group per module
+    with two or more twins (a twin stands for a module this service also deploys); otherwise, or when the
+    modules alone overflow, name ranges as for any item. A module group's own floor is never folded again."""
+    if len(twins) <= room:
+        return twins, []
+    if by_id.get(container, {}).get("kind") in ("service", "library"):
+        mods: dict[str, list[str]] = {}
+        for t in twins:
+            mods.setdefault(by_id.get(t, {}).get("module") or "", []).append(t)
+        loose = [t for m, ms in mods.items() if len(ms) < 2 or not m for t in ms]
+        groups = [{"id": f"grp:{container}:module:{m}",
+                   "label": f"{by_id[ms[0]].get('module_label') or m} ×{len(ms)}", "members": ms, "kind": "module"}
+                  for m, ms in sorted(mods.items()) if len(ms) >= 2 and m]
+        if groups and len(loose) + len(groups) <= room:
+            return loose + [g["id"] for g in groups], groups
+    return _ranges(container, twins, [], by_id, previous, room)
+
+
+def _name(by_id: dict[str, dict], c: str) -> str:
+    return by_id[c]["name"] if c in by_id else c
+
+
+def _ranges(container: str, rest: list[str], groups: list[dict], by_id: dict[str, dict],
+            previous: list[dict] | None, limit: int) -> tuple[list[str], list[dict]]:
+    """`rest` beside `groups` in at most `limit` items: the overflow goes into name ranges."""
+    groups = list(groups)
     sticky = (_sticky_ranges(rest, previous or [], by_id, limit - len(groups))
               if len(rest) + len(groups) > limit else None)   # a floor that shrank ungroups again
     if sticky is not None:   # the last map's range groups keep their ids and members; loose items stay loose
@@ -126,7 +175,7 @@ def group_children(container: str, children: list[str], by_id: dict[str, dict],
         per = -(-len(tail) // count)
         chunks, rest = [tail[i:i + per] for i in range(0, len(tail), per)], rest[:n - len(tail)]
         for chunk in chunks:
-            first, last = by_id[chunk[0]]["name"], by_id[chunk[-1]]["name"]
+            first, last = _name(by_id, chunk[0]), _name(by_id, chunk[-1])
             groups.append({"id": f"grp:{container}:range:{chunk[0]}", "label": f"{first} – {last} ×{len(chunk)}",
                            "members": chunk, "kind": "range"})
     return rest + [g["id"] for g in groups], groups
@@ -144,7 +193,7 @@ def _sticky_ranges(rest: list[str], previous: list[dict], by_id: dict[str, dict]
     out = {g: ms for g, ms in out.items() if ms}            # a group with no survivors goes
     if not out:
         return None
-    name = lambda c: by_id[c]["name"]  # noqa: E731
+    name = lambda c: _name(by_id, c)  # noqa: E731
     loose = [c for c in rest if c not in member]
     overflow = len(loose) + len(out) - slots
     if overflow > 0:

@@ -220,7 +220,7 @@ def test_an_over_grouped_floor_from_an_older_map_is_regrouped():
     assert len(groups) <= 3 and len([i for i in items if not i.startswith("grp:")]) >= 20
 
 
-def test_a_twin_on_a_crowded_floor_stays_out_of_groups(make_repo):
+def test_a_lone_twin_on_a_crowded_floor_stays_out_of_groups(make_repo):
     files = {"shared/__init__.py": "", "shared/x.py": "def f():\n    pass\n"}
     for i in range(30):   # thirty top-level modules, all run by one service: a crowded service floor
         files[f"p{i:02d}/__init__.py"] = ""
@@ -236,7 +236,7 @@ def test_a_twin_on_a_crowded_floor_stays_out_of_groups(make_repo):
     assert any(i.startswith("twin:") for i in floor["items"])
 
 
-def test_group_children_never_groups_a_twin():
+def test_group_children_keeps_a_lone_twin_loose():
     ids = [f"p{i:02d}::p{i:02d}/" for i in range(30)] + ["twin:shared::shared/"]
     by = {i: {"id": i, "kind": "package", "name": i.split("::")[-1]} for i in ids}
     items, groups = group_children("svc:big", sorted(ids), by, {})

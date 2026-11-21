@@ -130,6 +130,24 @@ describe("Model", () => {
     expect(m.kindOf(t)).toBe("package");
     expect(m.codes.get(t)).toBe(m.codes.get("worker::worker/"));
     expect(m.floorOf(t)).toBe("svc:shop");
+    expect(m.twinHost(t)).toBe("svc:shop");
+  });
+
+  it("finds a twin inside a module box on the box's floor, deployed by the service whose floor holds the box", () => {
+    const twinned = structuredClone(map);
+    const t = "twin:worker::worker/", gid = "grp:svc:shop:module:worker";
+    twinned.nodes.find((n) => n.id === "svc:shop")!.twins = ["worker::worker/"];
+    const shopFloor = twinned.layout.containers["svc:shop"];
+    shopFloor.items[gid] = { region: "line", col: 5, row: 0 };
+    shopFloor.groups = [...(shopFloor.groups ?? []), { id: gid, label: "worker ×1", members: [t], kind: "module" }];
+    twinned.layout.containers[gid] = { strategy: "layered", items: { [t]: { region: "line", col: 0, row: 0 } }, lanes: [], groups: [], utilities: [], hubs: [] };
+    const m = new Model(twinned);
+    expect(m.floorOf(t)).toBe(gid);
+    expect(m.twinHost(t)).toBe("svc:shop");
+    expect(m.path(gid)).toEqual([SITE, "svc:shop", gid]);
+    expect(m.twinHost("worker::worker/")).toBeUndefined();
+    expect(m.twinModule(gid)).toEqual({ host: "svc:shop", home: "svc:worker" });
+    expect(m.twinModule(t)).toBeUndefined();
   });
 
   it("lists every service that deploys a package as a twin, none for a package no service twins", () => {

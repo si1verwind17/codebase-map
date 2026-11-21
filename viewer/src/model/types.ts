@@ -78,7 +78,7 @@ export interface EntryExample { node: string; key: string; request: unknown; res
 export interface Examples { types: Record<string, TypeExample>; entries: EntryExample[] }
 
 export interface Cell { region: string; col: number; row: number }
-export interface Group { id: string; label: string; members: string[]; kind: "data" | "family" | "range" }
+export interface Group { id: string; label: string; members: string[]; kind: "data" | "family" | "range" | "module" }
 export interface Floor {
   strategy: "main-bus" | "city-grid" | "bands" | "layered" | "shelves";
   items: Record<string, Cell>;

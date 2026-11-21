@@ -43,7 +43,7 @@ body, implements, when the name resolves; `InvoiceRepo.Live` → `["billing::cit
 in Go, every repo interface whose methods it has, by name and arity; `calls` counts a trait method and its
 implementations' same-named methods as one target, drawn to the trait method, also when the implementation sits
 below a class that does not declare the method; a trace continues from it into each implementation), `twins` on a service that also deploys another service's
-module (root package ids; its floor shows them as `twin:<id>` items), `role` on packages (`entry`, `logic`, `outbound`,
+module (root package ids; its floor shows them as `twin:<id>` items, in `module` groups when they crowd it), `role` on packages (`entry`, `logic`, `outbound`,
 `storage`, `model`; `role_why` when overridden), `tags`, `summary`,
 `delivery` on topics (`fan-out` or `queue`; absent means `fan-out`) and on in-process queues (required there), `dead_letter_of` on a topic (the
 topic whose failures land there), `replicas` on services (integer ≥ 1),
@@ -294,7 +294,11 @@ Each floor: `strategy`, `items` (`{id: {region, col, row}}`), `lanes`,
   database lanes; the layout does it only when its estimated line crossings
   drop by at least 2 and a quarter (at most 2 per floor, kept on rescans). A
   service's floor also holds `twin:<package id>` items for modules it shares
-  with another service (see `twins`). `hubs`:
+  with another service (see `twins`); they never share a group with the floor's own items. On a crowded floor the
+  twins get all the room they need when they fit in half the floor, all the own items leave when those fit in half,
+  else a share in proportion to their count. Twins that fit their room stay loose; otherwise they go into one
+  `module` group per module with two or more of them (label `<module> ×N`, the top folder named after the
+  repository; name ranges when the modules alone overflow), and the own items get the room the twins leave. `hubs`:
   heavily shared items (fan-in ≥ 8); the viewer keeps every line into and out
   of each such item out of the base (batch rails excepted: they stay in the
   base with their yard) and shows them in that item's extra layer, named by
@@ -307,8 +311,8 @@ Each floor: `strategy`, `items` (`{id: {region, col, row}}`), `lanes`,
   `lane`, see above); its row is kept across rescans.
 - **`utilities`** (`site` only): externals called by three or more services
   and nothing else. They have no cell: draw them as badges on their callers.
-- **`groups`**: `[{id, label, members, kind}]` with `kind` `data`, `family`
-  or `range`. A group is an item on its floor, its members are not, and the
+- **`groups`**: `[{id, label, members, kind}]` with `kind` `data`, `family`,
+  `range` or `module` (a service's twins of one module). A group is an item on its floor, its members are not, and the
   group is itself a container whose floor is laid out (and condensed) the
   same way.
 - **Invariants** checked by `validate.py`: every item is a node or group, no

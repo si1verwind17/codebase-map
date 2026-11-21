@@ -66,6 +66,29 @@ describe("a container's seeds (spec A3)", () => {
     expect(seedsFor(b.model(), idle)).toEqual({ ids: [idle], rule: "container" });
   });
 
+  it("a module box of twins starts where the packages its twins stand for start, as one container", () => {
+    const { b, lib, a, inner, pkg } = shelf();
+    const host = b.owner("host"), other = b.owner("tools", "library");
+    const tool = b.method(other, "Cli", "main");
+    b.rel("calls", tool, inner);   // into util from tools: across the box's edge once tools' package is in the box too
+    b.nodes.find((n) => n.id === host)!.twins = [pkg, "tools::pkg/"];
+    const box = (members: string[]) => ({ layout: { version: 1, containers: {
+      site: { strategy: "main-bus", items: {} },
+      [host]: { strategy: "bands", items: { "grp:svc:host:module:x": { region: "line", col: 0, row: 0 } },
+        groups: [{ id: "grp:svc:host:module:x", label: "x ×2", members, kind: "module" }] },
+      "grp:svc:host:module:x": { strategy: "layered", items: Object.fromEntries(members.map((t, i) => [t, { region: "line", col: i, row: 0 }])) },
+    } } }) as never;
+    b.extra = box([`twin:${pkg}`]);
+    expect(seedsFor(b.model(), "grp:svc:host:module:x")).toEqual(seedsFor(b.model(), pkg));
+    expect(seedsFor(b.model(), "grp:svc:host:module:x").ids).toContain(a);
+    b.extra = box([`twin:${pkg}`, "twin:tools::pkg/"]);   // tools -> util stays inside the box: only app's call crosses
+    expect(seedsFor(b.model(), "grp:svc:host:module:x")).toEqual({ ids: [a], rule: "boundary methods" });
+    const t = b.node({ id: "topic:kafka:jobs", kind: "topic", name: "jobs" });
+    b.rel("event", t, inner, { key: "jobs" });
+    expect(seedsFor(b.model(), "grp:svc:host:module:x")).toEqual({ ids: [inner], rule: "entry points" });
+    expect(lib).toBe("lib:util");
+  });
+
   it("a floor group is a container of its members; with nothing in them it starts at its members", () => {
     const { b, a, pkg } = shelf();
     b.extra = { layout: { version: 1, containers: { site: { strategy: "main-bus", items: {}, groups: [

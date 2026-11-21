@@ -383,6 +383,14 @@ def _lift_busy(items: dict[str, dict], edges: list[tuple[str, str]], prev: dict 
     return lanes
 
 
+def module_label(module_path: str, repo: str | None) -> str:
+    """A module's name for people: its path, the repository's name for the top folder, and the language when
+    the scanner split one folder by language (`.#typescript` -> `shop (typescript)`)."""
+    path, _, lang = module_path.partition("#")
+    name = (repo or path) if path == "." else path
+    return f"{name} ({lang})" if lang else name
+
+
 # ---------------------------------------------------------------- entry point
 def layout(cmap: dict, roles: dict[str, str], previous: dict | None = None) -> dict:
     by_id = {n["id"]: n for n in cmap["nodes"]}
@@ -395,7 +403,9 @@ def layout(cmap: dict, roles: dict[str, str], previous: dict | None = None) -> d
         for t in n.get("twins", []):   # a module this service also deploys: a twin of its root package
             tid = f"twin:{t}"
             children.setdefault(n["id"], []).append(tid)
-            by_id[tid] = {**by_id[t], "id": tid, "parent": n["id"]}
+            mod = t.split("::")[0]
+            by_id[tid] = {**by_id[t], "id": tid, "parent": n["id"], "module": mod,
+                          "module_label": module_label(mod, cmap.get("meta", {}).get("repo"))}
         if n["kind"] == "method" and n.get("parent"):
             method_count[n["parent"]] = method_count.get(n["parent"], 0) + 1
     paths: dict[str, list[str]] = {}

@@ -1,5 +1,6 @@
 // Where a trace starts: any box. A method, table, topic or external starts at itself, a
-// datastore at its tables; a service, library, package, file, class or floor group at the entry points inside it, else
+// datastore at its tables; a service, library, package, file, class or floor group (a group of twins: the packages they
+// stand for) at the entry points inside it, else
 // at its boundary methods (methods inside it at one end of a traced relation whose other end is outside it), else at
 // itself; a line at the nodes at both ends of what it carries. An entry point is a route's handler (`files[].routes`) or
 // a method a request, event, stream or batch arrives at. The Python checklist uses the same rule (vizcode/map/examples.seeds).
@@ -30,9 +31,14 @@ const mounted = (key: string, method: string, path: string): boolean => {
 
 /** The entry points inside service or library `owner`, each with the keys that arrive there, sorted by key. */
 export function entryPoints(model: Model, owner: string): EntryPoint[] {
+  return entryPointsIn(model, [owner]);
+}
+
+/** The entry points inside any of `owners`, taken as one container: as `entryPoints`. */
+function entryPointsIn(model: Model, owners: readonly string[]): EntryPoint[] {
   const keys = new Map<string, Set<string>>();
   const add = (node: string, key?: string) => {
-    if (model.nodes.get(node)?.kind !== "method" || !model.isInside(node, owner)) return;
+    if (model.nodes.get(node)?.kind !== "method" || !owners.some((o) => model.isInside(node, o))) return;
     const s = keys.get(node) ?? new Set<string>();
     if (key) s.add(key);
     keys.set(node, s);
@@ -75,10 +81,16 @@ export function lineStart(model: Model, key: string, relations: readonly Relatio
 /** The methods inside container `id` at one end of a relation a trace follows whose other end is outside it (spec A3),
  *  in code order. */
 export function boundaryMethods(model: Model, id: string): string[] {
-  const inside = new Set(model.descendants(id));
-  const within = (x: string) => x === id || inside.has(x);
+  return boundaryIn(model, [id]);
+}
+
+/** The methods inside any of `ids`, taken as one container: as `boundaryMethods`. One id reads its own relations;
+ *  several (a module box's packages) read the map's once rather than each package's. */
+function boundaryIn(model: Model, ids: readonly string[]): string[] {
+  const inside = new Set(ids.flatMap((id) => model.descendants(id))), own = new Set(ids);
+  const within = (x: string) => own.has(x) || inside.has(x);
   const out = new Set<string>();
-  for (const r of model.relationsOf(id)) {   // every relation with an end inside `id`, in map order
+  for (const r of ids.length === 1 ? model.relationsOf(ids[0]) : model.map.relations) {
     if (!TRACE_KINDS.includes(r.kind)) continue;
     for (const [end, other] of [[r.from, r.to], [r.to, r.from]] as const)
       if (model.nodes.get(end)?.kind === "method" && inside.has(end) && !within(other)) out.add(end);
@@ -97,12 +109,15 @@ export function seedsFor(model: Model, focus: string, line?: LineStart): Seeds {
     if (tables.length) return { ids: tables, rule: "tables" };
   }
   if (CONTAINERS.has(kind)) {
-    const entries = entryPoints(model, focus).map((e) => e.node);
-    if (entries.length) return { ids: entries, rule: "entry points" };
-    const edge = boundaryMethods(model, focus);
-    if (edge.length) return { ids: edge, rule: "boundary methods" };
+    // a group of twins (a module box) stands for the packages its twins stand for, taken as one container
     const group = model.groups.get(focus);
-    return { ids: group ? group.members.filter((x) => model.nodes.has(x)) : [focus], rule: "container" };
+    const twins = !!group?.members.some((m) => model.twinOf(m));
+    const owners = twins ? group!.members.map((m) => model.twinOf(m) ?? m) : [focus];
+    const entries = entryPointsIn(model, owners).map((e) => e.node);
+    if (entries.length) return { ids: entries, rule: "entry points" };
+    const edge = boundaryIn(model, owners);
+    if (edge.length) return { ids: edge, rule: "boundary methods" };
+    return { ids: group ? (twins ? owners : group.members).filter((x) => model.nodes.has(x)) : [focus], rule: "container" };
   }
   return { ids: model.nodes.has(focus) ? [focus] : [], rule: "self" };
 }

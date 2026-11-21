@@ -55,7 +55,7 @@ export class Model {
   readonly groups = new Map<string, Group & { container: string }>();
   readonly codes = new Map<string, string>();
   private memberOf = new Map<string, string>();
-  private twinHome = new Map<string, string>();   // "twin:<pkg>" -> the service floor that shows it
+  private twinHome = new Map<string, string>();   // "twin:<pkg>" -> the service that deploys it
   private twinnedBy = new Map<string, string[]>();   // <pkg> -> the services that also deploy it as a twin, in map order
   private implementers = new Map<string, string[]>();   // trait/class id -> ids of the classes that implement it
   private landings = new Map<string, { floor: string; door: string } | undefined>();   // "<container>|<anchor>" -> doorLanding
@@ -91,6 +91,20 @@ export class Model {
   /** The real package a twin stands for (a module two services deploy), or undefined. */
   twinOf(id: string): string | undefined {
     return this.twinHome.has(id) ? id.slice(5) : undefined;
+  }
+
+  /** The service that deploys twin `id` (its floor shows the twin, or a module box holding it), or undefined. */
+  twinHost(id: string): string | undefined {
+    return this.twinHome.get(id);
+  }
+
+  /** On a module box (a `module` group of twins): the service that also deploys the module and the one its code sits
+   *  under; undefined on anything else. */
+  twinModule(id: string): { host: string; home: string } | undefined {
+    const g = this.groups.get(id);
+    const t = g?.kind === "module" ? g.members.find((m) => this.twinHome.has(m)) : undefined;
+    if (!t) return undefined;
+    return { host: this.twinHome.get(t)!, home: this.path(this.floorOf(t.slice(5)) ?? SITE)[1] };
   }
 
   /** The services that also deploy package `id` as a twin (its code sits elsewhere), in map order; [] for none. */
@@ -193,12 +207,12 @@ export class Model {
 
   /** The container whose floor shows `id` as an item (deepest). */
   floorOf(id: string): string | undefined {
+    const g = this.memberOf.get(id);   // first: a twin may sit in a module box on its service's floor
+    if (g) return g;
     const home = this.twinHome.get(id);
     if (home) return home;
     const group = this.groups.get(id);
     if (group) return group.container;
-    const g = this.memberOf.get(id);
-    if (g) return g;
     const n = this.nodes.get(id);
     if (!n) return undefined;
     if (!n.parent) return SITE;

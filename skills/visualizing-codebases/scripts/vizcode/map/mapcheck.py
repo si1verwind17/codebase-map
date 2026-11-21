@@ -164,14 +164,24 @@ def _check_layout(cmap: dict, nodes: dict[str, dict]) -> list[str]:
     errors = []
     containers = cmap["layout"]["containers"]
     groups = {g["id"]: g for c in containers.values() for g in c.get("groups", [])}
+    group_floor = {g["id"]: cid for cid, c in containers.items() for g in c.get("groups", [])}
+
+    def base(cid: str) -> str:
+        """The node whose floor a group floor condenses (a group's floor may sit inside another group's)."""
+        seen = set()
+        while cid in group_floor and cid not in seen:
+            seen.add(cid)
+            cid = group_floor[cid]
+        return cid
+
     for cid, c in containers.items():
         if cid != "site" and cid not in nodes and cid not in groups:
             errors.append(f"layout: container {cid} is not a node")
         cells = {}
         for iid, p in c["items"].items():
             if iid.startswith("twin:"):
-                if iid[5:] not in (nodes.get(cid) or {}).get("twins", []):
-                    errors.append(f"layout {cid}: item {iid} is not a twin of {cid}")
+                if iid[5:] not in (nodes.get(base(cid)) or {}).get("twins", []):
+                    errors.append(f"layout {cid}: item {iid} is not a twin of {base(cid)}")
             elif iid not in nodes and iid not in groups:
                 errors.append(f"layout {cid}: item {iid} is not a node")
             if p["region"] == "lane" and not any(l["id"] == iid for l in c.get("lanes", [])):
