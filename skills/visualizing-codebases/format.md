@@ -2,7 +2,8 @@
 
 `code-map.json` = `meta` + `nodes` + `relations` + `pins` + `unpinned` +
 `examples` + `files` + `problems` + `layout`. The JSON Schema is `scripts/schema/code-map.schema.json`;
-`scripts/validate.py` also checks the rules a schema cannot express.
+`scripts/validate.py` also checks the rules a schema cannot express. `assemble.py` writes it with no indentation, one
+record per line (a node, a relation, a floor, a file's facts), so a line search finds one record per hit.
 You write only `meaning.json`; `assemble.py` combines it with the structure pass.
 
 ## meta

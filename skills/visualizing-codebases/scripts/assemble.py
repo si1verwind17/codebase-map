@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import audit  # noqa: E402
 import view  # noqa: E402
 from vizcode import gitsrc  # noqa: E402
-from vizcode.map import mapcheck  # noqa: E402
+from vizcode.map import mapcheck, mapjson  # noqa: E402
 from vizcode.map.assemble import assemble, ensure_repo_files, evidence_errors, meaning_errors  # noqa: E402
 
 
@@ -66,10 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     errors = mapcheck.check(cmap)
     ensure_repo_files(a.repo, out_dir)
     if errors:
-        (out / "code-map.invalid.json").write_text(json.dumps(cmap, indent=1), encoding="utf-8")
+        (out / "code-map.invalid.json").write_text(mapjson.dumps(cmap), encoding="utf-8")
         print("\n".join(errors), file=sys.stderr)
         return 1
-    (out / "code-map.json").write_text(json.dumps(cmap, indent=1), encoding="utf-8")
+    (out / "code-map.json").write_text(mapjson.dumps(cmap), encoding="utf-8")
     (out / "code-map.invalid.json").unlink(missing_ok=True)
     print(json.dumps(mapcheck.stats(cmap)))
     try:
